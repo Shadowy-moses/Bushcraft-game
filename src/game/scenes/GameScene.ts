@@ -262,7 +262,6 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     const dt = Math.min(0.05, delta / 1000);
     this.stepMove(dt);
-    this.panWhilePlacing(dt);
     if (this.started && !this.hidden && this.sheet === 'none' && !this.placing && this.state.outcome === 'playing') {
       const waiting = this.resting && canWaitForDawn(this.state);
       let rate: number = PLAY_MINUTES_PER_SECOND;
@@ -937,6 +936,7 @@ export class GameScene extends Phaser.Scene {
     sprite.setPosition(Math.round(at.x), Math.round(at.y));
     sprite.setDepth(20000);
     sprite.setVisible(true);
+    this.keepGhostInView(at, this.placing === 'shelter');
     this.placeValid = spot.ok;
     this.placeHint = spot.reason;
     if (this.state.tip !== spot.reason) this.setTip(spot.reason);
@@ -983,22 +983,34 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private panWhilePlacing(dt: number): void {
-    if (!this.placing || !this.pointer.down) return;
+  /** Slide the camera just enough that the whole ghost stays between the bars. */
+  private keepGhostInView(at: { x: number; y: number }, wide: boolean): void {
     const cam = this.cameras.main;
     const top = document.getElementById('top-bar');
     const bottom = document.getElementById('bottom-bar');
     const topH = top && !top.hidden ? top.offsetHeight : 0;
     const bottomH = bottom && !bottom.hidden ? bottom.offsetHeight : 0;
-    const margin = 36;
+    const zoom = cam.zoom;
+    const originX = cam.width * 0.5;
+    const originY = cam.height * 0.5;
+    const screenX = (at.x - cam.scrollX) * zoom + originX * (1 - zoom);
+    const screenY = (at.y - cam.scrollY) * zoom + originY * (1 - zoom);
+    const halfW = (wide ? 34 : 18) * zoom;
+    const up = (wide ? 42 : 34) * zoom;
+    const down = 14 * zoom;
+    const margin = 8;
+    const minX = margin;
+    const maxX = cam.width - margin;
+    const minY = topH + margin;
+    const maxY = cam.height - bottomH - margin;
     let dx = 0;
     let dy = 0;
-    if (this.pointer.x < margin) dx = -1;
-    else if (this.pointer.x > cam.width - margin) dx = 1;
-    if (this.pointer.y < topH + margin) dy = -1;
-    else if (this.pointer.y > cam.height - bottomH - margin) dy = 1;
+    if (screenX - halfW < minX) dx = screenX - halfW - minX;
+    else if (screenX + halfW > maxX) dx = screenX + halfW - maxX;
+    if (screenY - up < minY) dy = screenY - up - minY;
+    else if (screenY + down > maxY) dy = screenY + down - maxY;
     if (dx === 0 && dy === 0) return;
-    cam.scrollX = clamp(cam.scrollX + dx * 90 * dt, -420, 420);
-    cam.scrollY = clamp(cam.scrollY + dy * 90 * dt, -220, 420);
+    cam.scrollX += dx / zoom;
+    cam.scrollY += dy / zoom;
   }
 }
