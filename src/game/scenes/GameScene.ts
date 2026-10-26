@@ -63,9 +63,13 @@ declare global {
       chop: (id: string) => string;
       jump: (minutes: number) => void;
       teleport: (tx: number, ty: number) => void;
+      resolve: (x: number, y: number) => { tx: number; ty: number };
+      target: (x: number, y: number) => { tx: number; ty: number; prop: string | null };
+      tryWalk: (tx: number, ty: number) => { ok: boolean; tip: string; tx: number; ty: number };
       screenOf: (tx: number, ty: number) => { x: number; y: number };
       fill: () => void;
       beginPlace: (kind: PieceKind) => void;
+      ghost: () => { kind: PieceKind | null; tx: number; ty: number; edge: EdgeName; valid: boolean };
       moveGhost: (tx: number, ty: number) => void;
       flipGhost: () => void;
       confirmPlace: () => void;
@@ -108,6 +112,8 @@ export class GameScene extends Phaser.Scene {
   private pointer = { x: 0, y: 0, down: false };
   private pose: 'idle' | 'walk' | 'gather' | 'chop' = 'idle';
   private poseUntil = 0;
+  /** Tree that stays standing until the felling swing finishes. */
+  private chopTarget: string | null = null;
   private path: { tx: number; ty: number }[] = [];
   private from = { x: 0, y: 0 };
   private to = { x: 0, y: 0 };
@@ -222,6 +228,20 @@ export class GameScene extends Phaser.Scene {
         this.player.setDepth(depthFor(pos.y, 6));
         this.afterChange();
       },
+      resolve: (x: number, y: number) => {
+        const world = this.cameras.main.getWorldPoint(x, y);
+        return worldToTile(world.x, world.y);
+      },
+      target: (x: number, y: number) => {
+        const world = this.cameras.main.getWorldPoint(x, y);
+        const prop = this.propAtPoint(world.x, world.y);
+        const tile = worldToTile(world.x, world.y);
+        return { tx: tile.tx, ty: tile.ty, prop: prop?.id ?? null };
+      },
+      tryWalk: (tx: number, ty: number) => {
+        const ok = this.walkTo(tx, ty);
+        return { ok, tip: this.state.tip, tx: this.state.tx, ty: this.state.ty };
+      },
       screenOf: (tx: number, ty: number) => {
         const pos = tileToWorld(tx, ty);
         const camera = this.cameras.main;
@@ -243,6 +263,13 @@ export class GameScene extends Phaser.Scene {
       },
       flipGhost: () => this.handleAction('flip'),
       confirmPlace: () => this.handleAction('confirm'),
+      ghost: () => ({
+        kind: this.placing,
+        tx: this.ghostAnchor.tx,
+        ty: this.ghostAnchor.ty,
+        edge: this.ghostEdge,
+        valid: this.placeValid,
+      }),
       look: () => ({
         facing: this.state.facing,
         pose: this.pose,
@@ -448,7 +475,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private isGone(prop: Prop): boolean {
-    if (this.isTree(prop) && isFelled(this.state.trees, prop.id)) return true;
+    if (this.isTree(prop) && isFelled(this.state.trees, prop.id)) {
+      return this.chopTarget !== prop.id;
+    }
     return Boolean(this.state.picked[prop.id]) && this.removable(prop.kind);
   }
 
@@ -484,6 +513,7 @@ export class GameScene extends Phaser.Scene {
       }
       this.state = result.state;
       this.faceTile(prop.tx, prop.ty);
+      if (result.popup) this.chopTarget = prop.id;
       this.playPose('chop');
       if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
       this.afterChange();
@@ -594,8 +624,14 @@ export class GameScene extends Phaser.Scene {
 
   private expirePose(): void {
     if ((this.pose === 'gather' || this.pose === 'chop') && this.time.now >= this.poseUntil) {
+      const reveal = this.pose === 'chop' && this.chopTarget;
       this.pose = 'idle';
+      this.chopTarget = null;
       this.showIdle();
+      if (reveal) {
+        this.syncProps();
+        this.syncStumps();
+      }
     }
   }
 
@@ -762,7 +798,7 @@ export class GameScene extends Phaser.Scene {
         stump.setDepth(depthFor(pos.y, 2));
         this.stumps.set(prop.id, stump);
       }
-      stump.setVisible(true);
+      stump.setVisible(this.chopTarget !== prop.id);
     }
     for (const [id, stump] of this.stumps) {
       if (!felled.has(id)) stump.setVisible(false);
@@ -1054,6 +1090,7 @@ export class GameScene extends Phaser.Scene {
     const prop = PROPS.find((item) => item.id === id);
     this.state = result.state;
     if (prop) this.faceTile(prop.tx, prop.ty);
+    if (result.popup) this.chopTarget = id;
     this.playPose('chop');
     if (result.popup && prop) this.popup(result.popup, prop.tx, prop.ty);
     this.afterChange();
