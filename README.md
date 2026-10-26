@@ -6,17 +6,17 @@ You can play it in Safari on an iPhone, or in a desktop browser. Progress is sav
 
 ## How to play
 
-Tap the ground to walk. Tap sticks, stones, nettles, birch trees, and leaf piles to pick them up.
+Tap the ground to walk. Tap sticks, stones, nettles, birch trees, and leaf piles to pick them up. What you are carrying sits in the six slots along the bottom. Warmth, energy, and health sit in the corner, with a short line such as Cold or Sheltered. The clock is at the top.
 
-Tap **Craft** when you want to build.
+Tap the bag to open your inventory and the crafting bench.
 
-- Twist two strands of fiber into cordage. Twist them one way, then wrap them the other way. That lock is a reverse wrap.
-- Place a lean-to. A ghost of it follows your finger. Green ground is clear. Red ground is blocked, on either of the two tiles it covers. Flip it if you need the open side the other way, then confirm. The woodsman walks over and raises the ridge pole there. Lash it with the cordage (a square lashing), lean ribs against it, then cover the ribs with leaves.
-- Place a fire the same way, and ring it with dry stones. Add birch-bark tinder, then kindling, then fuel. Choose a tipi or a log cabin, and light it.
+- Cordage is under Resources. It takes a few seconds: twist two strands one way, then wrap them the other way. That lock is a reverse wrap. The queue shows the progress.
+- Lean-to is under Construction. Crafting it puts a ghost on the ground. Green ground is clear. Red ground is blocked, on either of the two tiles it covers. Flip it if you need the open side the other way, then confirm. The woodsman walks over and raises the ridge pole there. Lash it with the cordage (a square lashing), lean ribs against it, then cover the ribs with leaves.
+- Fire ring, tipi, and log cabin are under Fire. Choosing one before the ring is down places the fire on one tile. Then add birch-bark tinder, kindling, the lay, and a light.
 
 Night takes your warmth. The finished shelter warms you when you stay near it, and the fire warms you when you stay near the fire. If warmth runs out, the night wins. If you are still warm at dawn, you made it.
 
-Tap **Rest** to catch your breath. Once the camp is ready, that button becomes **Wait for dawn**.
+**Rest** sits under the vitals. Once the camp is ready, that button becomes **Wait for dawn**.
 
 ## On an iPhone
 
@@ -26,7 +26,7 @@ Play it at https://shadowy-moses.github.io/Bushcraft-game/. Pages deploys from G
 
 ## Pictures
 
-The painted tiles live in `assets/spritesheet.png` and `assets/spritesheet.json`. The woodsman turns to the direction he walks. When that direction is painted on the sheet, the game shows it instead of flipping the picture. Standing still plays that direction’s idle, and walking plays its walk. Picking something up holds the gather pose. Building the lean-to or the fire holds the chop pose. Gather and chop are painted for the two near sides, so the far sides reuse the matching near pose. Each frame’s `anchor` (or `anchorPx`) is the spot where it meets the ground, and the game uses that. The older woodsman names still mean the southeast view. Tiles are 32×16 and drawn at 3× with crisp pixels. There are no soft shadows; the ground tile under an object is darkened instead.
+The painted tiles live in `assets/spritesheet.png` and `assets/spritesheet.json`. The woodsman turns to the direction he walks. When that direction is painted on the sheet, the game shows it instead of flipping the picture. Standing still plays that direction’s idle, and walking plays its walk. Picking something up holds the gather pose. Building the lean-to or the fire holds the chop pose. Gather and chop use the painted frame for that facing when the sheet includes one. Those poses are drawn for the two near sides, and the far sides reuse the matching near pose. Each frame’s `anchor` (or `anchorPx`) is the spot where it meets the ground, and the game uses that. The older woodsman names still mean the southeast view. Tiles are 32×16 and drawn at 3× with crisp pixels. There are no soft shadows; the ground tile under an object is darkened instead.
 
 `assets/standins/` is only the in-between lean-to (ridge pole, then the lashing), leaf piles, and the tile you are walking to. Swap those files when real art arrives. `assets/standins/origins.json` is where each one sits on the ground.
 

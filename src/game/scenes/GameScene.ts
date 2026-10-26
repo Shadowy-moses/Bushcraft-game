@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { frameOrigin, standinOrigin } from '../atlas';
 import {
   COLS,
+  CORDAGE_ENERGY,
+  FIBER_CORD,
   FIRE_ENERGY,
   PLAY_MINUTES_PER_SECOND,
   REST_ENERGY_PER_SECOND,
@@ -13,6 +15,7 @@ import {
   WAIT_MINUTES_PER_SECOND,
   ZOOM,
 } from '../constants';
+import { CORDAGE_SECONDS } from '../craft';
 import { HEADING, REST_TIP, TOO_COLD, WAIT_TIP } from '../copy';
 import { shelterFootprint, shelterWorld } from '../footprint';
 import { clamp, depthFor, tileToWorld, worldToTile } from '../iso';
@@ -118,6 +121,7 @@ export class GameScene extends Phaser.Scene {
   private pointer = { x: 0, y: 0, down: false };
   private pose: 'idle' | 'walk' | 'gather' | 'chop' = 'idle';
   private poseUntil = 0;
+  private craftJob: { elapsed: number; duration: number; didTwist: boolean } | null = null;
   private path: { tx: number; ty: number }[] = [];
   private from = { x: 0, y: 0 };
   private to = { x: 0, y: 0 };
@@ -155,6 +159,7 @@ export class GameScene extends Phaser.Scene {
     this.kindlingSprites = [];
     this.pose = 'idle';
     this.poseUntil = 0;
+    this.craftJob = null;
     const saved = loadGame();
     if (saved) {
       this.state = saved;
@@ -291,6 +296,7 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(0.05, delta / 1000);
     this.stepMove(dt);
     this.expirePose();
+    this.stepCraft(dt);
     if (this.started && !this.hidden && this.sheet === 'none' && !this.placing && this.state.outcome === 'playing') {
       const waiting = this.resting && canWaitForDawn(this.state);
       let rate: number = PLAY_MINUTES_PER_SECOND;
@@ -680,8 +686,12 @@ export class GameScene extends Phaser.Scene {
       if (this.placing) this.endPlace();
       this.resting = false;
       this.stopWalk();
-      this.sheet = id;
+      this.sheet = 'craft';
       this.paintHud(true);
+      return;
+    }
+    if (id === 'craft-cordage') {
+      this.beginCordage();
       return;
     }
     if (id === 'place-shelter' || id === 'place-fire') {
@@ -933,7 +943,73 @@ export class GameScene extends Phaser.Scene {
   }
 
   private paintHud(rebuild: boolean): void {
-    this.hud.render(buildModel(this.state, this.sheet, this.resting, this.placeModel()), rebuild);
+    this.hud.render(buildModel(this.state, this.sheet, this.resting, this.placeModel(), this.queueModel()), rebuild);
+  }
+
+  private queueModel(): { label: string; progress: number } | null {
+    const job = this.craftJob;
+    if (!job) return null;
+    const progress = Math.max(0, Math.min(1, job.elapsed / job.duration));
+    const label = job.didTwist || progress >= 0.5 ? 'Wrapping the other way' : 'Twisting the strands';
+    return { label, progress };
+  }
+
+  private beginCordage(): void {
+    if (!this.started || this.state.outcome !== 'playing') return;
+    if (this.craftJob) {
+      this.setTip('Already working a cord.');
+      return;
+    }
+    if (this.state.inventory.cordage >= 1) {
+      this.setTip('You already have cordage.');
+      return;
+    }
+    if (!this.state.cordageTwisted) {
+      if (this.state.inventory.fiber < FIBER_CORD) {
+        this.setTip(`Needs ${FIBER_CORD} fiber. You have ${this.state.inventory.fiber}.`);
+        return;
+      }
+      if (this.state.energy < CORDAGE_ENERGY) {
+        this.setTip('Rest first. This takes some energy.');
+        return;
+      }
+    }
+    this.craftJob = {
+      elapsed: this.state.cordageTwisted ? CORDAGE_SECONDS * 0.5 : 0,
+      duration: CORDAGE_SECONDS,
+      didTwist: this.state.cordageTwisted,
+    };
+    this.sheet = 'craft';
+    this.setTip('Twist each strand the same way. Then wrap the pair the other way.');
+  }
+
+  private stepCraft(dt: number): void {
+    const job = this.craftJob;
+    if (!job || !this.started || this.state.outcome !== 'playing') return;
+    job.elapsed += dt;
+    if (!job.didTwist && job.elapsed >= job.duration * 0.5) {
+      const twisted = applyAction(this.state, 'cordage-twist');
+      if (!twisted.ok) {
+        this.craftJob = null;
+        this.setTip(twisted.message);
+        return;
+      }
+      this.state = twisted.state;
+      job.didTwist = true;
+      saveGame(this.state);
+    }
+    if (job.elapsed < job.duration) {
+      this.paintHud(false);
+      return;
+    }
+    this.craftJob = null;
+    const wrapped = applyAction(this.state, 'cordage-wrap');
+    if (!wrapped.ok) {
+      this.setTip(wrapped.message);
+      return;
+    }
+    this.state = wrapped.state;
+    this.afterChange();
   }
 
   private placeModel(): PlaceModel | null {

@@ -11,7 +11,8 @@ import {
   STICKS_RIDGE,
   STONES_RING,
 } from './constants';
-import { NOTES, clockLabel, energyWord, untilDawn, warmthWord } from './copy';
+import { hotbarSlots, recipesFor, statusLine, type HotbarSlot, type Recipe } from './craft';
+import { NOTES, clockLabel, clockParts, energyWord, untilDawn, warmthWord } from './copy';
 import { atCamp, canWaitForDawn, warmthPerGameHour } from './rules';
 import type { GameState } from './types';
 
@@ -34,14 +35,23 @@ export interface Step {
   then?: string;
 }
 
+export interface CraftQueueModel {
+  label: string;
+  progress: number;
+}
+
 export interface HudModel {
   time: string;
   until: string;
+  clock: string;
+  daypart: string;
+  health: number;
   warmth: number;
   energy: number;
   warmthLabel: string;
   energyLabel: string;
   lowWarmth: boolean;
+  status: string;
   objective: string;
   tip: string;
   restLabel: string;
@@ -49,6 +59,9 @@ export interface HudModel {
   sheet: SheetId;
   steps: Step[];
   pack: { label: string; count: number }[];
+  hotbar: HotbarSlot[];
+  recipes: Recipe[];
+  queue: CraftQueueModel | null;
   endTitle: string;
   endBody: string;
   place: PlaceModel | null;
@@ -268,9 +281,16 @@ export function stepsFor(state: GameState): Step[] {
   return steps;
 }
 
-export function buildModel(state: GameState, sheet: SheetId, resting: boolean, place: PlaceModel | null = null): HudModel {
+export function buildModel(
+  state: GameState,
+  sheet: SheetId,
+  resting: boolean,
+  place: PlaceModel | null = null,
+  queue: CraftQueueModel | null = null,
+): HudModel {
   const perHour = warmthPerGameHour(state);
   const waiting = canWaitForDawn(state);
+  const face = clockParts(state.minutes);
   let restLabel = 'Rest';
   if (resting && waiting) restLabel = 'Stop waiting';
   else if (resting) restLabel = 'Stop resting';
@@ -279,11 +299,15 @@ export function buildModel(state: GameState, sheet: SheetId, resting: boolean, p
   return {
     time: clockLabel(state.minutes),
     until: untilDawn(state.minutes),
+    clock: face.clock,
+    daypart: face.daypart,
+    health: state.outcome === 'lost' ? 0 : 100,
     warmth: state.warmth,
     energy: state.energy,
     warmthLabel: `${Math.round(state.warmth)} · ${warmthWord(perHour)}`,
     energyLabel: `${Math.round(state.energy)} · ${energyWord(state.energy)}`,
     lowWarmth: state.warmth < 30 && state.outcome === 'playing',
+    status: statusLine(state),
     objective: objective(state),
     tip: state.tip,
     restLabel,
@@ -298,6 +322,9 @@ export function buildModel(state: GameState, sheet: SheetId, resting: boolean, p
       { label: 'Tinder', count: state.inventory.tinder },
       { label: 'Leaf litter', count: state.inventory.leaves },
     ],
+    hotbar: hotbarSlots(state),
+    recipes: recipesFor(state),
+    queue,
     endTitle: state.outcome === 'won' ? 'Dawn' : 'The cold won',
     endBody:
       state.outcome === 'won'
