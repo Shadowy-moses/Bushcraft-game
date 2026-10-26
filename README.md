@@ -22,7 +22,7 @@ Tap **Rest** to catch your breath. Once the camp is ready, that button becomes *
 
 Open the GitHub Pages site in Safari. Tap Share, then **Add to Home Screen**. It opens full screen, like an app. Either way up works.
 
-The Pages address is `https://<your-name>.github.io/Bushcraft-game/` after the site is turned on. In the repository settings, set Pages to deploy from **GitHub Actions**.
+Play it at https://shadowy-moses.github.io/Bushcraft-game/. Pages deploys from GitHub Actions.
 
 ## Pictures
 
