@@ -226,8 +226,8 @@
   },
   "rock": {
    "frame": {
-    "x": 0,
-    "y": 58,
+    "x": 238,
+    "y": 0,
     "w": 32,
     "h": 24
    },
@@ -258,8 +258,8 @@
   },
   "bush_fiber": {
    "frame": {
-    "x": 34,
-    "y": 58,
+    "x": 272,
+    "y": 0,
     "w": 32,
     "h": 32
    },
@@ -290,8 +290,8 @@
   },
   "item_sticks": {
    "frame": {
-    "x": 68,
-    "y": 58,
+    "x": 306,
+    "y": 0,
     "w": 16,
     "h": 16
    },
@@ -322,8 +322,8 @@
   },
   "item_stone": {
    "frame": {
-    "x": 86,
-    "y": 58,
+    "x": 324,
+    "y": 0,
     "w": 16,
     "h": 16
    },
@@ -354,8 +354,8 @@
   },
   "item_fiber": {
    "frame": {
-    "x": 104,
-    "y": 58,
+    "x": 342,
+    "y": 0,
     "w": 16,
     "h": 16
    },
@@ -386,8 +386,8 @@
   },
   "item_cordage": {
    "frame": {
-    "x": 122,
-    "y": 58,
+    "x": 360,
+    "y": 0,
     "w": 16,
     "h": 16
    },
@@ -418,8 +418,8 @@
   },
   "fire_tipi_unlit": {
    "frame": {
-    "x": 140,
-    "y": 58,
+    "x": 378,
+    "y": 0,
     "w": 32,
     "h": 40
    },
@@ -450,8 +450,8 @@
   },
   "fire_tipi_lit_0": {
    "frame": {
-    "x": 174,
-    "y": 58,
+    "x": 412,
+    "y": 0,
     "w": 32,
     "h": 40
    },
@@ -482,8 +482,8 @@
   },
   "fire_tipi_lit_1": {
    "frame": {
-    "x": 208,
-    "y": 58,
+    "x": 446,
+    "y": 0,
     "w": 32,
     "h": 40
    },
@@ -514,8 +514,8 @@
   },
   "fire_logcabin_unlit": {
    "frame": {
-    "x": 0,
-    "y": 100,
+    "x": 480,
+    "y": 0,
     "w": 32,
     "h": 40
    },
@@ -546,8 +546,8 @@
   },
   "fire_logcabin_lit_0": {
    "frame": {
-    "x": 34,
-    "y": 100,
+    "x": 0,
+    "y": 58,
     "w": 32,
     "h": 40
    },
@@ -578,8 +578,8 @@
   },
   "fire_logcabin_lit_1": {
    "frame": {
-    "x": 68,
-    "y": 100,
+    "x": 34,
+    "y": 58,
     "w": 32,
     "h": 40
    },
@@ -610,8 +610,8 @@
   },
   "leanto_frame": {
    "frame": {
-    "x": 102,
-    "y": 100,
+    "x": 68,
+    "y": 58,
     "w": 64,
     "h": 48
    },
@@ -642,8 +642,8 @@
   },
   "leanto_done": {
    "frame": {
-    "x": 168,
-    "y": 100,
+    "x": 134,
+    "y": 58,
     "w": 64,
     "h": 48
    },
@@ -672,10 +672,10 @@
     "y": 40
    }
   },
-  "woodsman_idle": {
+  "woodsman_se_idle_0": {
    "frame": {
-    "x": 0,
-    "y": 150,
+    "x": 200,
+    "y": 58,
     "w": 32,
     "h": 32
    },
@@ -693,21 +693,981 @@
    },
    "anchor": {
     "x": 0.5,
-    "y": 0.875
+    "y": 0.96875
    },
    "pivot": {
     "x": 0.5,
-    "y": 0.875
+    "y": 0.96875
    },
    "anchorPx": {
     "x": 16,
-    "y": 28
+    "y": 31
+   }
+  },
+  "woodsman_se_idle_1": {
+   "frame": {
+    "x": 234,
+    "y": 58,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_se_walk_0": {
+   "frame": {
+    "x": 268,
+    "y": 58,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_se_walk_1": {
+   "frame": {
+    "x": 302,
+    "y": 58,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_se_walk_2": {
+   "frame": {
+    "x": 336,
+    "y": 58,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_se_walk_3": {
+   "frame": {
+    "x": 370,
+    "y": 58,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_ne_idle_0": {
+   "frame": {
+    "x": 404,
+    "y": 58,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_ne_idle_1": {
+   "frame": {
+    "x": 438,
+    "y": 58,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_ne_walk_0": {
+   "frame": {
+    "x": 472,
+    "y": 58,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_ne_walk_1": {
+   "frame": {
+    "x": 0,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_ne_walk_2": {
+   "frame": {
+    "x": 34,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_ne_walk_3": {
+   "frame": {
+    "x": 68,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_idle_0": {
+   "frame": {
+    "x": 102,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_idle_1": {
+   "frame": {
+    "x": 136,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_walk_0": {
+   "frame": {
+    "x": 170,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_walk_1": {
+   "frame": {
+    "x": 204,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_walk_2": {
+   "frame": {
+    "x": 238,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_walk_3": {
+   "frame": {
+    "x": 272,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_nw_idle_0": {
+   "frame": {
+    "x": 306,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_nw_idle_1": {
+   "frame": {
+    "x": 340,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_nw_walk_0": {
+   "frame": {
+    "x": 374,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_nw_walk_1": {
+   "frame": {
+    "x": 408,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_nw_walk_2": {
+   "frame": {
+    "x": 442,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_nw_walk_3": {
+   "frame": {
+    "x": 476,
+    "y": 108,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_se_gather_0": {
+   "frame": {
+    "x": 0,
+    "y": 142,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_gather_0": {
+   "frame": {
+    "x": 34,
+    "y": 142,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_se_chop_0": {
+   "frame": {
+    "x": 68,
+    "y": 142,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_chop_0": {
+   "frame": {
+    "x": 102,
+    "y": 142,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_se_chop_1": {
+   "frame": {
+    "x": 136,
+    "y": 142,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_chop_1": {
+   "frame": {
+    "x": 170,
+    "y": 142,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_idle": {
+   "frame": {
+    "x": 204,
+    "y": 142,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
    }
   },
   "woodsman_walk_0": {
    "frame": {
-    "x": 34,
-    "y": 150,
+    "x": 238,
+    "y": 142,
     "w": 32,
     "h": 32
    },
@@ -725,21 +1685,21 @@
    },
    "anchor": {
     "x": 0.5,
-    "y": 0.875
+    "y": 0.96875
    },
    "pivot": {
     "x": 0.5,
-    "y": 0.875
+    "y": 0.96875
    },
    "anchorPx": {
     "x": 16,
-    "y": 28
+    "y": 31
    }
   },
   "woodsman_walk_1": {
    "frame": {
-    "x": 68,
-    "y": 150,
+    "x": 272,
+    "y": 142,
     "w": 32,
     "h": 32
    },
@@ -757,15 +1717,15 @@
    },
    "anchor": {
     "x": 0.5,
-    "y": 0.875
+    "y": 0.96875
    },
    "pivot": {
     "x": 0.5,
-    "y": 0.875
+    "y": 0.96875
    },
    "anchorPx": {
     "x": 16,
-    "y": 28
+    "y": 31
    }
   }
  },
@@ -778,19 +1738,77 @@
    "fire_logcabin_lit_0",
    "fire_logcabin_lit_1"
   ],
+  "woodsman_se_idle": [
+   "woodsman_se_idle_0",
+   "woodsman_se_idle_1"
+  ],
+  "woodsman_se_walk": [
+   "woodsman_se_walk_0",
+   "woodsman_se_walk_1",
+   "woodsman_se_walk_2",
+   "woodsman_se_walk_3"
+  ],
+  "woodsman_sw_idle": [
+   "woodsman_sw_idle_0",
+   "woodsman_sw_idle_1"
+  ],
+  "woodsman_sw_walk": [
+   "woodsman_sw_walk_0",
+   "woodsman_sw_walk_1",
+   "woodsman_sw_walk_2",
+   "woodsman_sw_walk_3"
+  ],
+  "woodsman_ne_idle": [
+   "woodsman_ne_idle_0",
+   "woodsman_ne_idle_1"
+  ],
+  "woodsman_ne_walk": [
+   "woodsman_ne_walk_0",
+   "woodsman_ne_walk_1",
+   "woodsman_ne_walk_2",
+   "woodsman_ne_walk_3"
+  ],
+  "woodsman_nw_idle": [
+   "woodsman_nw_idle_0",
+   "woodsman_nw_idle_1"
+  ],
+  "woodsman_nw_walk": [
+   "woodsman_nw_walk_0",
+   "woodsman_nw_walk_1",
+   "woodsman_nw_walk_2",
+   "woodsman_nw_walk_3"
+  ],
+  "woodsman_se_gather": [
+   "woodsman_se_gather_0"
+  ],
+  "woodsman_se_chop": [
+   "woodsman_se_chop_0",
+   "woodsman_se_chop_1"
+  ],
+  "woodsman_sw_gather": [
+   "woodsman_sw_gather_0"
+  ],
+  "woodsman_sw_chop": [
+   "woodsman_sw_chop_0",
+   "woodsman_sw_chop_1"
+  ],
+  "woodsman_idle": [
+   "woodsman_se_idle_0",
+   "woodsman_se_idle_1"
+  ],
   "woodsman_walk": [
-   "woodsman_walk_0",
-   "woodsman_idle",
-   "woodsman_walk_1",
-   "woodsman_idle"
+   "woodsman_se_walk_0",
+   "woodsman_se_walk_1",
+   "woodsman_se_walk_2",
+   "woodsman_se_walk_3"
   ]
  },
  "meta": {
   "image": "spritesheet.png",
   "format": "RGBA8888",
   "size": {
-   "w": 256,
-   "h": 182
+   "w": 512,
+   "h": 174
   },
   "scale": "1",
   "note": "anchor = footprint center (ground contact) normalized; use sprite.setOrigin(anchor.x, anchor.y). Ground tile 32x16 2:1 iso."

@@ -5,7 +5,9 @@ import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
-    expect(Object.keys(atlas.frames)).toHaveLength(24);
+    expect(Object.keys(atlas.frames)).toHaveLength(54);
+    expect(atlas.meta.size).toEqual({ w: 512, h: 174 });
+    expect(atlas.meta.image).toBe('spritesheet.png');
     for (const name of ATLAS_FRAMES) {
       const frame = atlas.frames[name as keyof typeof atlas.frames];
       expect(frame, name).toBeTruthy();
@@ -17,9 +19,27 @@ describe('artist atlas', () => {
   });
 
   it('names the walk and fire flickers the game plays', () => {
-    for (const frame of atlas.animations.woodsman_walk) {
-      expect(atlas.frames[frame as keyof typeof atlas.frames]).toBeTruthy();
+    expect(atlas.animations.woodsman_walk).toEqual([
+      'woodsman_se_walk_0',
+      'woodsman_se_walk_1',
+      'woodsman_se_walk_2',
+      'woodsman_se_walk_3',
+    ]);
+    for (const dir of ['se', 'sw', 'ne', 'nw'] as const) {
+      expect(atlas.animations[`woodsman_${dir}_idle`]).toEqual([
+        `woodsman_${dir}_idle_0`,
+        `woodsman_${dir}_idle_1`,
+      ]);
+      expect(atlas.animations[`woodsman_${dir}_walk`]).toHaveLength(4);
     }
+    expect(atlas.animations.woodsman_se_gather).toEqual(['woodsman_se_gather_0']);
+    expect(atlas.animations.woodsman_sw_gather).toEqual(['woodsman_sw_gather_0']);
+    expect(atlas.animations.woodsman_se_chop).toEqual(['woodsman_se_chop_0', 'woodsman_se_chop_1']);
+    expect(atlas.animations.woodsman_sw_chop).toEqual(['woodsman_sw_chop_0', 'woodsman_sw_chop_1']);
+    expect('woodsman_ne_gather' in atlas.animations).toBe(false);
+    expect('woodsman_nw_chop' in atlas.animations).toBe(false);
+    expect(atlas.frames.woodsman_se_idle_0.anchorPx).toEqual({ x: 16, y: 31 });
+    expect(atlas.frames.woodsman_nw_walk_3.anchor).toEqual({ x: 0.5, y: 0.96875 });
     expect(atlas.animations.fire_tipi_lit).toEqual(['fire_tipi_lit_0', 'fire_tipi_lit_1']);
     expect(atlas.animations.fire_logcabin_lit).toEqual(['fire_logcabin_lit_0', 'fire_logcabin_lit_1']);
     expect(atlas.frames.leanto_frame.frame.w).toBe(64);
