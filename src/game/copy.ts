@@ -12,7 +12,7 @@ export const WAIT_TIP =
 
 export const TOO_COLD = 'Too cold to keep sitting. Get the fire going, or get back to it.';
 
-export const HEADING = 'Heading to the clearing.';
+export const HEADING = 'Heading over.';
 
 export const NOTES = {
   cordage:
@@ -49,6 +49,19 @@ export function clockLabel(minutes: number): string {
   if (h24 >= 12 && h24 < 17) return `${hm} in the afternoon`;
   if (h24 >= 17 && h24 < 20) return `${hm} in the evening`;
   return `${hm} at night`;
+}
+
+/** Compact clock for the corner. The longer sentence stays on the title and tips. */
+export function clockParts(minutes: number): { clock: string; daypart: string } {
+  const day = ((minutes % 1440) + 1440) % 1440;
+  const h24 = Math.floor(day / 60);
+  const m = Math.floor(day % 60);
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  const clock = `${h12}:${m.toString().padStart(2, '0')}`;
+  if (h24 >= 5 && h24 < 12) return { clock, daypart: 'Morning' };
+  if (h24 >= 12 && h24 < 17) return { clock, daypart: 'Afternoon' };
+  if (h24 >= 17 && h24 < 20) return { clock, daypart: 'Evening' };
+  return { clock, daypart: 'Night' };
 }
 
 export function untilDawn(minutes: number): string {

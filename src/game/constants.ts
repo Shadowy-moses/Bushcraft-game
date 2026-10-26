@@ -42,8 +42,12 @@ export const FIRE_WARMTH = 18;
 
 export const SAVE_KEY = 'bushcraft-first-night-v1';
 
+/**
+ * Where a version-1 save had its camp. New games place the lean-to and the
+ * fire by hand. These stay so an old save still rebuilds in the same spot.
+ * The lean-to pair is the screen-horizontal span: anchor (5, 3), not flipped.
+ */
 export const FIRE_TILE = { tx: 7, ty: 4 };
-/** The lean-to sprite is 64 wide and spans these two tiles. */
 export const SHELTER_TILES = [
   { tx: 5, ty: 3 },
   { tx: 6, ty: 2 },

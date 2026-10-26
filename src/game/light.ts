@@ -1,5 +1,5 @@
-import { FIRE_TILE } from './constants';
 import { chebyshev } from './iso';
+import type { Tile } from './types';
 
 function channel(color: number, shift: number): number {
   return (color >> shift) & 255;
@@ -28,10 +28,10 @@ export function timeTint(minutes: number): number {
   return 0xfff6ea;
 }
 
-export function lightTint(minutes: number, tx: number, ty: number, fireLit: boolean): number {
+export function lightTint(minutes: number, tx: number, ty: number, fireLit: boolean, fireAt: Tile | null): number {
   const base = timeTint(minutes);
-  if (!fireLit) return base;
-  const d = chebyshev(tx, ty, FIRE_TILE.tx, FIRE_TILE.ty);
+  if (!fireLit || !fireAt) return base;
+  const d = chebyshev(tx, ty, fireAt.tx, fireAt.ty);
   if (d <= 1) return lerpTint(base, 0xffe4c4, 0.92);
   if (d === 2) return lerpTint(base, 0xffe4c4, 0.55);
   if (d === 3) return lerpTint(base, 0xffe4c4, 0.22);

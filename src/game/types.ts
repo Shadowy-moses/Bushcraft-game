@@ -1,3 +1,5 @@
+import type { Facing } from './woodsman';
+
 export interface Inventory {
   sticks: number;
   stones: number;
@@ -21,15 +23,22 @@ export interface FireState {
 }
 
 export interface GameState {
-  version: 1;
+  version: 2;
   minutes: number;
   warmth: number;
   energy: number;
   tx: number;
   ty: number;
-  faceLeft: boolean;
+  /** Which way he is looking: se, sw, ne, or nw. */
+  facing: Facing;
   inventory: Inventory;
   shelter: ShelterStage;
+  /** Anchor tile of the lean-to. Null until it is placed. */
+  shelterAnchor: Tile | null;
+  /** True when the second tile sits to the screen-left of the anchor. */
+  shelterFlip: boolean;
+  /** Tile the fire ring was laid on. Null until it is placed. */
+  fireTile: Tile | null;
   cordageTwisted: boolean;
   fire: FireState;
   picked: Record<string, true>;

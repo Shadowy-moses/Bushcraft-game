@@ -1,4 +1,3 @@
-import { isBlocked } from './map';
 import type { Tile } from './types';
 
 export const DIRS: Tile[] = [
@@ -78,9 +77,8 @@ export function planRoute(
   from: Tile,
   tx: number,
   ty: number,
-  shelterStage: number,
+  blocked: (tx: number, ty: number) => boolean,
 ): { path: Tile[]; stand: Tile } | null {
-  const blocked = (x: number, y: number) => isBlocked(x, y, shelterStage);
   let best: { path: Tile[]; stand: Tile } | null = null;
   for (const d of APPROACH) {
     const stand = { tx: tx + d.tx, ty: ty + d.ty };
