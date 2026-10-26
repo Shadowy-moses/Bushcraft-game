@@ -37,7 +37,7 @@ export function initialState(): GameState {
     energy: START_ENERGY,
     tx: PLAYER_START.tx,
     ty: PLAYER_START.ty,
-    faceLeft: false,
+    facing: 'se',
     inventory: emptyInventory(),
     shelter: 0,
     shelterAnchor: null,

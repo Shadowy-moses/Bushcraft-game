@@ -26,7 +26,7 @@ Play it at https://shadowy-moses.github.io/Bushcraft-game/. Pages deploys from G
 
 ## Pictures
 
-The painted tiles live in `assets/spritesheet.png` and `assets/spritesheet.json`. Frame names stay the same when a new woodsman arrives. Each frame’s `anchor` is the spot where it meets the ground, and the game uses that. Tiles are 32×16 and drawn at 3× with crisp pixels. There are no soft shadows; the ground tile under an object is darkened instead.
+The painted tiles live in `assets/spritesheet.png` and `assets/spritesheet.json`. The woodsman turns to the direction he walks. When that direction is painted on the sheet, the game shows it instead of flipping the picture. Standing still plays that direction’s idle, and walking plays its walk. Picking something up holds the gather pose. Building the lean-to or the fire holds the chop pose. Gather and chop are painted for the two near sides, so the far sides reuse the matching near pose. Each frame’s `anchor` (or `anchorPx`) is the spot where it meets the ground, and the game uses that. The older woodsman names still mean the southeast view. Tiles are 32×16 and drawn at 3× with crisp pixels. There are no soft shadows; the ground tile under an object is darkened instead.
 
 `assets/standins/` is only the in-between lean-to (ridge pole, then the lashing), leaf piles, and the tile you are walking to. Swap those files when real art arrives. `assets/standins/origins.json` is where each one sits on the ground.
 

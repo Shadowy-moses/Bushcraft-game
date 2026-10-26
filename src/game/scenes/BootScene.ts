@@ -31,7 +31,7 @@ export class BootScene extends Phaser.Scene {
       this.anims.create({
         key,
         frames: frames.map((frame) => ({ key: 'world', frame })),
-        frameRate: key.startsWith('fire') ? 6 : 8,
+        frameRate: key.startsWith('fire') ? 6 : key.endsWith('_idle') ? 3 : 8,
         repeat: -1,
       });
     }

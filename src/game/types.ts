@@ -1,3 +1,5 @@
+import type { Facing } from './woodsman';
+
 export interface Inventory {
   sticks: number;
   stones: number;
@@ -27,7 +29,8 @@ export interface GameState {
   energy: number;
   tx: number;
   ty: number;
-  faceLeft: boolean;
+  /** Which way he is looking: se, sw, ne, or nw. */
+  facing: Facing;
   inventory: Inventory;
   shelter: ShelterStage;
   /** Anchor tile of the lean-to. Null until it is placed. */

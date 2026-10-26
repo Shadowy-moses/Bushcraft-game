@@ -24,6 +24,7 @@ import { fireSpot, shelterSpot, suggestAnchor } from '../place';
 import { actionNeedsCamp, applyAction, atWorkSite, canWaitForDawn, gainEnergy, gather, initialState, tick } from '../rules';
 import { clearGame, loadGame, saveGame } from '../save';
 import type { ActionId, GameState, Prop, PropKind, Tile } from '../types';
+import { facingFromDelta, mirrorFacing, poseClip, poseName } from '../woodsman';
 import { Hud } from '../../ui/hud';
 
 const imagePixels = new WeakMap<CanvasImageSource, { data: Uint8ClampedArray; width: number; height: number }>();
@@ -74,6 +75,16 @@ declare global {
       moveGhost: (tx: number, ty: number) => void;
       flipGhost: () => void;
       confirmPlace: () => void;
+      look: () => {
+        facing: GameState['facing'];
+        pose: string;
+        frame: string;
+        anim: string;
+        playing: boolean;
+        flipX: boolean;
+        originX: number;
+        originY: number;
+      };
     };
   }
 }
@@ -105,6 +116,8 @@ export class GameScene extends Phaser.Scene {
   private placeValid = false;
   private placeHint = '';
   private pointer = { x: 0, y: 0, down: false };
+  private pose: 'idle' | 'walk' | 'gather' | 'chop' = 'idle';
+  private poseUntil = 0;
   private path: { tx: number; ty: number }[] = [];
   private from = { x: 0, y: 0 };
   private to = { x: 0, y: 0 };
@@ -140,6 +153,8 @@ export class GameScene extends Phaser.Scene {
     this.propViews = [];
     this.ringSprites = [];
     this.kindlingSprites = [];
+    this.pose = 'idle';
+    this.poseUntil = 0;
     const saved = loadGame();
     if (saved) {
       this.state = saved;
@@ -205,7 +220,10 @@ export class GameScene extends Phaser.Scene {
       gather: (id) => {
         const result = gather(this.state, id);
         if (!result.ok) return result.message;
+        const prop = PROPS.find((item) => item.id === id);
         this.state = result.state;
+        if (prop) this.faceTile(prop.tx, prop.ty);
+        this.playPose('gather');
         this.afterChange();
         return result.message;
       },
@@ -246,6 +264,16 @@ export class GameScene extends Phaser.Scene {
       },
       flipGhost: () => this.handleAction('flip'),
       confirmPlace: () => this.handleAction('confirm'),
+      look: () => ({
+        facing: this.state.facing,
+        pose: this.pose,
+        frame: String(this.player.frame.name),
+        anim: this.player.anims.currentAnim?.key ?? '',
+        playing: this.player.anims.isPlaying,
+        flipX: this.player.flipX,
+        originX: this.player.originX,
+        originY: this.player.originY,
+      }),
     };
 
     document.getElementById('boot')?.classList.add('hide');
@@ -262,6 +290,7 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     const dt = Math.min(0.05, delta / 1000);
     this.stepMove(dt);
+    this.expirePose();
     if (this.started && !this.hidden && this.sheet === 'none' && !this.placing && this.state.outcome === 'playing') {
       const waiting = this.resting && canWaitForDawn(this.state);
       let rate: number = PLAY_MINUTES_PER_SECOND;
@@ -367,10 +396,10 @@ export class GameScene extends Phaser.Scene {
   private buildPlayer(): void {
     const pos = tileToWorld(this.state.tx, this.state.ty);
     this.player = this.add.sprite(pos.x, pos.y, 'world', 'woodsman_idle');
-    this.syncFrameOrigin(this.player);
     this.player.setDepth(depthFor(pos.y, 6));
-    this.player.setFlipX(this.state.faceLeft);
+    this.player.setFlipX(false);
     this.player.on('animationupdate', () => this.syncFrameOrigin(this.player));
+    this.showIdle();
   }
 
   private layoutCamera(): void {
@@ -469,6 +498,8 @@ export class GameScene extends Phaser.Scene {
         return;
       }
       this.state = result.state;
+      this.faceTile(prop.tx, prop.ty);
+      this.playPose('gather');
       this.afterChange();
     });
   }
@@ -507,12 +538,11 @@ export class GameScene extends Phaser.Scene {
     this.from = { x: this.player.x, y: this.player.y };
     this.to = tileToWorld(next.tx, next.ty);
     this.stepT = 0;
-    if (this.to.x < this.from.x - 1) this.state = { ...this.state, faceLeft: true };
-    else if (this.to.x > this.from.x + 1) this.state = { ...this.state, faceLeft: false };
-    this.player.setFlipX(this.state.faceLeft);
-    if (!this.player.anims.isPlaying || this.player.anims.currentAnim?.key !== 'woodsman_walk') {
-      this.player.play('woodsman_walk');
-    }
+    const facing = facingFromDelta(this.to.x - this.from.x, this.to.y - this.from.y, this.state.facing);
+    this.state = { ...this.state, facing };
+    this.pose = 'walk';
+    this.poseUntil = 0;
+    this.showPose('walk');
   }
 
   private stepMove(dt: number): void {
@@ -533,12 +563,63 @@ export class GameScene extends Phaser.Scene {
   }
 
   private finishArrive(): void {
-    if (this.player.anims.isPlaying) this.player.anims.stop();
-    this.applyAtlas(this.player, 'woodsman_idle');
+    this.pose = 'idle';
+    this.showIdle();
     this.marker?.setVisible(false);
     const fn = this.arrive;
     this.arrive = null;
     fn?.();
+  }
+
+  private showPose(pose: 'idle' | 'walk' | 'gather' | 'chop'): void {
+    const clip = poseClip(
+      this.state.facing,
+      pose,
+      (key) => this.anims.exists(key),
+      (key) => this.textures.exists('world') && this.textures.get('world').has(key),
+    );
+    const own =
+      this.anims.exists(poseName(this.state.facing, 'idle')) ||
+      this.anims.exists(poseName(this.state.facing, 'walk'));
+    this.player.setFlipX(mirrorFacing(this.state.facing, own));
+    if (clip.kind === 'anim') {
+      if (this.player.anims.currentAnim?.key !== clip.key || !this.player.anims.isPlaying) this.player.play(clip.key);
+      this.syncFrameOrigin(this.player);
+      return;
+    }
+    this.player.anims.stop();
+    if (this.textures.get('world').has(clip.key)) this.applyAtlas(this.player, clip.key);
+  }
+
+  private showIdle(): void {
+    this.showPose('idle');
+  }
+
+  private playPose(kind: 'gather' | 'chop'): void {
+    this.pose = kind;
+    this.poseUntil = this.time.now + 900;
+    this.showPose(kind);
+  }
+
+  private expirePose(): void {
+    if ((this.pose === 'gather' || this.pose === 'chop') && this.time.now >= this.poseUntil) {
+      this.pose = 'idle';
+      this.showIdle();
+    }
+  }
+
+  /** Turn toward a tile. A zero step keeps the facing he already has. */
+  private faceTile(tx: number, ty: number): void {
+    const from = tileToWorld(this.state.tx, this.state.ty);
+    const to = tileToWorld(tx, ty);
+    const facing = facingFromDelta(to.x - from.x, to.y - from.y, this.state.facing);
+    this.state = { ...this.state, facing };
+  }
+
+  private playChore(id: string): void {
+    const tile = id.startsWith('shelter') ? this.state.shelterAnchor : this.state.fireTile;
+    if (tile) this.faceTile(tile.tx, tile.ty);
+    this.playPose('chop');
   }
 
   private stopWalk(): void {
@@ -554,8 +635,9 @@ export class GameScene extends Phaser.Scene {
     const pos = tileToWorld(this.state.tx, this.state.ty);
     this.player.setPosition(pos.x, pos.y);
     this.player.setDepth(depthFor(pos.y, 6));
-    if (this.player.anims.isPlaying) this.player.anims.stop();
-    this.applyAtlas(this.player, 'woodsman_idle');
+    this.pose = 'idle';
+    this.poseUntil = 0;
+    this.showIdle();
     this.marker?.setVisible(false);
   }
 
@@ -671,6 +753,7 @@ export class GameScene extends Phaser.Scene {
     if (id === 'cordage-wrap' || id === 'lay-tipi' || id === 'lay-logcabin' || id === 'fire-light') {
       this.sheet = 'none';
     }
+    if (id.startsWith('shelter') || id.startsWith('fire') || id.startsWith('lay')) this.playChore(id);
     this.afterChange();
   }
 
@@ -679,7 +762,6 @@ export class GameScene extends Phaser.Scene {
     if (this.path.length === 0 && this.player) {
       this.player.setPosition(pos.x, pos.y);
       this.player.setDepth(depthFor(pos.y, 6));
-      this.player.setFlipX(this.state.faceLeft);
     }
     this.refreshShadows();
     this.syncProps();

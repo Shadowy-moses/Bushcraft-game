@@ -1,5 +1,6 @@
 import { FIRE_TILE, SAVE_KEY, SHELTER_TILES } from './constants';
 import type { FireState, GameState, Outcome, ShelterStage, Tile } from './types';
+import { facingFromSave, isFacing } from './woodsman';
 import { storage } from '../platform/storage';
 
 interface RawSave {
@@ -10,6 +11,7 @@ interface RawSave {
   tx?: unknown;
   ty?: unknown;
   faceLeft?: unknown;
+  facing?: unknown;
   inventory?: Partial<GameState['inventory']> | null;
   shelter?: unknown;
   shelterAnchor?: unknown;
@@ -66,7 +68,7 @@ function sharedOk(raw: RawSave): boolean {
     typeof raw.energy === 'number' &&
     typeof raw.tx === 'number' &&
     typeof raw.ty === 'number' &&
-    typeof raw.faceLeft === 'boolean' &&
+    (typeof raw.faceLeft === 'boolean' || isFacing(raw.facing)) &&
     inventoryOk(raw.inventory) &&
     shelterOk(raw.shelter) &&
     typeof raw.cordageTwisted === 'boolean' &&
@@ -91,7 +93,6 @@ export function parseSave(raw: string): GameState | null {
       energy: number;
       tx: number;
       ty: number;
-      faceLeft: boolean;
       inventory: GameState['inventory'];
       shelter: ShelterStage;
       cordageTwisted: boolean;
@@ -108,7 +109,7 @@ export function parseSave(raw: string): GameState | null {
         energy: base.energy,
         tx: base.tx,
         ty: base.ty,
-        faceLeft: base.faceLeft,
+        facing: facingFromSave(save.facing, save.faceLeft),
         inventory: base.inventory,
         shelter: base.shelter,
         shelterAnchor: base.shelter >= 1 ? { tx: SHELTER_TILES[0].tx, ty: SHELTER_TILES[0].ty } : null,
@@ -134,7 +135,7 @@ export function parseSave(raw: string): GameState | null {
       energy: base.energy,
       tx: base.tx,
       ty: base.ty,
-      faceLeft: base.faceLeft,
+      facing: facingFromSave(save.facing, save.faceLeft),
       inventory: base.inventory,
       shelter: base.shelter,
       shelterAnchor,

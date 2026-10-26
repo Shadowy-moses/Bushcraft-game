@@ -26,6 +26,8 @@ describe('saved games', () => {
     expect(migrated?.shelterAnchor).toEqual({ tx: SHELTER_TILES[0].tx, ty: SHELTER_TILES[0].ty });
     expect(migrated?.shelterFlip).toBe(false);
     expect(migrated?.fireTile).toEqual(FIRE_TILE);
+    expect(migrated?.facing).toBe('se');
+    expect(parseSave(JSON.stringify({ ...v1, faceLeft: true }))?.facing).toBe('sw');
 
     const untouched = {
       ...v1,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import atlas from '../assets/spritesheet.json';
 import origins from '../assets/standins/origins.json';
-import { ATLAS_FRAMES } from '../src/game/atlas';
+import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/game/atlas';
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
@@ -24,6 +24,19 @@ describe('artist atlas', () => {
     expect(atlas.animations.fire_logcabin_lit).toEqual(['fire_logcabin_lit_0', 'fire_logcabin_lit_1']);
     expect(atlas.frames.leanto_frame.frame.w).toBe(64);
     expect(atlas.frames.grass.frame).toMatchObject({ w: 32, h: 16 });
+  });
+
+  it('reads the woodsman feet from the atlas instead of a fixed offset', () => {
+    installAtlas(atlas as AtlasFile);
+    expect(frameOrigin('woodsman_idle')).toEqual(atlas.frames.woodsman_idle.anchor);
+    expect(frameOrigin('missing')).toEqual({ x: 0.5, y: 1 });
+    installAtlas({
+      frames: {
+        feet: { anchorPx: { x: 16, y: 31 }, sourceSize: { w: 32, h: 40 } },
+      },
+    });
+    expect(frameOrigin('feet')).toEqual({ x: 16 / 32, y: 31 / 40 });
+    installAtlas(atlas as AtlasFile);
   });
 
   it('gives stand-ins the same kind of anchor', () => {

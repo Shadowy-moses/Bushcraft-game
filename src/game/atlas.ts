@@ -1,5 +1,8 @@
 export interface AtlasFrame {
   anchor?: { x: number; y: number };
+  anchorPx?: { x: number; y: number };
+  frame?: { w: number; h: number };
+  sourceSize?: { w: number; h: number };
 }
 
 export interface AtlasFile {
@@ -23,8 +26,16 @@ export function installStandins(file: StandinOrigins): void {
   standins = file ?? {};
 }
 
+/** Ground contact from the atlas. `anchor` wins; otherwise `anchorPx` over the frame size. */
 export function frameOrigin(name: string): { x: number; y: number } {
-  return frames[name]?.anchor ?? { x: 0.5, y: 1 };
+  const frame = frames[name];
+  if (!frame) return { x: 0.5, y: 1 };
+  if (frame.anchor) return { x: frame.anchor.x, y: frame.anchor.y };
+  const px = frame.anchorPx;
+  const w = frame.sourceSize?.w ?? frame.frame?.w;
+  const h = frame.sourceSize?.h ?? frame.frame?.h;
+  if (px && w && h) return { x: px.x / w, y: px.y / h };
+  return { x: 0.5, y: 1 };
 }
 
 export function standinOrigin(name: string): { x: number; y: number } {
