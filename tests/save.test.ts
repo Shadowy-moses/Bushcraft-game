@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { FIRE_TILE, SHELTER_TILES } from '../src/game/constants';
-import { parseSave } from '../src/game/save';
+import { OPENING_TIP } from '../src/game/copy';
 import { initialState } from '../src/game/rules';
+import { parseSave } from '../src/game/save';
 
 describe('saved games', () => {
-  it('rebuilds a version-1 camp on the old clearing', () => {
+  it('turns an older night into a fresh build and keeps where he stood', () => {
     const v1 = {
       version: 1,
       minutes: 1000,
@@ -12,45 +12,38 @@ describe('saved games', () => {
       energy: 40,
       tx: 7,
       ty: 4,
-      faceLeft: false,
+      faceLeft: true,
       inventory: { sticks: 1, stones: 2, fiber: 0, cordage: 1, tinder: 0, leaves: 0 },
       shelter: 2,
       cordageTwisted: false,
       fire: { ring: true, tinder: false, kindling: false, lay: 'none', lit: false },
-      picked: {},
+      picked: { 'item_sticks-8-3': true },
       outcome: 'playing',
       tip: 'hi',
     };
     const migrated = parseSave(JSON.stringify(v1));
-    expect(migrated?.version).toBe(2);
-    expect(migrated?.shelterAnchor).toEqual({ tx: SHELTER_TILES[0].tx, ty: SHELTER_TILES[0].ty });
-    expect(migrated?.shelterFlip).toBe(false);
-    expect(migrated?.fireTile).toEqual(FIRE_TILE);
-    expect(migrated?.facing).toBe('se');
-    expect(parseSave(JSON.stringify({ ...v1, faceLeft: true }))?.facing).toBe('sw');
-
-    const untouched = {
-      ...v1,
-      shelter: 0,
-      fire: { ring: false, tinder: false, kindling: false, lay: 'none', lit: false },
-    };
-    const fresh = parseSave(JSON.stringify(untouched));
-    expect(fresh?.shelterAnchor).toBeNull();
-    expect(fresh?.fireTile).toBeNull();
+    expect(migrated?.version).toBe(3);
+    expect(migrated?.tx).toBe(7);
+    expect(migrated?.ty).toBe(4);
+    expect(migrated?.facing).toBe('sw');
+    expect(migrated?.tool).toBe('hatchet');
+    expect(migrated?.inventory.wood).toBe(0);
+    expect(migrated?.pieces).toEqual([]);
+    expect(migrated?.picked['item_sticks-8-3']).toBe(true);
+    expect(migrated?.tip).toBe(OPENING_TIP);
   });
 
-  it('keeps a version-2 placement', () => {
+  it('keeps a version-3 build', () => {
     const placed = {
       ...initialState(),
-      shelter: 1 as const,
-      shelterAnchor: { tx: 7, ty: 3 },
-      shelterFlip: true,
-      fireTile: { tx: 4, ty: 5 },
+      inventory: { wood: 30 },
+      pieces: [{ kind: 'foundation' as const, tx: 7, ty: 3, edge: 'se' as const }],
+      trees: { 'pine_tree-6-1': { hits: 3, felledAt: 1000 } },
     };
     expect(parseSave(JSON.stringify(placed))).toMatchObject({
-      shelterAnchor: { tx: 7, ty: 3 },
-      shelterFlip: true,
-      fireTile: { tx: 4, ty: 5 },
+      inventory: { wood: 30 },
+      pieces: [{ kind: 'foundation', tx: 7, ty: 3, edge: 'se' }],
+      trees: { 'pine_tree-6-1': { hits: 3, felledAt: 1000 } },
     });
     expect(parseSave('not json')).toBeNull();
   });

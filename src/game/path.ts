@@ -25,6 +25,7 @@ export function findPath(
   start: Tile,
   goal: Tile,
   blocked: (tx: number, ty: number) => boolean,
+  blockedEdge: (from: Tile, to: Tile) => boolean = () => false,
 ): Tile[] | null {
   if (start.tx === goal.tx && start.ty === goal.ty) return [];
   if (blocked(goal.tx, goal.ty)) return null;
@@ -56,7 +57,7 @@ export function findPath(
     }
     for (const d of DIRS) {
       const next = { tx: current.tx + d.tx, ty: current.ty + d.ty };
-      if (blocked(next.tx, next.ty)) continue;
+      if (blocked(next.tx, next.ty) || blockedEdge(current, next)) continue;
       const nk = key(next);
       const tentative = (g.get(ck) ?? 0) + 1;
       if (tentative < (g.get(nk) ?? Infinity)) {
@@ -78,12 +79,13 @@ export function planRoute(
   tx: number,
   ty: number,
   blocked: (tx: number, ty: number) => boolean,
+  blockedEdge: (from: Tile, to: Tile) => boolean = () => false,
 ): { path: Tile[]; stand: Tile } | null {
   let best: { path: Tile[]; stand: Tile } | null = null;
   for (const d of APPROACH) {
     const stand = { tx: tx + d.tx, ty: ty + d.ty };
     if (blocked(stand.tx, stand.ty)) continue;
-    const path = findPath(from, stand, blocked);
+    const path = findPath(from, stand, blocked, blockedEdge);
     if (path === null) continue;
     if (!best || path.length < best.path.length) best = { path, stand };
   }

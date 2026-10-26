@@ -1,81 +1,59 @@
 import { describe, expect, it } from 'vitest';
-import { occupiedFrom, shelterFootprint, shelterWorld } from '../src/game/footprint';
-import { tileToWorld } from '../src/game/iso';
-import { blockedFor, isBlocked } from '../src/game/map';
-import { planRoute } from '../src/game/path';
-import { fireSpot, shelterSpot } from '../src/game/place';
+import { blocksStep, floorSpot, foundationSpot, wallSpot } from '../src/game/build';
+import { findPath } from '../src/game/path';
 import { initialState } from '../src/game/rules';
+import type { Piece } from '../src/game/types';
 
-describe('placing a lean-to', () => {
-  it('spans two tiles and 64 pixels, and flip mirrors that span', () => {
-    const [a, b] = shelterFootprint({ tx: 7, ty: 3 }, false);
-    const left = tileToWorld(a.tx, a.ty);
-    const right = tileToWorld(b.tx, b.ty);
-    expect(b).toEqual({ tx: 8, ty: 2 });
-    expect(right.x - left.x).toBe(32);
-    expect(right.y).toBe(left.y);
-    const mid = shelterWorld({ tx: 7, ty: 3 }, false);
-    expect(mid).toEqual({ x: (left.x + right.x) / 2, y: left.y });
-
-    const [c, d] = shelterFootprint({ tx: 7, ty: 3 }, true);
-    expect(d).toEqual({ tx: 6, ty: 4 });
-    const flipped = tileToWorld(d.tx, d.ty);
-    expect(flipped.x - tileToWorld(c.tx, c.ty).x).toBe(-32);
-    expect(flipped.y).toBe(tileToWorld(c.tx, c.ty).y);
-  });
-
-  it('accepts clear ground, including the creek bank, and rejects either blocked tile', () => {
+describe('building on the block', () => {
+  it('lays the first foundation on clear ground and snaps the next one to it', () => {
     const state = initialState();
-    expect(shelterSpot({ tx: 7, ty: 3 }, false, state).ok).toBe(true);
-    expect(shelterSpot({ tx: 0, ty: 7 }, false, state).ok).toBe(true);
+    expect(foundationSpot({ tx: 7, ty: 3 }, state).ok).toBe(true);
+    expect(foundationSpot({ tx: 6, ty: 1 }, state).reason).toMatch(/tree/i);
+    expect(foundationSpot({ tx: 2, ty: 2 }, state).reason).toMatch(/rock/i);
+    expect(foundationSpot({ tx: 1, ty: 3 }, state).reason).toMatch(/bush/i);
+    expect(foundationSpot({ tx: 0, ty: 11 }, state).reason).toMatch(/creek/i);
+    expect(foundationSpot({ tx: 12, ty: 3 }, state).reason).toMatch(/edge/i);
+    expect(foundationSpot({ tx: 7, ty: 5 }, state).reason).toMatch(/standing/i);
+    expect(foundationSpot({ tx: 8, ty: 3 }, state).ok).toBe(true);
 
-    expect(shelterSpot({ tx: 0, ty: 11 }, false, state).reason).toMatch(/creek/);
-    expect(shelterSpot({ tx: 11, ty: 5 }, false, state).reason).toMatch(/edge/);
-    expect(shelterSpot({ tx: 6, ty: 1 }, false, state).reason).toMatch(/tree/);
-    expect(shelterSpot({ tx: 2, ty: 2 }, false, state).reason).toMatch(/rock/);
-    expect(shelterSpot({ tx: 1, ty: 3 }, false, state).reason).toMatch(/bush/);
-    expect(shelterSpot({ tx: 8, ty: 3 }, false, state).reason).toMatch(/Pick/);
-    expect(shelterSpot({ tx: 7, ty: 1 }, false, state).ok).toBe(false);
-
-    const picked = { ...state, picked: { 'item_sticks-8-3': true as const } };
-    expect(shelterSpot({ tx: 8, ty: 3 }, false, picked).ok).toBe(true);
-
-    const standing = { ...state, tx: 7, ty: 3 };
-    expect(shelterSpot({ tx: 7, ty: 3 }, false, standing).reason).toMatch(/standing/);
-
-    const fired = {
+    const one = {
       ...state,
-      fire: { ...state.fire, ring: true },
-      fireTile: { tx: 8, ty: 2 },
+      pieces: [{ kind: 'foundation', tx: 7, ty: 3, edge: 'se' } as Piece],
     };
-    expect(shelterSpot({ tx: 7, ty: 3 }, false, fired).reason).toMatch(/fire/);
+    expect(foundationSpot({ tx: 8, ty: 3 }, one).ok).toBe(true);
+    expect(foundationSpot({ tx: 5, ty: 5 }, one).reason).toMatch(/Snap/);
+    expect(foundationSpot({ tx: 7, ty: 3 }, one).reason).toMatch(/already/);
   });
 
-  it('keeps a placed lean-to and a placed fire out of the path', () => {
-    const sheltered = {
+  it('puts walls and a doorway on a foundation edge, and the floor on the walls', () => {
+    const base = {
       ...initialState(),
-      shelter: 1 as const,
-      shelterAnchor: { tx: 7, ty: 3 },
-      shelterFlip: false,
+      pieces: [{ kind: 'foundation', tx: 7, ty: 3, edge: 'se' } as Piece],
     };
-    const foot = occupiedFrom(sheltered);
-    expect(isBlocked(7, 3, foot)).toBe(true);
-    expect(isBlocked(8, 2, foot)).toBe(true);
-    expect(isBlocked(5, 3, foot)).toBe(false);
-    const around = planRoute({ tx: 7, ty: 5 }, 7, 3, blockedFor(sheltered));
+    expect(wallSpot({ tx: 7, ty: 3 }, 'sw', 'wall', base).ok).toBe(true);
+    expect(wallSpot({ tx: 5, ty: 5 }, 'se', 'doorway', base).reason).toMatch(/foundation/i);
+    expect(floorSpot({ tx: 7, ty: 3 }, base).reason).toMatch(/wall/i);
+
+    const walled = {
+      ...base,
+      pieces: [...base.pieces, { kind: 'wall', tx: 7, ty: 3, edge: 'ne' } as Piece],
+    };
+    expect(floorSpot({ tx: 7, ty: 3 }, walled).ok).toBe(true);
+    expect(wallSpot({ tx: 7, ty: 3 }, 'ne', 'doorway', walled).reason).toMatch(/already/i);
+  });
+
+  it('lets a doorway through and stops a solid wall', () => {
+    const from = { tx: 7, ty: 3 };
+    const to = { tx: 8, ty: 3 };
+    const wall = [{ kind: 'wall', tx: 7, ty: 3, edge: 'se' } as Piece];
+    const door = [{ kind: 'doorway', tx: 7, ty: 3, edge: 'se' } as Piece];
+    const open = () => false;
+    expect(blocksStep(wall, from, to)).toBe(true);
+    expect(blocksStep(wall, to, from)).toBe(true);
+    const around = findPath(from, to, open, (a, b) => blocksStep(wall, a, b));
     expect(around).not.toBeNull();
-    expect(around?.stand).not.toEqual({ tx: 7, ty: 3 });
-    expect(around?.stand).not.toEqual({ tx: 8, ty: 2 });
-
-    expect(fireSpot({ tx: 8, ty: 2 }, sheltered).reason).toMatch(/lean-to/);
-    expect(fireSpot({ tx: 7, ty: 4 }, sheltered).ok).toBe(true);
-
-    const fired = {
-      ...initialState(),
-      fire: { ...initialState().fire, ring: true },
-      fireTile: { tx: 7, ty: 4 },
-    };
-    expect(isBlocked(7, 4, occupiedFrom(fired))).toBe(true);
-    expect(isBlocked(7, 4, occupiedFrom(initialState()))).toBe(false);
+    expect(around![0]).not.toEqual(to);
+    expect(blocksStep(door, from, to)).toBe(false);
+    expect(findPath(from, to, open, (a, b) => blocksStep(door, a, b))).toEqual([to]);
   });
 });

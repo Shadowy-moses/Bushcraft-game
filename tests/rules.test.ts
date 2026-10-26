@@ -1,176 +1,66 @@
 import { describe, expect, it } from 'vitest';
-import { DAWN_MINUTES, FIRE_TILE, START_MINUTES } from '../src/game/constants';
-import { occupiedFrom } from '../src/game/footprint';
-import { PROPS, blockedFor, isBlocked } from '../src/game/map';
-import { planRoute } from '../src/game/path';
-import {
-  applyAction,
-  atCamp,
-  canWaitForDawn,
-  gainEnergy,
-  gather,
-  initialState,
-  tick,
-  warmthPerGameHour,
-} from '../src/game/rules';
-import type { GameState, Prop } from '../src/game/types';
+import { placePiece, chopTree, gather, initialState, tick } from '../src/game/rules';
+import { isFelled } from '../src/game/trees';
 
-function standBeside(state: GameState, prop: Prop): GameState {
-  const plan = planRoute({ tx: state.tx, ty: state.ty }, prop.tx, prop.ty, blockedFor(state));
-  if (!plan) throw new Error(`no path to ${prop.id}`);
-  return { ...state, tx: plan.stand.tx, ty: plan.stand.ty, energy: 100 };
-}
+describe('wood and the hatchet', () => {
+  it('turns a stick into a little wood and sets other pickups aside', () => {
+    const beside = { ...initialState(), tx: 8, ty: 4 };
+    const sticks = gather(beside, 'item_sticks-8-3');
+    expect(sticks.ok).toBe(true);
+    expect(sticks.popup).toBe('+1 Wood');
+    expect(sticks.state.inventory.wood).toBe(1);
 
-function playPerfect(): GameState {
-  let state = initialState();
-  for (const prop of PROPS) {
-    if (!prop.gather) continue;
-    if (prop.gather === 'tinder' && state.inventory.tinder >= 1) continue;
-    state = standBeside(state, prop);
-    const result = gather(state, prop.id);
-    if (!result.ok) throw new Error(`${prop.id}: ${result.message}`);
-    state = result.state;
-    state = gainEnergy(state, 100);
-  }
-  state = {
-    ...state,
-    tx: 5,
-    ty: 3,
-    energy: 100,
-    shelterAnchor: { tx: 5, ty: 3 },
-    shelterFlip: false,
-  };
-  for (const id of ['cordage-twist', 'cordage-wrap', 'shelter-1', 'shelter-2', 'shelter-3', 'shelter-4'] as const) {
-    const result = applyAction(state, id);
-    if (!result.ok) throw new Error(`${id}: ${result.message}`);
-    state = gainEnergy(result.state, 100);
-  }
-  state = { ...state, tx: FIRE_TILE.tx, ty: FIRE_TILE.ty, energy: 100, fireTile: { ...FIRE_TILE } };
-  for (const id of ['fire-ring', 'fire-tinder', 'fire-kindling', 'lay-tipi', 'fire-light'] as const) {
-    const result = applyAction(state, id);
-    if (!result.ok) throw new Error(`${id}: ${result.message}`);
-    state = gainEnergy(result.state, 100);
-  }
-  return state;
-}
-
-describe('the first night', () => {
-  it('freezes you if you never build a camp', () => {
-    const ended = tick(initialState(), DAWN_MINUTES - START_MINUTES);
-    expect(ended.outcome).toBe('lost');
-    expect(ended.warmth).toBe(0);
+    const stone = gather(beside, 'item_stone-8-4');
+    expect(stone.ok).toBe(true);
+    expect(stone.state.inventory.wood).toBe(0);
+    expect(stone.state.picked['item_stone-8-4']).toBe(true);
   });
 
-  it('still loses with only a fire, or only a shelter', () => {
-    const base = {
-      ...initialState(),
-      tx: FIRE_TILE.tx,
-      ty: FIRE_TILE.ty,
-      warmth: 100,
-      shelterAnchor: { tx: 5, ty: 3 },
-      shelterFlip: false,
-      fireTile: { ...FIRE_TILE },
-    };
-    const fireOnly = tick(
-      { ...base, fire: { ring: true, tinder: true, kindling: true, lay: 'tipi', lit: true } },
-      DAWN_MINUTES - START_MINUTES,
+  it('fells a tree in three swings and drops ten wood', () => {
+    let state = { ...initialState(), tx: 6, ty: 2, energy: 100 };
+    const id = 'pine_tree-6-1';
+    for (let swing = 0; swing < 2; swing++) {
+      const hit = chopTree(state, id);
+      expect(hit.ok).toBe(true);
+      expect(hit.popup).toBeUndefined();
+      expect(isFelled(hit.state.trees, id)).toBe(false);
+      state = { ...hit.state, energy: 100 };
+    }
+    const last = chopTree(state, id);
+    expect(last.popup).toBe('+10 Wood');
+    expect(last.state.inventory.wood).toBe(10);
+    expect(isFelled(last.state.trees, id)).toBe(true);
+    expect(chopTree({ ...last.state, tool: 'plan' }, id).ok).toBe(false);
+  });
+
+  it('lets a stump grow back unless a foundation covers it', () => {
+    const felled = chopTree(chopTree(chopTree({ ...initialState(), tx: 6, ty: 2, energy: 100 }, 'pine_tree-6-1').state, 'pine_tree-6-1').state, 'pine_tree-6-1').state;
+    const grown = tick({ ...felled, energy: 100 }, 90);
+    expect(isFelled(grown.trees, 'pine_tree-6-1')).toBe(false);
+
+    const held = tick(
+      {
+        ...felled,
+        pieces: [{ kind: 'foundation', tx: 6, ty: 1, edge: 'se' }],
+      },
+      90,
     );
-    const shelterOnly = tick({ ...base, shelter: 4 }, DAWN_MINUTES - START_MINUTES);
-    expect(fireOnly.outcome).toBe('lost');
-    expect(shelterOnly.outcome).toBe('lost');
+    expect(isFelled(held.trees, 'pine_tree-6-1')).toBe(true);
   });
 
-  it('keeps you warm until dawn when both are finished and you stay in camp', () => {
-    const ready = {
-      ...initialState(),
-      tx: FIRE_TILE.tx,
-      ty: FIRE_TILE.ty,
-      warmth: 80,
-      shelter: 4 as const,
-      shelterAnchor: { tx: 5, ty: 3 },
-      shelterFlip: false,
-      fireTile: { ...FIRE_TILE },
-      fire: { ring: true, tinder: true, kindling: true, lay: 'logcabin' as const, lit: true },
-    };
-    expect(warmthPerGameHour({ ...ready, minutes: 23 * 60 })).toBeGreaterThan(0);
-    const ended = tick(ready, DAWN_MINUTES - START_MINUTES);
-    expect(ended.outcome).toBe('won');
-    expect(ended.warmth).toBeGreaterThan(70);
-    expect(canWaitForDawn(ready)).toBe(true);
+  it('keeps the afternoon going after the warmth reading hits zero', () => {
+    const later = tick(initialState(), 5000);
+    expect(later.outcome).toBe('playing');
+    expect(later.warmth).toBe(0);
   });
 
-  it('gets colder when you wander away from the fire at night', () => {
-    const camp = {
-      ...initialState(),
-      minutes: 23 * 60,
-      warmth: 80,
-      tx: FIRE_TILE.tx,
-      ty: FIRE_TILE.ty,
-      shelter: 4 as const,
-      shelterAnchor: { tx: 5, ty: 3 },
-      shelterFlip: false,
-      fireTile: { ...FIRE_TILE },
-      fire: { ring: true, tinder: true, kindling: true, lay: 'tipi' as const, lit: true },
-    };
-    const away = { ...camp, tx: 1, ty: 8 };
-    expect(atCamp(away)).toBe(false);
-    const stayed = tick(camp, 30);
-    const left = tick(away, 30);
-    expect(left.warmth).toBeLessThan(stayed.warmth - 5);
-  });
-
-  it('can be finished with what the woods actually hold', () => {
-    const done = playPerfect();
-    expect(done.shelter).toBe(4);
-    expect(done.fire.lit).toBe(true);
-    expect(done.fire.lay).toBe('tipi');
-    expect(done.inventory.sticks).toBeGreaterThanOrEqual(0);
-    expect(isBlocked(done.tx, done.ty, occupiedFrom(done))).toBe(false);
-    expect(isBlocked(done.shelterAnchor!.tx, done.shelterAnchor!.ty, occupiedFrom(done))).toBe(true);
-    expect(isBlocked(done.fireTile!.tx, done.fireTile!.ty, occupiedFrom(done))).toBe(true);
-    const ended = tick(done, DAWN_MINUTES - done.minutes);
-    expect(ended.outcome).toBe('won');
-  });
-
-  it('refuses a square lashing with no cordage', () => {
-    const state = {
-      ...initialState(),
-      tx: FIRE_TILE.tx,
-      ty: FIRE_TILE.ty,
-      shelter: 1 as const,
-      shelterAnchor: { tx: 5, ty: 3 },
-      shelterFlip: false,
-      inventory: { ...initialState().inventory, sticks: 9 },
-    };
-    const result = applyAction(state, 'shelter-2');
-    expect(result.ok).toBe(false);
-  });
-
-  it('warms the ground around a lean-to wherever it was placed', () => {
-    const night = 23 * 60;
-    const placed = {
-      ...initialState(),
-      minutes: night,
-      warmth: 80,
-      shelter: 4 as const,
-      shelterAnchor: { tx: 7, ty: 3 },
-      shelterFlip: false,
-      tx: 7,
-      ty: 4,
-    };
-    const open = warmthPerGameHour({ ...placed, tx: 1, ty: 8 });
-    expect(warmthPerGameHour(placed)).toBe(open + 18);
-    const split = {
-      ...placed,
-      tx: 3,
-      ty: 4,
-      fireTile: { tx: 3, ty: 4 },
-      fire: { ring: true, tinder: true, kindling: true, lay: 'tipi' as const, lit: true },
-    };
-    expect(warmthPerGameHour(split)).toBe(open + 18);
-    const together = { ...split, tx: 7, ty: 4 };
-    expect(warmthPerGameHour(together)).toBe(open + 18);
-    const both = { ...split, tx: 5, ty: 2 };
-    expect(warmthPerGameHour(both)).toBe(open + 36);
+  it('spends wood and energy when a piece goes up', () => {
+    const ready = { ...initialState(), inventory: { wood: 20 }, energy: 100 };
+    const laid = placePiece(ready, 'foundation', 7, 3, 'se');
+    expect(laid.ok).toBe(true);
+    expect(laid.state.inventory.wood).toBe(0);
+    expect(laid.state.energy).toBe(94);
+    expect(laid.state.pieces).toHaveLength(1);
+    expect(placePiece(laid.state, 'foundation', 8, 3, 'se').ok).toBe(false);
   });
 });

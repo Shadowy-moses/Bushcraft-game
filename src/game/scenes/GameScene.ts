@@ -1,32 +1,17 @@
 import Phaser from 'phaser';
 import { frameOrigin, standinOrigin } from '../atlas';
-import {
-  COLS,
-  CORDAGE_ENERGY,
-  FIBER_CORD,
-  FIRE_ENERGY,
-  PLAY_MINUTES_PER_SECOND,
-  REST_ENERGY_PER_SECOND,
-  REST_MINUTES_PER_SECOND,
-  ROWS,
-  SHELTER_ENERGY,
-  STICKS_RIDGE,
-  STONES_RING,
-  WAIT_MINUTES_PER_SECOND,
-  ZOOM,
-} from '../constants';
-import { CORDAGE_SECONDS } from '../craft';
-import { HEADING, REST_TIP, TOO_COLD, WAIT_TIP } from '../copy';
-import { shelterFootprint, shelterWorld } from '../footprint';
-import { clamp, depthFor, tileToWorld, worldToTile } from '../iso';
+import { across, blocksStep, canAfford, edgeArt, edgeOffset, EDGES, pieceKey, pieceSpot, suggestPiece, WOOD_COST } from '../build';
+import { COLS, PLAY_MINUTES_PER_SECOND, REST_ENERGY_PER_SECOND, REST_MINUTES_PER_SECOND, ROWS, ZOOM } from '../constants';
+import { HEADING, REST_TIP } from '../copy';
+import { chebyshev, clamp, depthFor, tileToWorld, worldToTile } from '../iso';
 import { SHADOW_TINT, lightTint, multiplyTint, skyColor } from '../light';
 import { PROPS, blockedFor, groundAt, inBounds, propAt } from '../map';
 import { buildModel, type PlaceModel, type SheetId } from '../model';
-import { findPath, planRoute } from '../path';
-import { fireSpot, shelterSpot, suggestAnchor } from '../place';
-import { actionNeedsCamp, applyAction, atWorkSite, canWaitForDawn, gainEnergy, gather, initialState, tick } from '../rules';
+import { findPath, planRoute, DIRS } from '../path';
+import { chopTree, gainEnergy, gather, initialState, placePiece, tick } from '../rules';
 import { clearGame, loadGame, saveGame } from '../save';
-import type { ActionId, GameState, Prop, PropKind, Tile } from '../types';
+import { isFelled } from '../trees';
+import type { EdgeName, GameState, PieceKind, Prop, PropKind, Tile } from '../types';
 import { facingFromDelta, mirrorFacing, poseClip, poseName } from '../woodsman';
 import { Hud } from '../../ui/hud';
 
@@ -52,16 +37,21 @@ function imageAlpha(image: CanvasImageSource & { width: number; height: number }
   return cache.data[(sy * cache.width + sx) * 4 + 3] ?? 0;
 }
 
-const RING = [
-  { x: -12, y: -1 },
-  { x: 12, y: -2 },
-  { x: -7, y: 5 },
-  { x: 8, y: 4 },
-];
-
 interface PropView {
   prop: Prop;
   sprite: Phaser.GameObjects.Sprite;
+}
+
+interface Floater {
+  text: Phaser.GameObjects.Text;
+  life: number;
+  y: number;
+}
+
+interface PendingPlace {
+  kind: PieceKind;
+  tile: Tile;
+  edge: EdgeName;
 }
 
 declare global {
@@ -70,11 +60,12 @@ declare global {
       state: () => GameState;
       act: (id: string) => void;
       gather: (id: string) => string;
+      chop: (id: string) => string;
       jump: (minutes: number) => void;
       teleport: (tx: number, ty: number) => void;
       screenOf: (tx: number, ty: number) => { x: number; y: number };
       fill: () => void;
-      beginPlace: (kind: 'shelter' | 'fire') => void;
+      beginPlace: (kind: PieceKind) => void;
       moveGhost: (tx: number, ty: number) => void;
       flipGhost: () => void;
       confirmPlace: () => void;
@@ -104,24 +95,19 @@ export class GameScene extends Phaser.Scene {
   private ground = new Map<string, Phaser.GameObjects.Sprite>();
   private propViews: PropView[] = [];
   private shaded = new Set<string>();
-  private shelterSprite?: Phaser.GameObjects.Sprite;
-  private fireSprite?: Phaser.GameObjects.Sprite;
-  private ringSprites: Phaser.GameObjects.Sprite[] = [];
-  private tinderSprite?: Phaser.GameObjects.Sprite;
-  private kindlingSprites: Phaser.GameObjects.Sprite[] = [];
+  private buildings = new Map<string, Phaser.GameObjects.Sprite>();
+  private stumps = new Map<string, Phaser.GameObjects.Sprite>();
   private marker?: Phaser.GameObjects.Sprite;
   private ghost?: Phaser.GameObjects.Sprite;
-  private placing: 'shelter' | 'fire' | null = null;
-  /** Set while the woodsman is walking to a spot that is not built yet. */
-  private commitKind: 'shelter' | 'fire' | null = null;
+  private placing: PieceKind | null = null;
+  private pending: PendingPlace | null = null;
   private ghostAnchor: Tile = { tx: 0, ty: 0 };
-  private ghostFlip = false;
+  private ghostEdge: EdgeName = 'se';
   private placeValid = false;
   private placeHint = '';
   private pointer = { x: 0, y: 0, down: false };
   private pose: 'idle' | 'walk' | 'gather' | 'chop' = 'idle';
   private poseUntil = 0;
-  private craftJob: { elapsed: number; duration: number; didTwist: boolean } | null = null;
   private path: { tx: number; ty: number }[] = [];
   private from = { x: 0, y: 0 };
   private to = { x: 0, y: 0 };
@@ -131,6 +117,7 @@ export class GameScene extends Phaser.Scene {
   private minuteBank = 0;
   private saveBank = 0;
   private hudBank = 0;
+  private floaters: Floater[] = [];
   private onVis = (): void => undefined;
   private onKey = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') this.handleAction('close');
@@ -150,21 +137,20 @@ export class GameScene extends Phaser.Scene {
     this.arrive = null;
     this.resting = false;
     this.placing = null;
-    this.commitKind = null;
+    this.pending = null;
     this.placeValid = false;
-    this.ghost?.setVisible(false);
     this.ground = new Map();
     this.propViews = [];
-    this.ringSprites = [];
-    this.kindlingSprites = [];
+    this.buildings = new Map();
+    this.stumps = new Map();
+    this.floaters = [];
     this.pose = 'idle';
     this.poseUntil = 0;
-    this.craftJob = null;
     const saved = loadGame();
     if (saved) {
       this.state = saved;
       this.started = true;
-      this.sheet = saved.outcome === 'playing' ? 'none' : 'end';
+      this.sheet = 'none';
     } else {
       this.state = initialState();
       this.started = this.skipTitle;
@@ -174,12 +160,12 @@ export class GameScene extends Phaser.Scene {
 
     this.buildGround();
     this.buildProps();
-    this.buildCamp();
+    this.buildMarkers();
     this.buildPlayer();
     this.refreshShadows();
     this.syncProps();
-    this.showShelter();
-    this.showFire();
+    this.syncStumps();
+    this.syncBuildings();
 
     const root = document.getElementById('hud');
     if (!root) throw new Error('Missing hud');
@@ -222,16 +208,8 @@ export class GameScene extends Phaser.Scene {
     window.__firstNight = {
       state: () => this.state,
       act: (id) => this.handleAction(id),
-      gather: (id) => {
-        const result = gather(this.state, id);
-        if (!result.ok) return result.message;
-        const prop = PROPS.find((item) => item.id === id);
-        this.state = result.state;
-        if (prop) this.faceTile(prop.tx, prop.ty);
-        this.playPose('gather');
-        this.afterChange();
-        return result.message;
-      },
+      gather: (id) => this.debugGather(id),
+      chop: (id) => this.debugChop(id),
       jump: (minutes) => {
         this.state = tick(this.state, minutes);
         this.afterChange();
@@ -246,19 +224,15 @@ export class GameScene extends Phaser.Scene {
       },
       screenOf: (tx: number, ty: number) => {
         const pos = tileToWorld(tx, ty);
-        const cam = this.cameras.main;
-        const m = (cam as unknown as { matrix: { matrix: number[] } }).matrix.matrix;
+        const camera = this.cameras.main;
+        const m = (camera as unknown as { matrix: { matrix: number[] } }).matrix.matrix;
         const rect = this.game.canvas.getBoundingClientRect();
-        const x = (pos.x - cam.scrollX) * m[0] + (pos.y - cam.scrollY) * m[2] + m[4];
-        const y = (pos.x - cam.scrollX) * m[1] + (pos.y - cam.scrollY) * m[3] + m[5];
+        const x = (pos.x - camera.scrollX) * m[0] + (pos.y - camera.scrollY) * m[2] + m[4];
+        const y = (pos.x - camera.scrollX) * m[1] + (pos.y - camera.scrollY) * m[3] + m[5];
         return { x: rect.left + x, y: rect.top + y };
       },
       fill: () => {
-        this.state = {
-          ...this.state,
-          energy: 100,
-          inventory: { sticks: 12, stones: 5, fiber: 4, cordage: 0, tinder: 1, leaves: 5 },
-        };
+        this.state = { ...this.state, energy: 100, inventory: { wood: 200 } };
         this.afterChange();
       },
       beginPlace: (kind) => this.beginPlace(kind),
@@ -296,33 +270,27 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(0.05, delta / 1000);
     this.stepMove(dt);
     this.expirePose();
-    this.stepCraft(dt);
+    this.stepFloaters(dt);
     if (this.started && !this.hidden && this.sheet === 'none' && !this.placing && this.state.outcome === 'playing') {
-      const waiting = this.resting && canWaitForDawn(this.state);
       let rate: number = PLAY_MINUTES_PER_SECOND;
       if (this.resting) {
-        rate = waiting ? WAIT_MINUTES_PER_SECOND : REST_MINUTES_PER_SECOND;
-        this.state = gainEnergy(this.state, dt * (waiting ? 8 : REST_ENERGY_PER_SECOND));
+        rate = REST_MINUTES_PER_SECOND;
+        this.state = gainEnergy(this.state, dt * REST_ENERGY_PER_SECOND);
       }
       this.minuteBank += dt * rate;
       if (this.minuteBank >= 0.2) {
         const minutes = this.minuteBank;
         this.minuteBank = 0;
+        const before = this.state.trees;
         this.state = tick(this.state, minutes);
+        if (this.state.trees !== before) {
+          this.syncProps();
+          this.syncStumps();
+        }
       }
-      if (this.resting && !canWaitForDawn(this.state) && this.state.warmth < 24) {
-        this.resting = false;
-        this.state = { ...this.state, tip: TOO_COLD };
-      } else if (this.resting && !waiting && this.state.energy >= 100) {
+      if (this.resting && this.state.energy >= 100) {
         this.resting = false;
         this.state = { ...this.state, tip: 'Rested. On your feet.' };
-      }
-      if (this.state.outcome !== 'playing') {
-        this.resting = false;
-        this.sheet = 'end';
-        this.stopWalk();
-        this.paintHud(true);
-        saveGame(this.state);
       }
     }
     this.applyTints();
@@ -372,31 +340,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private buildCamp(): void {
-    this.fireSprite = this.add.sprite(0, 0, 'world', 'fire_tipi_unlit');
-    this.fireSprite.setVisible(false);
-    this.fireSprite.on('animationupdate', () => this.syncFrameOrigin(this.fireSprite!));
-    this.ringSprites = RING.map((offset) => this.makePiece(offset.x, offset.y, 'item_stone'));
-    this.tinderSprite = this.makePiece(0, -1, 'item_fiber');
-    this.kindlingSprites = [this.makePiece(-6, 2, 'item_sticks'), this.makePiece(7, 1, 'item_sticks')];
-    this.shelterSprite = this.add.sprite(0, 0, 'shelter_ridge');
-    this.shelterSprite.setVisible(false);
-    this.ghost = this.add.sprite(0, 0, 'world', 'leanto_frame');
+  private buildMarkers(): void {
+    this.ghost = this.add.sprite(0, 0, 'foundation');
+    this.ghost.setOrigin(0.5, 0.8);
     this.ghost.setVisible(false);
     const markerOrigin = standinOrigin('tile_marker');
     this.marker = this.add.sprite(0, 0, 'tile_marker');
     this.marker.setOrigin(markerOrigin.x, markerOrigin.y);
     this.marker.setVisible(false);
-  }
-
-  private makePiece(dx: number, dy: number, frame: string): Phaser.GameObjects.Sprite {
-    const sprite = this.add.sprite(0, 0, 'world', frame);
-    const origin = frameOrigin(frame);
-    sprite.setOrigin(origin.x, origin.y);
-    sprite.setVisible(false);
-    sprite.setData('dx', dx);
-    sprite.setData('dy', dy);
-    return sprite;
   }
 
   private buildPlayer(): void {
@@ -429,12 +380,16 @@ export class GameScene extends Phaser.Scene {
     this.stopWalk();
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const prop = this.propAtPoint(world.x, world.y);
+    if (prop && this.isTree(prop) && !isFelled(this.state.trees, prop.id)) {
+      this.goChop(prop);
+      return;
+    }
     if (prop?.gather) {
       this.goGather(prop);
       return;
     }
     if (prop?.blocks) {
-      this.setTip(prop.kind === 'rock' ? 'That rock is staying put. Pick up the loose stones.' : 'The trees are too tight to walk through.');
+      this.setTip(prop.kind === 'rock' ? 'That rock is staying put.' : 'The trees are too tight to walk through.');
       return;
     }
     const tile = this.tileAt(world.x, world.y);
@@ -488,7 +443,12 @@ export class GameScene extends Phaser.Scene {
     return alpha > 16;
   }
 
+  private isTree(prop: Prop): boolean {
+    return prop.kind === 'pine_tree' || prop.kind === 'birch_tree';
+  }
+
   private isGone(prop: Prop): boolean {
+    if (this.isTree(prop) && isFelled(this.state.trees, prop.id)) return true;
     return Boolean(this.state.picked[prop.id]) && this.removable(prop.kind);
   }
 
@@ -506,19 +466,44 @@ export class GameScene extends Phaser.Scene {
       this.state = result.state;
       this.faceTile(prop.tx, prop.ty);
       this.playPose('gather');
+      if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
       this.afterChange();
     });
+  }
+
+  private goChop(prop: Prop): void {
+    if (this.state.tool !== 'hatchet') {
+      this.setTip('Put the hatchet in your hand.');
+      return;
+    }
+    this.walkTo(prop.tx, prop.ty, () => {
+      const result = chopTree(this.state, prop.id);
+      if (!result.ok) {
+        this.setTip(result.message);
+        return;
+      }
+      this.state = result.state;
+      this.faceTile(prop.tx, prop.ty);
+      this.playPose('chop');
+      if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
+      this.afterChange();
+    });
+  }
+
+  private edgeBlocked(from: Tile, to: Tile): boolean {
+    return blocksStep(this.state.pieces, from, to);
   }
 
   private walkTo(tx: number, ty: number, arrive?: () => void): boolean {
     const from = { tx: this.state.tx, ty: this.state.ty };
     const blocked = blockedFor(this.state);
+    const edge = (a: Tile, b: Tile) => this.edgeBlocked(a, b);
     let plan: { path: { tx: number; ty: number }[]; stand: { tx: number; ty: number } } | null;
     if (!blocked(tx, ty)) {
-      const path = findPath(from, { tx, ty }, blocked);
+      const path = findPath(from, { tx, ty }, blocked, edge);
       plan = path === null ? null : { path, stand: { tx, ty } };
     } else {
-      plan = planRoute(from, tx, ty, blocked);
+      plan = planRoute(from, tx, ty, blocked, edge);
     }
     if (!plan) {
       this.setTip('No way through.');
@@ -622,19 +607,8 @@ export class GameScene extends Phaser.Scene {
     this.state = { ...this.state, facing };
   }
 
-  private playChore(id: string): void {
-    const tile = id.startsWith('shelter') ? this.state.shelterAnchor : this.state.fireTile;
-    if (tile) this.faceTile(tile.tx, tile.ty);
-    this.playPose('chop');
-  }
-
   private stopWalk(): void {
-    if (this.commitKind === 'shelter' && this.state.shelter < 1) {
-      this.state = { ...this.state, shelterAnchor: null, shelterFlip: false };
-    } else if (this.commitKind === 'fire' && !this.state.fire.ring) {
-      this.state = { ...this.state, fireTile: null };
-    }
-    this.commitKind = null;
+    this.pending = null;
     this.path = [];
     this.arrive = null;
     if (!this.player) return;
@@ -681,27 +655,29 @@ export class GameScene extends Phaser.Scene {
       this.layoutCamera();
       return;
     }
-    if (id === 'pack' || id === 'craft' || id === 'cordage' || id === 'lay') {
-      if (!this.started || this.state.outcome !== 'playing') return;
-      if (this.placing) this.endPlace();
-      this.resting = false;
-      this.stopWalk();
-      this.sheet = 'craft';
-      this.paintHud(true);
+    if (id.startsWith('slot-')) {
+      const index = Number(id.slice(5));
+      if (index === 0) this.state = { ...this.state, tool: 'hatchet' };
+      if (index === 1) {
+        this.state = { ...this.state, tool: 'plan' };
+        this.openCraft();
+        return;
+      }
+      this.paintHud(false);
       return;
     }
-    if (id === 'craft-cordage') {
-      this.beginCordage();
+    if (id === 'pack' || id === 'craft') {
+      this.openCraft();
       return;
     }
-    if (id === 'place-shelter' || id === 'place-fire') {
-      if (!this.started || this.state.outcome !== 'playing') return;
-      this.tryBeginPlace(id === 'place-shelter' ? 'shelter' : 'fire');
+    if (id === 'place-foundation' || id === 'place-wall' || id === 'place-doorway' || id === 'place-floor') {
+      this.tryBeginPlace(id.slice('place-'.length) as PieceKind);
       return;
     }
     if (id === 'flip') {
-      if (this.placing !== 'shelter') return;
-      this.ghostFlip = !this.ghostFlip;
+      if (this.placing !== 'wall' && this.placing !== 'doorway') return;
+      const index = EDGES.indexOf(this.ghostEdge);
+      this.ghostEdge = EDGES[(index + 1) % EDGES.length];
       this.refreshGhost();
       return;
     }
@@ -727,44 +703,20 @@ export class GameScene extends Phaser.Scene {
       }
       this.stopWalk();
       this.resting = true;
-      this.setTip(canWaitForDawn(this.state) ? WAIT_TIP : REST_TIP);
+      this.setTip(REST_TIP);
       this.paintHud(true);
       this.layoutCamera();
-      return;
     }
-    if (this.state.outcome !== 'playing') return;
-    if (actionNeedsCamp(id) && !atWorkSite(this.state, id)) {
-      const tile = id.startsWith('shelter') ? this.state.shelterAnchor : this.state.fireTile;
-      if (!tile) {
-        this.setTip(id.startsWith('shelter') ? 'Place the lean-to first.' : 'Place the fire first.');
-        return;
-      }
-      const reopen = this.sheet === 'craft' || this.sheet === 'lay';
-      this.sheet = 'none';
-      this.paintHud(true);
-      this.stopWalk();
-      this.setTip(HEADING);
-      this.walkTo(tile.tx, tile.ty, () => {
-        this.handleAction(id);
-        if (reopen && this.state.outcome === 'playing' && this.sheet === 'none') {
-          this.sheet = 'craft';
-          this.paintHud(true);
-        }
-      });
-      return;
-    }
-    const result = applyAction(this.state, id as ActionId);
-    if (!result.ok) {
-      this.setTip(result.message);
-      this.paintHud(true);
-      return;
-    }
-    this.state = result.state;
-    if (id === 'cordage-wrap' || id === 'lay-tipi' || id === 'lay-logcabin' || id === 'fire-light') {
-      this.sheet = 'none';
-    }
-    if (id.startsWith('shelter') || id.startsWith('fire') || id.startsWith('lay')) this.playChore(id);
-    this.afterChange();
+  }
+
+  private openCraft(): void {
+    if (!this.started || this.state.outcome !== 'playing') return;
+    if (this.placing) this.endPlace();
+    this.resting = false;
+    this.stopWalk();
+    this.sheet = 'craft';
+    this.paintHud(true);
+    this.layoutCamera();
   }
 
   private afterChange(): void {
@@ -775,13 +727,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.refreshShadows();
     this.syncProps();
-    this.showShelter();
-    this.showFire();
-    if (this.state.outcome !== 'playing') {
-      this.resting = false;
-      this.sheet = 'end';
-      this.stopWalk();
-    }
+    this.syncStumps();
+    this.syncBuildings();
     saveGame(this.state);
     this.paintHud(true);
     this.layoutCamera();
@@ -793,13 +740,8 @@ export class GameScene extends Phaser.Scene {
       if (this.isGone(view.prop)) continue;
       this.shaded.add(`${view.prop.tx},${view.prop.ty}`);
     }
-    if (this.state.shelter >= 1 && this.state.shelterAnchor) {
-      for (const tile of shelterFootprint(this.state.shelterAnchor, this.state.shelterFlip)) {
-        this.shaded.add(`${tile.tx},${tile.ty}`);
-      }
-    }
-    if ((this.state.fire.ring || this.state.fire.lay !== 'none') && this.state.fireTile) {
-      this.shaded.add(`${this.state.fireTile.tx},${this.state.fireTile.ty}`);
+    for (const piece of this.state.pieces) {
+      if (piece.kind === 'foundation' || piece.kind === 'floor') this.shaded.add(`${piece.tx},${piece.ty}`);
     }
   }
 
@@ -807,77 +749,65 @@ export class GameScene extends Phaser.Scene {
     for (const view of this.propViews) view.sprite.setVisible(!this.isGone(view.prop));
   }
 
-  private showShelter(): void {
-    const sprite = this.shelterSprite;
-    if (!sprite) return;
-    const stage = this.state.shelter;
-    const anchor = this.state.shelterAnchor;
-    if (stage <= 0 || !anchor) {
-      sprite.setVisible(false);
-      return;
+  private syncStumps(): void {
+    const felled = new Set<string>();
+    for (const prop of PROPS) {
+      if (!this.isTree(prop) || !isFelled(this.state.trees, prop.id)) continue;
+      felled.add(prop.id);
+      let stump = this.stumps.get(prop.id);
+      if (!stump) {
+        const pos = tileToWorld(prop.tx, prop.ty);
+        stump = this.add.sprite(pos.x, pos.y, 'stump');
+        stump.setOrigin(0.5, 1);
+        stump.setDepth(depthFor(pos.y, 2));
+        this.stumps.set(prop.id, stump);
+      }
+      stump.setVisible(true);
     }
-    const at = shelterWorld(anchor, this.state.shelterFlip);
-    sprite.setVisible(true);
-    sprite.setPosition(at.x, at.y);
-    sprite.setDepth(depthFor(at.y, 5));
-    sprite.setFlipX(this.state.shelterFlip);
-    if (stage === 1) this.useStandin(sprite, 'shelter_ridge');
-    else if (stage === 2) this.useStandin(sprite, 'shelter_lashed');
-    else if (stage === 3) this.applyAtlas(sprite, 'leanto_frame');
-    else this.applyAtlas(sprite, 'leanto_done');
-  }
-
-  private showFire(): void {
-    const sprite = this.fireSprite;
-    if (!sprite) return;
-    const fire = this.state.fire;
-    const tile = this.state.fireTile;
-    if (!tile) {
-      sprite.setVisible(false);
-      this.ringSprites.forEach((stone) => stone.setVisible(false));
-      this.tinderSprite?.setVisible(false);
-      this.kindlingSprites.forEach((stick) => stick.setVisible(false));
-      return;
-    }
-    const pos = tileToWorld(tile.tx, tile.ty);
-    sprite.setPosition(pos.x, pos.y);
-    sprite.setDepth(depthFor(pos.y, 5));
-    this.layoutPieces(pos);
-    const pieces = fire.lay === 'none';
-    this.ringSprites.forEach((stone) => stone.setVisible(pieces && fire.ring));
-    this.tinderSprite?.setVisible(pieces && fire.tinder);
-    this.kindlingSprites.forEach((stick) => stick.setVisible(pieces && fire.kindling));
-    if (fire.lit && fire.lay === 'tipi') this.playFire('fire_tipi_lit');
-    else if (fire.lit && fire.lay === 'logcabin') this.playFire('fire_logcabin_lit');
-    else if (fire.lay === 'tipi') this.showUnlit('fire_tipi_unlit');
-    else if (fire.lay === 'logcabin') this.showUnlit('fire_logcabin_unlit');
-    else {
-      sprite.anims.stop();
-      sprite.setVisible(false);
+    for (const [id, stump] of this.stumps) {
+      if (!felled.has(id)) stump.setVisible(false);
     }
   }
 
-  private playFire(anim: string): void {
-    const sprite = this.fireSprite;
-    if (!sprite) return;
-    sprite.setVisible(true);
-    if (sprite.anims.currentAnim?.key !== anim || !sprite.anims.isPlaying) sprite.play(anim);
-    this.syncFrameOrigin(sprite);
-    sprite.clearTint();
-  }
-
-  private showUnlit(frame: string): void {
-    const sprite = this.fireSprite;
-    if (!sprite) return;
-    sprite.anims.stop();
-    sprite.setVisible(true);
-    this.applyAtlas(sprite, frame);
-  }
-
-  private useStandin(sprite: Phaser.GameObjects.Sprite, key: string): void {
-    sprite.setTexture(key);
-    const origin = standinOrigin(key);
-    sprite.setOrigin(origin.x, origin.y);
+  private syncBuildings(): void {
+    const live = new Set<string>();
+    for (const piece of this.state.pieces) {
+      const key = pieceKey(piece);
+      live.add(key);
+      let sprite = this.buildings.get(key);
+      if (!sprite) {
+        sprite = this.add.sprite(0, 0, 'foundation');
+        this.buildings.set(key, sprite);
+      }
+      const pos = tileToWorld(piece.tx, piece.ty);
+      if (piece.kind === 'foundation') {
+        sprite.setTexture('foundation');
+        sprite.setOrigin(0.5, 0.8);
+        sprite.setPosition(pos.x, pos.y);
+        sprite.setDepth(depthFor(pos.y, 1));
+        sprite.setFlipX(false);
+      } else if (piece.kind === 'floor') {
+        sprite.setTexture('floor');
+        sprite.setOrigin(0.5, 1);
+        sprite.setPosition(pos.x, pos.y - 14);
+        sprite.setDepth(depthFor(pos.y, 12));
+        sprite.setFlipX(false);
+      } else {
+        const art = edgeArt(piece.kind, piece.edge);
+        const off = edgeOffset(piece.edge);
+        sprite.setTexture(art.key);
+        sprite.setOrigin(0.5, 1);
+        sprite.setFlipX(art.flip);
+        sprite.setPosition(pos.x + off.x, pos.y + off.y);
+        sprite.setDepth(depthFor(pos.y + off.y, 5));
+      }
+      sprite.setVisible(true);
+    }
+    for (const [key, sprite] of this.buildings) {
+      if (live.has(key)) continue;
+      sprite.destroy();
+      this.buildings.delete(key);
+    }
   }
 
   private applyAtlas(sprite: Phaser.GameObjects.Sprite, frame: string): void {
@@ -893,20 +823,7 @@ export class GameScene extends Phaser.Scene {
     sprite.setOrigin(origin.x, origin.y);
   }
 
-  private layoutPieces(base: { x: number; y: number }): void {
-    const pieces = [...this.ringSprites, this.tinderSprite, ...this.kindlingSprites];
-    for (const sprite of pieces) {
-      if (!sprite) continue;
-      const dx = Number(sprite.getData('dx') ?? 0);
-      const dy = Number(sprite.getData('dy') ?? 0);
-      sprite.setPosition(base.x + dx, base.y + dy);
-      sprite.setDepth(depthFor(base.y + dy, 4));
-    }
-  }
-
   private applyTints(): void {
-    const lit = this.state.fire.lit;
-    const fireAt = lit ? this.state.fireTile : null;
     const sky = skyColor(this.state.minutes);
     this.cameras.main.setBackgroundColor(sky);
     const app = document.getElementById('app');
@@ -914,26 +831,20 @@ export class GameScene extends Phaser.Scene {
     const feet = `${this.state.tx},${this.state.ty}`;
     for (const [key, sprite] of this.ground) {
       const [tx, ty] = key.split(',').map(Number);
-      let tint = lightTint(this.state.minutes, tx, ty, lit, fireAt);
+      let tint = lightTint(this.state.minutes, tx, ty, false, null);
       if (this.shaded.has(key) || key === feet) tint = multiplyTint(tint, SHADOW_TINT);
       sprite.setTint(tint);
     }
     for (const view of this.propViews) {
-      view.sprite.setTint(lightTint(this.state.minutes, view.prop.tx, view.prop.ty, lit, fireAt));
+      view.sprite.setTint(lightTint(this.state.minutes, view.prop.tx, view.prop.ty, false, null));
     }
-    this.player?.setTint(lightTint(this.state.minutes, this.state.tx, this.state.ty, lit, fireAt));
-    if (this.shelterSprite?.visible && this.state.shelterAnchor) {
-      const anchor = this.state.shelterAnchor;
-      this.shelterSprite.setTint(lightTint(this.state.minutes, anchor.tx, anchor.ty, lit, fireAt));
+    this.player?.setTint(lightTint(this.state.minutes, this.state.tx, this.state.ty, false, null));
+    for (const piece of this.state.pieces) {
+      const sprite = this.buildings.get(pieceKey(piece));
+      sprite?.setTint(lightTint(this.state.minutes, piece.tx, piece.ty, false, null));
     }
-    if (this.fireSprite?.visible && this.state.fireTile) {
-      if (lit) this.fireSprite.clearTint();
-      else this.fireSprite.setTint(lightTint(this.state.minutes, this.state.fireTile.tx, this.state.fireTile.ty, false, null));
-    }
-    const pieceTile = this.state.fireTile ?? { tx: this.state.tx, ty: this.state.ty };
-    const pieceTint = lightTint(this.state.minutes, pieceTile.tx, pieceTile.ty, lit, fireAt);
-    for (const sprite of [...this.ringSprites, this.tinderSprite, ...this.kindlingSprites]) {
-      sprite?.setTint(pieceTint);
+    for (const stump of this.stumps.values()) {
+      stump.setTint(lightTint(this.state.minutes, this.state.tx, this.state.ty, false, null));
     }
   }
 
@@ -943,73 +854,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private paintHud(rebuild: boolean): void {
-    this.hud.render(buildModel(this.state, this.sheet, this.resting, this.placeModel(), this.queueModel()), rebuild);
-  }
-
-  private queueModel(): { label: string; progress: number } | null {
-    const job = this.craftJob;
-    if (!job) return null;
-    const progress = Math.max(0, Math.min(1, job.elapsed / job.duration));
-    const label = job.didTwist || progress >= 0.5 ? 'Wrapping the other way' : 'Twisting the strands';
-    return { label, progress };
-  }
-
-  private beginCordage(): void {
-    if (!this.started || this.state.outcome !== 'playing') return;
-    if (this.craftJob) {
-      this.setTip('Already working a cord.');
-      return;
-    }
-    if (this.state.inventory.cordage >= 1) {
-      this.setTip('You already have cordage.');
-      return;
-    }
-    if (!this.state.cordageTwisted) {
-      if (this.state.inventory.fiber < FIBER_CORD) {
-        this.setTip(`Needs ${FIBER_CORD} fiber. You have ${this.state.inventory.fiber}.`);
-        return;
-      }
-      if (this.state.energy < CORDAGE_ENERGY) {
-        this.setTip('Rest first. This takes some energy.');
-        return;
-      }
-    }
-    this.craftJob = {
-      elapsed: this.state.cordageTwisted ? CORDAGE_SECONDS * 0.5 : 0,
-      duration: CORDAGE_SECONDS,
-      didTwist: this.state.cordageTwisted,
-    };
-    this.sheet = 'craft';
-    this.setTip('Twist each strand the same way. Then wrap the pair the other way.');
-  }
-
-  private stepCraft(dt: number): void {
-    const job = this.craftJob;
-    if (!job || !this.started || this.state.outcome !== 'playing') return;
-    job.elapsed += dt;
-    if (!job.didTwist && job.elapsed >= job.duration * 0.5) {
-      const twisted = applyAction(this.state, 'cordage-twist');
-      if (!twisted.ok) {
-        this.craftJob = null;
-        this.setTip(twisted.message);
-        return;
-      }
-      this.state = twisted.state;
-      job.didTwist = true;
-      saveGame(this.state);
-    }
-    if (job.elapsed < job.duration) {
-      this.paintHud(false);
-      return;
-    }
-    this.craftJob = null;
-    const wrapped = applyAction(this.state, 'cordage-wrap');
-    if (!wrapped.ok) {
-      this.setTip(wrapped.message);
-      return;
-    }
-    this.state = wrapped.state;
-    this.afterChange();
+    this.hud.render(buildModel(this.state, this.sheet, this.resting, this.placeModel()), rebuild);
   }
 
   private placeModel(): PlaceModel | null {
@@ -1017,40 +862,28 @@ export class GameScene extends Phaser.Scene {
     return { kind: this.placing, valid: this.placeValid, hint: this.placeHint };
   }
 
-  private tryBeginPlace(kind: 'shelter' | 'fire'): void {
-    if (kind === 'shelter') {
-      if (this.state.shelter !== 0) return;
-      if (this.state.inventory.sticks < STICKS_RIDGE) {
-        this.setTip(`Needs ${STICKS_RIDGE} sticks. You have ${this.state.inventory.sticks}.`);
-        return;
+  private tryBeginPlace(kind: PieceKind): void {
+    if (!this.started || this.state.outcome !== 'playing') return;
+    if (!canAfford(this.state, kind)) {
+      if (this.state.inventory.wood < WOOD_COST[kind]) {
+        this.setTip(`Needs ${WOOD_COST[kind]} wood. You have ${this.state.inventory.wood}.`);
+      } else {
+        this.setTip('Rest first. Raising this takes some energy.');
       }
-      if (this.state.energy < SHELTER_ENERGY) {
-        this.setTip('Rest first. This takes some energy.');
-        return;
-      }
-    } else {
-      if (this.state.fire.ring) return;
-      if (this.state.inventory.stones < STONES_RING) {
-        this.setTip(`Needs ${STONES_RING} stones. You have ${this.state.inventory.stones}.`);
-        return;
-      }
-      if (this.state.energy < FIRE_ENERGY) {
-        this.setTip('Rest first. This takes some energy.');
-        return;
-      }
+      return;
     }
     this.beginPlace(kind);
   }
 
-  private beginPlace(kind: 'shelter' | 'fire'): void {
+  private beginPlace(kind: PieceKind): void {
     if (!this.started || this.state.outcome !== 'playing') return;
     this.resting = false;
     this.stopWalk();
     this.sheet = 'none';
     this.placing = kind;
-    const spot = suggestAnchor(this.state, kind);
-    this.ghostAnchor = spot.anchor;
-    this.ghostFlip = spot.flip;
+    const spot = suggestPiece(this.state, kind);
+    this.ghostAnchor = spot.tile;
+    this.ghostEdge = spot.edge;
     this.cameras.main.stopFollow();
     this.refreshGhost();
     this.paintHud(true);
@@ -1075,74 +908,160 @@ export class GameScene extends Phaser.Scene {
     this.refreshGhost();
   }
 
+  private ghostPose(): { x: number; y: number; key: string; ox: number; oy: number; tall: boolean } {
+    const pos = tileToWorld(this.ghostAnchor.tx, this.ghostAnchor.ty);
+    if (this.placing === 'wall' || this.placing === 'doorway') {
+      const art = edgeArt(this.placing, this.ghostEdge);
+      const off = edgeOffset(this.ghostEdge);
+      return { x: pos.x + off.x, y: pos.y + off.y, key: art.key, ox: 0.5, oy: 1, tall: true };
+    }
+    if (this.placing === 'floor') return { x: pos.x, y: pos.y - 14, key: 'floor', ox: 0.5, oy: 1, tall: false };
+    return { x: pos.x, y: pos.y, key: 'foundation', ox: 0.5, oy: 0.8, tall: false };
+  }
+
   private refreshGhost(): void {
     const sprite = this.ghost;
     if (!sprite || !this.placing) return;
-    const spot =
-      this.placing === 'shelter'
-        ? shelterSpot(this.ghostAnchor, this.ghostFlip, this.state)
-        : fireSpot(this.ghostAnchor, this.state);
-    const at =
-      this.placing === 'shelter'
-        ? shelterWorld(this.ghostAnchor, this.ghostFlip)
-        : tileToWorld(this.ghostAnchor.tx, this.ghostAnchor.ty);
-    const frame = this.placing === 'shelter' ? 'leanto_frame' : 'fire_tipi_unlit';
-    this.applyAtlas(sprite, frame);
-    sprite.setFlipX(this.placing === 'shelter' && this.ghostFlip);
+    const spot = pieceSpot(this.placing, this.ghostAnchor, this.ghostEdge, this.state);
+    const pose = this.ghostPose();
+    sprite.setTexture(pose.key);
+    sprite.setOrigin(pose.ox, pose.oy);
+    sprite.setFlipX(false);
     sprite.setAlpha(0.8);
     sprite.setTintFill(spot.ok ? 0x7a9a44 : 0xc4401c);
-    sprite.setPosition(Math.round(at.x), Math.round(at.y));
+    sprite.setPosition(Math.round(pose.x), Math.round(pose.y));
     sprite.setDepth(20000);
     sprite.setVisible(true);
-    this.keepGhostInView(at, this.placing === 'shelter');
-    this.placeValid = spot.ok;
-    this.placeHint = spot.reason;
-    if (this.state.tip !== spot.reason) this.setTip(spot.reason);
+    this.keepGhostInView(pose, pose.tall);
+    this.placeValid = spot.ok && canAfford(this.state, this.placing);
+    this.placeHint = spot.ok && !canAfford(this.state, this.placing) ? `Needs ${WOOD_COST[this.placing]} wood.` : spot.reason;
+    if (this.state.tip !== this.placeHint) this.setTip(this.placeHint);
     else this.paintHud(false);
   }
 
   private confirmPlace(): void {
     if (!this.placing) return;
     const kind = this.placing;
-    const anchor = { tx: this.ghostAnchor.tx, ty: this.ghostAnchor.ty };
-    const flip = this.ghostFlip;
-    const spot = kind === 'shelter' ? shelterSpot(anchor, flip, this.state) : fireSpot(anchor, this.state);
+    const tile = { tx: this.ghostAnchor.tx, ty: this.ghostAnchor.ty };
+    const edge = this.ghostEdge;
+    const spot = pieceSpot(kind, tile, edge, this.state);
     if (!spot.ok) {
       this.setTip(spot.reason);
       this.paintHud(false);
       return;
     }
-    this.endPlace();
-    this.setTip(HEADING);
-    this.commitKind = kind;
-    if (kind === 'shelter') {
-      this.state = { ...this.state, shelterAnchor: anchor, shelterFlip: flip };
-      const walked = this.walkTo(anchor.tx, anchor.ty, () => this.finishPlacement('shelter-1'));
-      if (!walked) this.stopWalk();
+    if (!canAfford(this.state, kind)) {
+      this.setTip(`Needs ${WOOD_COST[kind]} wood. You have ${this.state.inventory.wood}.`);
+      this.paintHud(false);
       return;
     }
-    this.state = { ...this.state, fireTile: anchor };
-    const walked = this.walkTo(anchor.tx, anchor.ty, () => this.finishPlacement('fire-ring'));
+    const stand = this.standTile(kind, tile, edge);
+    if (!stand) {
+      this.setTip('No way through.');
+      return;
+    }
+    this.endPlace();
+    this.pending = { kind, tile, edge };
+    this.setTip(HEADING);
+    const walked = this.walkTo(stand.tx, stand.ty, () => this.finishPlacement());
     if (!walked) this.stopWalk();
   }
 
-  private finishPlacement(id: 'shelter-1' | 'fire-ring'): void {
-    this.commitKind = null;
-    const shelterBefore = this.state.shelter;
-    const ringBefore = this.state.fire.ring;
-    this.handleAction(id);
-    if (id === 'shelter-1' && this.state.shelter === shelterBefore) {
-      this.state = { ...this.state, shelterAnchor: null, shelterFlip: false };
-      saveGame(this.state);
+  private standTile(kind: PieceKind, tile: Tile, edge: EdgeName): Tile | null {
+    const blocked = blockedFor(this.state);
+    const here = { tx: this.state.tx, ty: this.state.ty };
+    const options: Tile[] = [];
+    if (kind === 'wall' || kind === 'doorway') options.push(tile, across(tile.tx, tile.ty, edge));
+    for (const d of DIRS) options.push({ tx: tile.tx + d.tx, ty: tile.ty + d.ty });
+    const usable = (spot: Tile): boolean => {
+      if (kind === 'foundation' && spot.tx === tile.tx && spot.ty === tile.ty) return false;
+      return !blocked(spot.tx, spot.ty);
+    };
+    if (usable(here) && chebyshev(here.tx, here.ty, tile.tx, tile.ty) <= 1) return here;
+    let best: Tile | null = null;
+    let bestLen = Infinity;
+    for (const spot of options) {
+      if (!usable(spot)) continue;
+      const path = findPath(here, spot, blocked, (a, b) => this.edgeBlocked(a, b));
+      if (path === null || path.length >= bestLen) continue;
+      best = spot;
+      bestLen = path.length;
     }
-    if (id === 'fire-ring' && this.state.fire.ring === ringBefore) {
-      this.state = { ...this.state, fireTile: null };
-      saveGame(this.state);
+    return best;
+  }
+
+  private finishPlacement(): void {
+    const job = this.pending;
+    this.pending = null;
+    if (!job) return;
+    const spot = pieceSpot(job.kind, job.tile, job.edge, this.state);
+    if (!spot.ok) {
+      this.setTip(spot.reason);
+      return;
+    }
+    const result = placePiece(this.state, job.kind, job.tile.tx, job.tile.ty, job.edge);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.state = result.state;
+    this.faceTile(job.tile.tx, job.tile.ty);
+    this.playPose('chop');
+    this.afterChange();
+  }
+
+  private popup(message: string, tx: number, ty: number): void {
+    const pos = tileToWorld(tx, ty);
+    const text = this.add.text(pos.x, pos.y - 28, message, {
+      fontFamily: '"Courier New", ui-monospace, monospace',
+      fontSize: '8px',
+      color: '#e8e0c8',
+      stroke: '#1a1420',
+      strokeThickness: 2,
+    });
+    text.setOrigin(0.5, 1);
+    text.setDepth(30000);
+    this.floaters.push({ text, life: 0, y: text.y });
+  }
+
+  private stepFloaters(dt: number): void {
+    for (let i = this.floaters.length - 1; i >= 0; i--) {
+      const floater = this.floaters[i];
+      floater.life += dt;
+      floater.text.setY(floater.y - floater.life * 14);
+      floater.text.setAlpha(Math.max(0, 1 - floater.life / 1.15));
+      if (floater.life < 1.15) continue;
+      floater.text.destroy();
+      this.floaters.splice(i, 1);
     }
   }
 
+  private debugGather(id: string): string {
+    const result = gather(this.state, id);
+    if (!result.ok) return result.message;
+    const prop = PROPS.find((item) => item.id === id);
+    this.state = result.state;
+    if (prop) this.faceTile(prop.tx, prop.ty);
+    this.playPose('gather');
+    if (result.popup && prop) this.popup(result.popup, prop.tx, prop.ty);
+    this.afterChange();
+    return result.message;
+  }
+
+  private debugChop(id: string): string {
+    const result = chopTree(this.state, id);
+    if (!result.ok) return result.message;
+    const prop = PROPS.find((item) => item.id === id);
+    this.state = result.state;
+    if (prop) this.faceTile(prop.tx, prop.ty);
+    this.playPose('chop');
+    if (result.popup && prop) this.popup(result.popup, prop.tx, prop.ty);
+    this.afterChange();
+    return result.message;
+  }
+
   /** Slide the camera just enough that the whole ghost stays between the bars. */
-  private keepGhostInView(at: { x: number; y: number }, wide: boolean): void {
+  private keepGhostInView(at: { x: number; y: number }, tall: boolean): void {
     const cam = this.cameras.main;
     const top = document.getElementById('top-bar');
     const bottom = document.getElementById('bottom-bar');
@@ -1153,9 +1072,9 @@ export class GameScene extends Phaser.Scene {
     const originY = cam.height * 0.5;
     const screenX = (at.x - cam.scrollX) * zoom + originX * (1 - zoom);
     const screenY = (at.y - cam.scrollY) * zoom + originY * (1 - zoom);
-    const halfW = (wide ? 34 : 18) * zoom;
-    const up = (wide ? 42 : 34) * zoom;
-    const down = 14 * zoom;
+    const halfW = 18 * zoom;
+    const up = (tall ? 40 : 18) * zoom;
+    const down = 10 * zoom;
     const margin = 8;
     const minX = margin;
     const maxX = cam.width - margin;

@@ -29,7 +29,7 @@ export class Hud {
   private handlers: HudHandlers = { onAction: () => undefined };
   private selectedSlot = 0;
   private category: CraftCategory = 'construction';
-  private recipeId = 'lean-to';
+  private recipeId = 'foundation';
   private qty = 1;
   private hotbarSig = '';
   private placeKind = '';
@@ -113,6 +113,7 @@ export class Hud {
     if (action.startsWith('slot-')) {
       this.selectedSlot = Number(action.slice(5)) || 0;
       this.paintHotbar(this.model);
+      this.handlers.onAction(action);
       return;
     }
     if (action.startsWith('cat-')) {
@@ -197,7 +198,7 @@ export class Hud {
           (slot, index) => `
             <button type="button" class="slot${index === this.selectedSlot ? ' on' : ''}" data-action="slot-${index}" aria-label="${esc(slot.name)}">
               ${this.iconHtml(slot.frame, false)}
-              <span class="count" data-slot="${slot.id}">${slot.count}</span>
+              <span class="count" data-slot="${slot.id}">${slot.count < 0 ? '' : slot.count}</span>
             </button>
           `,
         )
@@ -206,7 +207,8 @@ export class Hud {
     }
     for (const slot of model.hotbar) {
       this.root.querySelectorAll(`[data-slot="${slot.id}"]`).forEach((node) => {
-        if (node.textContent !== String(slot.count)) node.textContent = String(slot.count);
+        const text = slot.count < 0 ? '' : String(slot.count);
+        if (node.textContent !== text) node.textContent = text;
       });
     }
     this.root.querySelectorAll('.slot').forEach((node) => {
@@ -222,16 +224,14 @@ export class Hud {
     const bar = document.getElementById('hotbar');
     const place = document.getElementById('place-actions');
     if (!bag || !bar || !place) return;
-    const showPlace = placing === 'shelter' || placing === 'fire';
+    const showPlace = placing === 'foundation' || placing === 'wall' || placing === 'doorway' || placing === 'floor';
     bag.hidden = showPlace;
     bar.hidden = showPlace;
     place.hidden = !showPlace;
     if (showPlace && this.placeKind !== placing) {
       this.placeKind = placing;
-      place.innerHTML =
-        placing === 'shelter'
-          ? `<button type="button" data-action="flip">Flip</button><button type="button" class="primary" data-action="confirm">Confirm</button><button type="button" data-action="cancel">Cancel</button>`
-          : `<button type="button" class="primary" data-action="confirm">Confirm</button><button type="button" data-action="cancel">Cancel</button>`;
+      const rotate = placing === 'wall' || placing === 'doorway' ? `<button type="button" data-action="flip">Rotate</button>` : '';
+      place.innerHTML = `${rotate}<button type="button" class="primary" data-action="confirm">Confirm</button><button type="button" data-action="cancel">Cancel</button>`;
     }
     if (!showPlace) this.placeKind = '';
     const confirm = place.querySelector<HTMLButtonElement>('[data-action="confirm"]');
@@ -315,9 +315,9 @@ export class Hud {
           <p class="eyebrow">A bushcraft game</p>
           <h1>First Night</h1>
           <p class="for">for David</p>
-          <p>Late afternoon in a small wood. Stay warm until dawn.</p>
-          <p>Tap the ground to walk. Tap sticks, stones, and plants to pick them up. The bag opens your inventory and the crafting bench.</p>
-          <p>Night takes your warmth. A lean-to and a fire, close together, give it back.</p>
+          <p>Late afternoon in a small wood. The hatchet is already in your hand.</p>
+          <p>Tap the ground to walk. Tap a tree to chop it. Wood lands in the pack, and the bag opens the building plan.</p>
+          <p>Lay a foundation, then walls, a doorway, and a floor. The floor is also the roof of the room under it.</p>
           <button type="button" class="primary" data-action="start">Start the afternoon</button>
         </section>
       `;
@@ -364,7 +364,7 @@ export class Hud {
         (slot, index) => `
           <button type="button" class="slot${index === this.selectedSlot ? ' on' : ''}" data-action="slot-${index}" aria-label="${esc(slot.name)}">
             ${this.iconHtml(slot.frame, false)}
-            <span class="count" data-slot="${slot.id}">${slot.count}</span>
+            <span class="count" data-slot="${slot.id}">${slot.count < 0 ? '' : slot.count}</span>
           </button>
         `,
       )

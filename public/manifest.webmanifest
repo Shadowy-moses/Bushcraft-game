@@ -1,7 +1,7 @@
 {
   "name": "First Night",
   "short_name": "First Night",
-  "description": "A small bushcraft game. Stay warm until dawn.",
+  "description": "A small bushcraft game. Chop wood and raise a twig shelter.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

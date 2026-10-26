@@ -1,29 +1,26 @@
+import type { TreeMark } from './trees';
 import type { Facing } from './woodsman';
 
-export interface Inventory {
-  sticks: number;
-  stones: number;
-  fiber: number;
-  cordage: number;
-  tinder: number;
-  leaves: number;
+export type PieceKind = 'foundation' | 'wall' | 'doorway' | 'floor';
+export type EdgeName = 'se' | 'sw' | 'ne' | 'nw';
+
+export interface Piece {
+  kind: PieceKind;
+  tx: number;
+  ty: number;
+  edge: EdgeName;
 }
 
-export type FireLay = 'none' | 'tipi' | 'logcabin';
+export interface Inventory {
+  wood: number;
+}
+
+export type Tool = 'hatchet' | 'plan';
 export type Outcome = 'playing' | 'won' | 'lost';
-export type ShelterStage = 0 | 1 | 2 | 3 | 4;
 export type GatherKind = 'sticks' | 'stones' | 'fiber' | 'tinder' | 'leaves';
 
-export interface FireState {
-  ring: boolean;
-  tinder: boolean;
-  kindling: boolean;
-  lay: FireLay;
-  lit: boolean;
-}
-
 export interface GameState {
-  version: 2;
+  version: 3;
   minutes: number;
   warmth: number;
   energy: number;
@@ -31,16 +28,11 @@ export interface GameState {
   ty: number;
   /** Which way he is looking: se, sw, ne, or nw. */
   facing: Facing;
+  /** What the hotbar has in hand. The hatchet chops. The plan builds. */
+  tool: Tool;
   inventory: Inventory;
-  shelter: ShelterStage;
-  /** Anchor tile of the lean-to. Null until it is placed. */
-  shelterAnchor: Tile | null;
-  /** True when the second tile sits to the screen-left of the anchor. */
-  shelterFlip: boolean;
-  /** Tile the fire ring was laid on. Null until it is placed. */
-  fireTile: Tile | null;
-  cordageTwisted: boolean;
-  fire: FireState;
+  pieces: Piece[];
+  trees: Record<string, TreeMark>;
   picked: Record<string, true>;
   outcome: Outcome;
   tip: string;
@@ -72,22 +64,10 @@ export interface Prop {
   amount: number;
 }
 
-export type ActionId =
-  | 'cordage-twist'
-  | 'cordage-wrap'
-  | 'shelter-1'
-  | 'shelter-2'
-  | 'shelter-3'
-  | 'shelter-4'
-  | 'fire-ring'
-  | 'fire-tinder'
-  | 'fire-kindling'
-  | 'lay-tipi'
-  | 'lay-logcabin'
-  | 'fire-light';
-
 export interface ActionResult {
   state: GameState;
   ok: boolean;
   message: string;
+  /** Floating pickup text, such as "+10 Wood". */
+  popup?: string;
 }
