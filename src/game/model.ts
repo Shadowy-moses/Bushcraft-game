@@ -15,7 +15,13 @@ import { NOTES, clockLabel, energyWord, untilDawn, warmthWord } from './copy';
 import { atCamp, canWaitForDawn, warmthPerGameHour } from './rules';
 import type { GameState } from './types';
 
-export type SheetId = 'none' | 'title' | 'end' | 'pack' | 'make' | 'cordage' | 'lay';
+export type SheetId = 'none' | 'title' | 'end' | 'pack' | 'craft' | 'cordage' | 'lay';
+
+export interface PlaceModel {
+  kind: 'shelter' | 'fire';
+  valid: boolean;
+  hint: string;
+}
 
 export interface Step {
   section: string;
@@ -45,6 +51,7 @@ export interface HudModel {
   pack: { label: string; count: number }[];
   endTitle: string;
   endBody: string;
+  place: PlaceModel | null;
 }
 
 export function objective(state: GameState): string {
@@ -54,7 +61,7 @@ export function objective(state: GameState): string {
   const hour = (((state.minutes % 1440) + 1440) % 1440) / 60;
   const nightish = hour >= 19 || hour < 6;
   if (state.shelter >= 4 && state.fire.lit) {
-    if (!atCamp(state.tx, state.ty)) return 'Get back to the fire. It only warms the camp.';
+    if (!atCamp(state)) return 'Get back to camp. Warmth only holds near the shelter and the fire.';
     return nightish ? 'Stay by the fire. Dawn will come.' : 'Camp is ready. You can wait for dawn from here.';
   }
   if (state.shelter >= 4) return 'The lean-to is up. Lay the fire on its open side.';
@@ -77,7 +84,7 @@ export function stepsFor(state: GameState): Step[] {
         section: 'Camp',
         note: NOTES.ready,
         label: 'The camp will hold.',
-        detail: atCamp(state.tx, state.ty) ? 'Tap Wait for dawn.' : 'Walk back to the clearing first.',
+        detail: atCamp(state) ? 'Tap Wait for dawn.' : 'Walk back to the shelter or the fire first.',
         enabled: false,
         done: true,
       },
@@ -175,12 +182,13 @@ export function stepsFor(state: GameState): Step[] {
   } else {
     const step = shelterSteps[state.shelter];
     const ready = countDetail(step.have, step.need, step.name, SHELTER_ENERGY, state);
+    const placing = state.shelter === 0;
     steps.push({
       section: 'Lean-to',
       note: step.note,
-      label: step.label,
+      label: placing ? 'Place the lean-to' : step.label,
       detail: ready.detail,
-      action: `shelter-${state.shelter + 1}`,
+      action: placing ? 'place-shelter' : `shelter-${state.shelter + 1}`,
       enabled: ready.enabled,
       done: false,
       then: step.then,
@@ -201,9 +209,9 @@ export function stepsFor(state: GameState): Step[] {
     steps.push({
       section: 'Fire',
       note: NOTES.ring,
-      label: 'Ring the fire with stones',
+      label: 'Place the fire',
       detail: ready.detail,
-      action: 'fire-ring',
+      action: 'place-fire',
       enabled: ready.enabled,
       done: false,
       then: 'Then tinder, kindling, a lay, and a light.',
@@ -260,7 +268,7 @@ export function stepsFor(state: GameState): Step[] {
   return steps;
 }
 
-export function buildModel(state: GameState, sheet: SheetId, resting: boolean): HudModel {
+export function buildModel(state: GameState, sheet: SheetId, resting: boolean, place: PlaceModel | null = null): HudModel {
   const perHour = warmthPerGameHour(state);
   const waiting = canWaitForDawn(state);
   let restLabel = 'Rest';
@@ -295,5 +303,6 @@ export function buildModel(state: GameState, sheet: SheetId, resting: boolean): 
       state.outcome === 'won'
         ? 'You made it through the night, David. The lean-to broke the wind. The fire gave the heat back.'
         : 'Warmth ran out before the sun, David. Night takes the heat from anyone sitting in the open. A finished shelter and a fire, together, are what get you to dawn.',
+    place,
   };
 }

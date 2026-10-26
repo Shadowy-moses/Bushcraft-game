@@ -3,13 +3,11 @@ import {
   DAWN_MINUTES,
   FIBER_CORD,
   FIRE_ENERGY,
-  FIRE_TILE,
   FIRE_WARMTH,
   GATHER_ENERGY,
   LEAVES_ROOF,
   LIGHT_ENERGY,
   SHELTER_ENERGY,
-  SHELTER_TILES,
   SHELTER_WARMTH,
   START_ENERGY,
   START_MINUTES,
@@ -22,9 +20,10 @@ import {
   STONES_RING,
 } from './constants';
 import { OPENING_TIP, gatherMessage } from './copy';
+import { occupiedFrom, shelterFootprint } from './footprint';
 import { chebyshev, clamp } from './iso';
 import { isBlocked, propById } from './map';
-import type { ActionId, ActionResult, GameState, Inventory } from './types';
+import type { ActionId, ActionResult, GameState, Inventory, Tile } from './types';
 
 export function emptyInventory(): Inventory {
   return { sticks: 0, stones: 0, fiber: 0, cordage: 0, tinder: 0, leaves: 0 };
@@ -32,7 +31,7 @@ export function emptyInventory(): Inventory {
 
 export function initialState(): GameState {
   return {
-    version: 1,
+    version: 2,
     minutes: START_MINUTES,
     warmth: START_WARMTH,
     energy: START_ENERGY,
@@ -41,6 +40,9 @@ export function initialState(): GameState {
     faceLeft: false,
     inventory: emptyInventory(),
     shelter: 0,
+    shelterAnchor: null,
+    shelterFlip: false,
+    fireTile: null,
     cordageTwisted: false,
     fire: { ring: false, tinder: false, kindling: false, lay: 'none', lit: false },
     picked: {},
@@ -49,9 +51,42 @@ export function initialState(): GameState {
   };
 }
 
-export function atCamp(tx: number, ty: number): boolean {
-  if (chebyshev(tx, ty, FIRE_TILE.tx, FIRE_TILE.ty) <= 2) return true;
-  return SHELTER_TILES.some((tile) => chebyshev(tx, ty, tile.tx, tile.ty) <= 2);
+function nearTiles(tx: number, ty: number, tiles: Tile[]): boolean {
+  return tiles.some((tile) => chebyshev(tx, ty, tile.tx, tile.ty) <= 2);
+}
+
+/** Finished or unfinished, the lean-to warms and shelters the ground around it. */
+export function nearShelter(state: GameState): boolean {
+  if (state.shelter < 1 || !state.shelterAnchor) return false;
+  return nearTiles(state.tx, state.ty, shelterFootprint(state.shelterAnchor, state.shelterFlip));
+}
+
+export function nearFire(state: GameState): boolean {
+  if (!state.fire.ring || !state.fireTile) return false;
+  return chebyshev(state.tx, state.ty, state.fireTile.tx, state.fireTile.ty) <= 2;
+}
+
+/** Close to the shelter or the fire, wherever they were placed. */
+export function atCamp(state: GameState): boolean {
+  return nearShelter(state) || nearFire(state);
+}
+
+function standingOn(state: GameState, tiles: Tile[]): boolean {
+  return tiles.some((tile) => tile.tx === state.tx && tile.ty === state.ty);
+}
+
+/** True when this step can be done from where the woodsman is standing. */
+export function atWorkSite(state: GameState, id: string): boolean {
+  if (id === 'shelter-1') {
+    if (!state.shelterAnchor) return false;
+    return standingOn(state, shelterFootprint(state.shelterAnchor, state.shelterFlip));
+  }
+  if (id.startsWith('shelter')) return nearShelter(state);
+  if (id === 'fire-ring') {
+    return Boolean(state.fireTile && state.tx === state.fireTile.tx && state.ty === state.fireTile.ty);
+  }
+  if (id.startsWith('fire') || id.startsWith('lay')) return nearFire(state);
+  return true;
 }
 
 export function ambientPerHour(minutes: number): number {
@@ -66,10 +101,8 @@ export function ambientPerHour(minutes: number): number {
 
 export function warmthPerGameHour(state: GameState): number {
   let rate = ambientPerHour(state.minutes);
-  if (atCamp(state.tx, state.ty)) {
-    if (state.shelter >= 4) rate += SHELTER_WARMTH;
-    if (state.fire.lit) rate += FIRE_WARMTH;
-  }
+  if (state.shelter >= 4 && nearShelter(state)) rate += SHELTER_WARMTH;
+  if (state.fire.lit && nearFire(state)) rate += FIRE_WARMTH;
   return rate;
 }
 
@@ -100,10 +133,12 @@ export function gainEnergy(state: GameState, amount: number): GameState {
 }
 
 export function canWaitForDawn(state: GameState): boolean {
-  return state.outcome === 'playing' && state.shelter >= 4 && state.fire.lit && atCamp(state.tx, state.ty);
+  return state.outcome === 'playing' && state.shelter >= 4 && state.fire.lit && atCamp(state);
 }
 
+/** Later build steps happen beside the thing you already placed. */
 export function actionNeedsCamp(id: string): boolean {
+  if (id === 'shelter-1' || id === 'fire-ring') return false;
   return id.startsWith('shelter') || id.startsWith('fire') || id.startsWith('lay');
 }
 
@@ -147,7 +182,8 @@ function needMessage(state: GameState, cost: Partial<Inventory>): string {
 }
 
 function offTheFootprint(state: GameState): GameState {
-  if (!isBlocked(state.tx, state.ty, state.shelter)) return state;
+  const blocked = (tx: number, ty: number) => isBlocked(tx, ty, occupiedFrom(state));
+  if (!blocked(state.tx, state.ty)) return state;
   const dirs = [
     { tx: 1, ty: 0 },
     { tx: -1, ty: 0 },
@@ -161,7 +197,7 @@ function offTheFootprint(state: GameState): GameState {
   for (const d of dirs) {
     const tx = state.tx + d.tx;
     const ty = state.ty + d.ty;
-    if (!isBlocked(tx, ty, state.shelter)) return { ...state, tx, ty };
+    if (!blocked(tx, ty)) return { ...state, tx, ty };
   }
   return state;
 }
@@ -193,8 +229,9 @@ export function gather(state: GameState, id: string): ActionResult {
 
 export function applyAction(state: GameState, id: ActionId): ActionResult {
   if (state.outcome !== 'playing') return fail(state, 'The night is over.');
-  if (actionNeedsCamp(id) && !atCamp(state.tx, state.ty)) {
-    return fail(state, 'Do that back at the clearing.');
+  if (!atWorkSite(state, id)) {
+    if (id.startsWith('shelter')) return fail(state, 'Do that beside the lean-to.');
+    return fail(state, 'Do that beside the fire.');
   }
 
   switch (id) {
@@ -217,9 +254,13 @@ export function applyAction(state: GameState, id: ActionId): ActionResult {
     }
     case 'shelter-1': {
       if (state.shelter !== 0) return fail(state, 'The ridge pole is already up.');
+      if (!state.shelterAnchor) return fail(state, 'Choose a spot for the lean-to.');
       if (!has(state, { sticks: STICKS_RIDGE })) return fail(state, needMessage(state, { sticks: STICKS_RIDGE }));
       if (state.energy < SHELTER_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
-      return ok(offTheFootprint({ ...spend(state, { sticks: STICKS_RIDGE }, SHELTER_ENERGY), shelter: 1 }), 'Ridge pole is up, open side toward the fire.');
+      return ok(
+        offTheFootprint({ ...spend(state, { sticks: STICKS_RIDGE }, SHELTER_ENERGY), shelter: 1 }),
+        'Ridge pole is up. Lash it next, then the ribs and the leaves.',
+      );
     }
     case 'shelter-2': {
       if (state.shelter < 1) return fail(state, 'Set the ridge pole first.');
@@ -253,10 +294,14 @@ export function applyAction(state: GameState, id: ActionId): ActionResult {
     }
     case 'fire-ring': {
       if (state.fire.ring) return fail(state, 'The stone ring is already there.');
+      if (!state.fireTile) return fail(state, 'Choose a spot for the fire.');
       if (!has(state, { stones: STONES_RING })) return fail(state, needMessage(state, { stones: STONES_RING }));
       if (state.energy < FIRE_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
       return ok(
-        { ...spend(state, { stones: STONES_RING }, FIRE_ENERGY), fire: { ...state.fire, ring: true } },
+        offTheFootprint({
+          ...spend(state, { stones: STONES_RING }, FIRE_ENERGY),
+          fire: { ...state.fire, ring: true },
+        }),
         'Stone ring is set. Dry stones, and a small fire.',
       );
     }

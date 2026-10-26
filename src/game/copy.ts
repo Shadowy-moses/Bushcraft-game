@@ -12,7 +12,7 @@ export const WAIT_TIP =
 
 export const TOO_COLD = 'Too cold to keep sitting. Get the fire going, or get back to it.';
 
-export const HEADING = 'Heading to the clearing.';
+export const HEADING = 'Heading over.';
 
 export const NOTES = {
   cordage:

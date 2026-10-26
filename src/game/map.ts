@@ -1,5 +1,6 @@
-import { COLS, ROWS, SHELTER_TILES } from './constants';
-import type { GroundId, Prop, PropKind, GatherKind } from './types';
+import { COLS, ROWS } from './constants';
+import { occupiedFrom, shelterFootprint, type Occupied } from './footprint';
+import type { GameState, GroundId, Prop, PropKind, GatherKind } from './types';
 
 /**
  * Each row is one ty, left to right in tx.
@@ -122,10 +123,19 @@ export function propAt(tx: number, ty: number): Prop | undefined {
   return BY_TILE.get(`${tx},${ty}`);
 }
 
-export function isBlocked(tx: number, ty: number, shelterStage: number): boolean {
+export function isBlocked(tx: number, ty: number, occupied: Occupied): boolean {
   if (!inBounds(tx, ty)) return true;
   if (groundAt(tx, ty) === 'creek_water') return true;
-  if (shelterStage >= 1 && SHELTER_TILES.some((tile) => tile.tx === tx && tile.ty === ty)) return true;
+  if (occupied.shelter >= 1 && occupied.shelterAnchor) {
+    const foot = shelterFootprint(occupied.shelterAnchor, occupied.shelterFlip);
+    if (foot.some((tile) => tile.tx === tx && tile.ty === ty)) return true;
+  }
+  if (occupied.fireRing && occupied.fireTile && occupied.fireTile.tx === tx && occupied.fireTile.ty === ty) return true;
   const propHere = propAt(tx, ty);
   return Boolean(propHere?.blocks);
+}
+
+export function blockedFor(state: GameState): (tx: number, ty: number) => boolean {
+  const occupied = occupiedFrom(state);
+  return (tx, ty) => isBlocked(tx, ty, occupied);
 }

@@ -17,6 +17,7 @@ export class Hud {
   private onClick: (event: MouseEvent) => void;
   private model: HudModel | null = null;
   private armReset = false;
+  private actionsMode = '';
   private handlers: HudHandlers = { onAction: () => undefined };
 
   constructor(private root: HTMLElement) {
@@ -38,7 +39,7 @@ export class Hud {
         <p id="tip" aria-live="polite"></p>
         <div class="actions">
           <button type="button" data-action="pack">Pack</button>
-          <button type="button" data-action="make">Make</button>
+          <button type="button" data-action="craft">Craft</button>
           <button type="button" data-action="rest" id="rest-button">Rest</button>
         </div>
       </footer>
@@ -94,9 +95,44 @@ export class Hud {
       rest.textContent = model.restLabel;
       rest.classList.toggle('ready', model.restReady);
     }
+    this.paintActions(model);
     const playing = model.sheet !== 'title' && model.sheet !== 'end';
     document.getElementById('top-bar')?.toggleAttribute('hidden', !playing);
     document.getElementById('bottom-bar')?.toggleAttribute('hidden', !playing);
+  }
+
+  private paintActions(model: HudModel): void {
+    const actions = this.root.querySelector('.actions');
+    if (!actions) return;
+    const mode = model.place ? `place-${model.place.kind}` : 'play';
+    if (mode !== this.actionsMode) {
+      this.actionsMode = mode;
+      if (model.place?.kind === 'shelter') {
+        actions.innerHTML = `
+          <button type="button" data-action="flip">Flip</button>
+          <button type="button" class="primary" data-action="confirm">Confirm</button>
+          <button type="button" data-action="cancel">Cancel</button>
+        `;
+      } else if (model.place?.kind === 'fire') {
+        actions.innerHTML = `
+          <button type="button" class="primary" data-action="confirm">Confirm</button>
+          <button type="button" data-action="cancel">Cancel</button>
+        `;
+      } else {
+        actions.innerHTML = `
+          <button type="button" data-action="pack">Pack</button>
+          <button type="button" data-action="craft">Craft</button>
+          <button type="button" data-action="rest" id="rest-button">Rest</button>
+        `;
+      }
+    }
+    const confirm = actions.querySelector<HTMLButtonElement>('[data-action="confirm"]');
+    if (confirm && model.place) confirm.disabled = !model.place.valid;
+    const rest = document.getElementById('rest-button');
+    if (rest && !model.place) {
+      rest.textContent = model.restLabel;
+      rest.classList.toggle('ready', model.restReady);
+    }
   }
 
   private text(id: string, value: string): void {
@@ -124,7 +160,7 @@ export class Hud {
           <p class="for">for David</p>
           <p>Late afternoon in a small wood. Stay warm until dawn.</p>
           <p>Tap the ground to walk. Tap sticks, stones, and plants to pick them up.</p>
-          <p>Tap Make to twist cordage, build a lean-to, and lay a fire. Night takes your warmth. The shelter and the fire give it back.</p>
+          <p>Tap Craft to twist cordage, place a lean-to, and place a fire. Night takes your warmth. Stay near the shelter and the fire and they give it back.</p>
           <button type="button" class="primary" data-action="start">Start the afternoon</button>
         </section>
       `;
@@ -173,7 +209,7 @@ export class Hud {
         <button type="button" class="primary" data-action="lay-logcabin">Log cabin</button>
       `;
     }
-    return `<h2>Make</h2>${model.steps.map((step) => this.stepHtml(step)).join('')}`;
+    return `<h2>Craft</h2>${model.steps.map((step) => this.stepHtml(step)).join('')}`;
   }
 
   private stepHtml(step: Step): string {

@@ -8,13 +8,13 @@ You can play it in Safari on an iPhone, or in a desktop browser. Progress is sav
 
 Tap the ground to walk. Tap sticks, stones, nettles, birch trees, and leaf piles to pick them up.
 
-Tap **Make** when you want to build.
+Tap **Craft** when you want to build.
 
 - Twist two strands of fiber into cordage. Twist them one way, then wrap them the other way. That lock is a reverse wrap.
-- Set a ridge pole for a lean-to, lash it with the cordage (a square lashing), lean ribs against it, then cover the ribs with leaves.
-- Ring a fire with dry stones. Add birch-bark tinder, then kindling, then fuel. Choose a tipi or a log cabin, and light it.
+- Place a lean-to. A ghost of it follows your finger. Green ground is clear. Red ground is blocked, on either of the two tiles it covers. Flip it if you need the open side the other way, then confirm. The woodsman walks over and raises the ridge pole there. Lash it with the cordage (a square lashing), lean ribs against it, then cover the ribs with leaves.
+- Place a fire the same way, and ring it with dry stones. Add birch-bark tinder, then kindling, then fuel. Choose a tipi or a log cabin, and light it.
 
-Night takes your warmth. The finished shelter and the fire give it back, but only while you stay in the camp. If warmth runs out, the night wins. If you are still warm at dawn, you made it.
+Night takes your warmth. The finished shelter warms you when you stay near it, and the fire warms you when you stay near the fire. If warmth runs out, the night wins. If you are still warm at dawn, you made it.
 
 Tap **Rest** to catch your breath. Once the camp is ready, that button becomes **Wait for dawn**.
 
