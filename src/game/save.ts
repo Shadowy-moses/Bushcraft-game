@@ -1,152 +1,103 @@
-import { FIRE_TILE, SAVE_KEY, SHELTER_TILES } from './constants';
-import type { FireState, GameState, Outcome, ShelterStage, Tile } from './types';
+import { SAVE_KEY } from './constants';
+import { initialState } from './rules';
+import type { EdgeName, GameState, Outcome, Piece, PieceKind, Tool } from './types';
+import type { TreeMark } from './trees';
 import { facingFromSave, isFacing } from './woodsman';
 import { storage } from '../platform/storage';
 
-interface RawSave {
-  version?: unknown;
-  minutes?: unknown;
-  warmth?: unknown;
-  energy?: unknown;
-  tx?: unknown;
-  ty?: unknown;
-  faceLeft?: unknown;
-  facing?: unknown;
-  inventory?: Partial<GameState['inventory']> | null;
-  shelter?: unknown;
-  shelterAnchor?: unknown;
-  shelterFlip?: unknown;
-  fireTile?: unknown;
-  cordageTwisted?: unknown;
-  fire?: Partial<FireState> | null;
-  picked?: unknown;
-  outcome?: unknown;
-  tip?: unknown;
-}
+const KINDS: PieceKind[] = ['foundation', 'wall', 'doorway', 'floor'];
+const EDGES: EdgeName[] = ['se', 'sw', 'ne', 'nw'];
 
-function isTile(value: unknown): value is Tile {
-  if (!value || typeof value !== 'object') return false;
-  const tile = value as Tile;
-  return typeof tile.tx === 'number' && typeof tile.ty === 'number';
-}
-
-function inventoryOk(value: RawSave['inventory']): value is GameState['inventory'] {
-  if (!value) return false;
-  return (
-    typeof value.sticks === 'number' &&
-    typeof value.stones === 'number' &&
-    typeof value.fiber === 'number' &&
-    typeof value.cordage === 'number' &&
-    typeof value.tinder === 'number' &&
-    typeof value.leaves === 'number'
-  );
-}
-
-function fireOk(value: RawSave['fire']): value is FireState {
-  if (!value) return false;
-  return (
-    typeof value.ring === 'boolean' &&
-    typeof value.tinder === 'boolean' &&
-    typeof value.kindling === 'boolean' &&
-    (value.lay === 'none' || value.lay === 'tipi' || value.lay === 'logcabin') &&
-    typeof value.lit === 'boolean'
-  );
+function isTool(value: unknown): value is Tool {
+  return value === 'hatchet' || value === 'plan';
 }
 
 function outcomeOk(value: unknown): value is Outcome {
   return value === 'playing' || value === 'won' || value === 'lost';
 }
 
-function shelterOk(value: unknown): value is ShelterStage {
-  return value === 0 || value === 1 || value === 2 || value === 3 || value === 4;
-}
-
-function sharedOk(raw: RawSave): boolean {
+function pieceOk(value: unknown): value is Piece {
+  if (!value || typeof value !== 'object') return false;
+  const piece = value as Piece;
   return (
-    typeof raw.minutes === 'number' &&
-    typeof raw.warmth === 'number' &&
-    typeof raw.energy === 'number' &&
-    typeof raw.tx === 'number' &&
-    typeof raw.ty === 'number' &&
-    (typeof raw.faceLeft === 'boolean' || isFacing(raw.facing)) &&
-    inventoryOk(raw.inventory) &&
-    shelterOk(raw.shelter) &&
-    typeof raw.cordageTwisted === 'boolean' &&
-    fireOk(raw.fire) &&
-    !!raw.picked &&
-    typeof raw.picked === 'object' &&
-    outcomeOk(raw.outcome) &&
-    typeof raw.tip === 'string'
+    KINDS.includes(piece.kind) &&
+    typeof piece.tx === 'number' &&
+    typeof piece.ty === 'number' &&
+    EDGES.includes(piece.edge)
   );
 }
 
-/** Reads a saved game. A version-1 camp is rebuilt on the old clearing. */
+function treesOk(value: unknown): value is Record<string, TreeMark> {
+  if (!value || typeof value !== 'object') return false;
+  return Object.values(value as Record<string, TreeMark>).every(
+    (mark) => mark && typeof mark.hits === 'number' && (mark.felledAt === null || typeof mark.felledAt === 'number'),
+  );
+}
+
+function pickedOk(value: unknown): value is Record<string, true> {
+  return !!value && typeof value === 'object';
+}
+
+/** Reads a saved game. Older nights become a fresh build, keeping where he stood. */
 export function parseSave(raw: string): GameState | null {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
-    const save = parsed as RawSave;
-    if (!sharedOk(save)) return null;
-    const base = save as RawSave & {
-      minutes: number;
-      warmth: number;
-      energy: number;
-      tx: number;
-      ty: number;
-      inventory: GameState['inventory'];
-      shelter: ShelterStage;
-      cordageTwisted: boolean;
-      fire: FireState;
-      picked: Record<string, true>;
-      outcome: Outcome;
-      tip: string;
+    const save = parsed as {
+      version?: unknown;
+      minutes?: unknown;
+      tx?: unknown;
+      ty?: unknown;
+      warmth?: unknown;
+      energy?: unknown;
+      outcome?: unknown;
+      tip?: unknown;
+      facing?: unknown;
+      faceLeft?: unknown;
+      tool?: unknown;
+      inventory?: { wood?: unknown };
+      pieces?: unknown;
+      trees?: unknown;
+      picked?: unknown;
     };
-    if (save.version === 1) {
+    if (typeof save.minutes !== 'number' || typeof save.tx !== 'number' || typeof save.ty !== 'number') return null;
+    if (typeof save.warmth !== 'number' || typeof save.energy !== 'number') return null;
+    if (!outcomeOk(save.outcome) || typeof save.tip !== 'string') return null;
+    const facing = facingFromSave(save.facing, save.faceLeft);
+    if (!isFacing(facing) && save.facing !== undefined && save.faceLeft === undefined) return null;
+    const fresh = initialState();
+    if (save.version === 3 && save.inventory && typeof save.inventory.wood === 'number' && Array.isArray(save.pieces) && save.pieces.every(pieceOk) && treesOk(save.trees) && pickedOk(save.picked)) {
       return {
-        version: 2,
-        minutes: base.minutes,
-        warmth: base.warmth,
-        energy: base.energy,
-        tx: base.tx,
-        ty: base.ty,
-        facing: facingFromSave(save.facing, save.faceLeft),
-        inventory: base.inventory,
-        shelter: base.shelter,
-        shelterAnchor: base.shelter >= 1 ? { tx: SHELTER_TILES[0].tx, ty: SHELTER_TILES[0].ty } : null,
-        shelterFlip: false,
-        fireTile: base.fire.ring ? { tx: FIRE_TILE.tx, ty: FIRE_TILE.ty } : null,
-        cordageTwisted: base.cordageTwisted,
-        fire: base.fire,
-        picked: base.picked,
-        outcome: base.outcome,
-        tip: base.tip,
+        ...fresh,
+        minutes: save.minutes,
+        warmth: save.warmth,
+        energy: save.energy,
+        tx: save.tx,
+        ty: save.ty,
+        facing,
+        tool: isTool(save.tool) ? save.tool : 'hatchet',
+        inventory: { wood: save.inventory.wood },
+        pieces: save.pieces,
+        trees: save.trees,
+        picked: save.picked,
+        outcome: 'playing',
+        tip: save.tip,
       };
     }
-    if (save.version !== 2) return null;
-    if (typeof save.shelterFlip !== 'boolean') return null;
-    const shelterAnchor = save.shelterAnchor === null ? null : save.shelterAnchor;
-    const fireTile = save.fireTile === null ? null : save.fireTile;
-    if (shelterAnchor !== null && !isTile(shelterAnchor)) return null;
-    if (fireTile !== null && !isTile(fireTile)) return null;
-    return {
-      version: 2,
-      minutes: base.minutes,
-      warmth: base.warmth,
-      energy: base.energy,
-      tx: base.tx,
-      ty: base.ty,
-      facing: facingFromSave(save.facing, save.faceLeft),
-      inventory: base.inventory,
-      shelter: base.shelter,
-      shelterAnchor,
-      shelterFlip: save.shelterFlip,
-      fireTile,
-      cordageTwisted: base.cordageTwisted,
-      fire: base.fire,
-      picked: base.picked,
-      outcome: base.outcome,
-      tip: base.tip,
-    };
+    if (save.version === 1 || save.version === 2 || save.version === 3) {
+      return {
+        ...fresh,
+        minutes: save.minutes,
+        warmth: save.warmth,
+        energy: save.energy,
+        tx: save.tx,
+        ty: save.ty,
+        facing,
+        picked: pickedOk(save.picked) ? save.picked : {},
+        tip: fresh.tip,
+      };
+    }
+    return null;
   } catch {
     return null;
   }

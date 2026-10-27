@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { installAtlas, installStandins, type AtlasFile, type StandinOrigins } from '../atlas';
 
 const STANDINS = ['shelter_ridge', 'shelter_lashed', 'leaf_pile', 'tile_marker'] as const;
+const BUILDINGS = ['foundation', 'floor', 'wall_a', 'wall_b', 'door_a', 'door_b', 'stump'] as const;
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -15,6 +16,9 @@ export class BootScene extends Phaser.Scene {
     this.load.json('standin-meta', `${base}assets/standins/origins.json`);
     for (const name of STANDINS) {
       this.load.image(name, `${base}assets/standins/${name}.png`);
+    }
+    for (const name of BUILDINGS) {
+      this.load.image(name, `${base}assets/build/${name}.png`);
     }
     this.load.on('loaderror', (file: { key: string }) => {
       const boot = document.getElementById('boot');
