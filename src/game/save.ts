@@ -1,4 +1,5 @@
 import { SAVE_KEY } from './constants';
+import { tileToWorld } from './iso';
 import { initialState } from './rules';
 import type { EdgeName, GameState, Outcome, Piece, PieceKind, Tool } from './types';
 import type { TreeMark } from './trees';
@@ -48,6 +49,8 @@ export function parseSave(raw: string): GameState | null {
       minutes?: unknown;
       tx?: unknown;
       ty?: unknown;
+      x?: unknown;
+      y?: unknown;
       warmth?: unknown;
       energy?: unknown;
       outcome?: unknown;
@@ -66,6 +69,9 @@ export function parseSave(raw: string): GameState | null {
     const facing = facingFromSave(save.facing, save.faceLeft);
     if (!isFacing(facing) && save.facing !== undefined && save.faceLeft === undefined) return null;
     const fresh = initialState();
+    const feet = tileToWorld(save.tx, save.ty);
+    const x = typeof save.x === 'number' ? save.x : feet.x;
+    const y = typeof save.y === 'number' ? save.y : feet.y;
     if (save.version === 3 && save.inventory && typeof save.inventory.wood === 'number' && Array.isArray(save.pieces) && save.pieces.every(pieceOk) && treesOk(save.trees) && pickedOk(save.picked)) {
       return {
         ...fresh,
@@ -74,6 +80,8 @@ export function parseSave(raw: string): GameState | null {
         energy: save.energy,
         tx: save.tx,
         ty: save.ty,
+        x,
+        y,
         facing,
         tool: isTool(save.tool) ? save.tool : 'hatchet',
         inventory: { wood: save.inventory.wood },
@@ -92,6 +100,8 @@ export function parseSave(raw: string): GameState | null {
         energy: save.energy,
         tx: save.tx,
         ty: save.ty,
+        x,
+        y,
         facing,
         picked: pickedOk(save.picked) ? save.picked : {},
         tip: fresh.tip,

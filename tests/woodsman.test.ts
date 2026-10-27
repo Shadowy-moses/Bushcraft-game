@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tileToWorld } from '../src/game/iso';
-import { facingFromDelta, facingFromSave, mirrorFacing, poseClip, poseName, workFacing } from '../src/game/woodsman';
+import { facingFromDelta, facingFromSave, facingFromVector, mirrorFacing, poseClip, poseName, workFacing } from '../src/game/woodsman';
 
 function step(fromX: number, fromY: number, toX: number, toY: number) {
   const a = tileToWorld(fromX, fromY);
@@ -18,6 +18,16 @@ describe('woodsman facing', () => {
 
   it('keeps the current facing when he has not moved', () => {
     expect(facingFromDelta(0, 0, 'nw')).toBe('nw');
+    expect(facingFromVector(0, 0, 'nw')).toBe('nw');
+  });
+
+  it('picks the nearest of the four facings for a free step', () => {
+    expect(facingFromVector(1, 0.5, 'nw')).toBe('se');
+    expect(facingFromVector(-1, 0.5, 'se')).toBe('sw');
+    expect(facingFromVector(1, -0.5, 'sw')).toBe('ne');
+    expect(facingFromVector(-1, -0.5, 'se')).toBe('nw');
+    expect(facingFromVector(1, 0, 'sw')).toBe('se');
+    expect(facingFromVector(0, 1, 'ne')).toBe('se');
   });
 
   it('borrows the near gather and chop when he faces away', () => {

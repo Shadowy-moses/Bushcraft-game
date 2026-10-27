@@ -9,7 +9,8 @@ import {
   START_WARMTH,
 } from './constants';
 import { OPENING_TIP } from './copy';
-import { chebyshev, clamp } from './iso';
+import { clamp, tileToWorld } from './iso';
+import { inReach } from './move';
 import { propAt, propById } from './map';
 import { TREE_HITS, WOOD_PER_TREE, isFelled, regrowTrees } from './trees';
 import type { ActionResult, EdgeName, GameState, Inventory, PieceKind } from './types';
@@ -26,6 +27,7 @@ export function initialState(): GameState {
     energy: START_ENERGY,
     tx: PLAYER_START.tx,
     ty: PLAYER_START.ty,
+    ...tileToWorld(PLAYER_START.tx, PLAYER_START.ty),
     facing: 'se',
     tool: 'hatchet',
     inventory: emptyInventory(),
@@ -87,7 +89,7 @@ export function gather(state: GameState, id: string): ActionResult {
   const node = propById(id);
   if (!node?.gather) return fail(state, 'Nothing to pick up there.');
   if (state.picked[id]) return fail(state, 'Nothing left there.');
-  if (chebyshev(state.tx, state.ty, node.tx, node.ty) > 1) return fail(state, 'Walk up to it.');
+  if (!inReach(state.x, state.y, node.tx, node.ty)) return fail(state, 'Walk up to it.');
   if (state.energy < GATHER_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
   const picked = { ...state.picked, [id]: true as const };
   if (node.gather === 'sticks') {
@@ -116,7 +118,7 @@ export function chopTree(state: GameState, id: string): ActionResult {
   }
   if (state.tool !== 'hatchet') return fail(state, 'Put the hatchet in your hand.');
   if (isFelled(state.trees, id)) return fail(state, 'Only a stump left.');
-  if (chebyshev(state.tx, state.ty, node.tx, node.ty) > 1) return fail(state, 'Walk up to the trunk.');
+  if (!inReach(state.x, state.y, node.tx, node.ty)) return fail(state, 'Walk up to the trunk.');
   if (state.energy < CHOP_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
   const prev = state.trees[id]?.hits ?? 0;
   const hits = prev + 1;

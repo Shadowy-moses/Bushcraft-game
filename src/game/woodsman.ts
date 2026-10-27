@@ -15,6 +15,30 @@ export function facingFromDelta(dx: number, dy: number, current: Facing): Facing
   return dx >= 0 ? 'ne' : 'nw';
 }
 
+/** Screen-space directions of the four painted facings. */
+const FACING_VECTOR: Record<Facing, { x: number; y: number }> = {
+  se: { x: 1, y: 0.5 },
+  sw: { x: -1, y: 0.5 },
+  ne: { x: 1, y: -0.5 },
+  nw: { x: -1, y: -0.5 },
+};
+
+/** Nearest painted facing for a free move. A zero vector keeps the one he has. */
+export function facingFromVector(dx: number, dy: number, current: Facing): Facing {
+  if (dx * dx + dy * dy < 1e-8) return current;
+  let best: Facing = current;
+  let bestDot = -Infinity;
+  for (const face of ['se', 'sw', 'ne', 'nw'] as const) {
+    const vector = FACING_VECTOR[face];
+    const dot = dx * vector.x + dy * vector.y;
+    if (dot > bestDot) {
+      bestDot = dot;
+      best = face;
+    }
+  }
+  return best;
+}
+
 /** Gather and chop were painted for the two near sides. The far side uses that same side. */
 export function workFacing(facing: Facing): 'se' | 'sw' {
   return facing === 'sw' || facing === 'nw' ? 'sw' : 'se';

@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { tileToWorld } from '../src/game/iso';
 import { placePiece, chopTree, gather, initialState, tick } from '../src/game/rules';
 import { isFelled } from '../src/game/trees';
 
+function stand(tx: number, ty: number) {
+  return { ...initialState(), tx, ty, ...tileToWorld(tx, ty), energy: 100 };
+}
+
 describe('wood and the hatchet', () => {
   it('turns a stick into a little wood and sets other pickups aside', () => {
-    const beside = { ...initialState(), tx: 8, ty: 4 };
+    const beside = stand(8, 4);
     const sticks = gather(beside, 'item_sticks-8-3');
     expect(sticks.ok).toBe(true);
     expect(sticks.popup).toBe('+1 Wood');
@@ -17,7 +22,7 @@ describe('wood and the hatchet', () => {
   });
 
   it('fells a tree in three swings and drops ten wood', () => {
-    let state = { ...initialState(), tx: 6, ty: 2, energy: 100 };
+    let state = stand(6, 2);
     const id = 'pine_tree-6-1';
     for (let swing = 0; swing < 2; swing++) {
       const hit = chopTree(state, id);
@@ -34,7 +39,7 @@ describe('wood and the hatchet', () => {
   });
 
   it('lets a stump grow back unless a foundation covers it', () => {
-    const felled = chopTree(chopTree(chopTree({ ...initialState(), tx: 6, ty: 2, energy: 100 }, 'pine_tree-6-1').state, 'pine_tree-6-1').state, 'pine_tree-6-1').state;
+    const felled = chopTree(chopTree(chopTree(stand(6, 2), 'pine_tree-6-1').state, 'pine_tree-6-1').state, 'pine_tree-6-1').state;
     const grown = tick({ ...felled, energy: 100 }, 90);
     expect(isFelled(grown.trees, 'pine_tree-6-1')).toBe(false);
 

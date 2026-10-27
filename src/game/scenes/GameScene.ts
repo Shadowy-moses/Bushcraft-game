@@ -7,12 +7,13 @@ import { chebyshev, clamp, depthFor, tileToWorld, worldToTile } from '../iso';
 import { SHADOW_TINT, lightTint, multiplyTint, skyColor } from '../light';
 import { PROPS, blockedFor, groundAt, inBounds, propAt } from '../map';
 import { buildModel, type PlaceModel, type SheetId } from '../model';
-import { findPath, planRoute, DIRS } from '../path';
+import { findPath, DIRS } from '../path';
+import { bodiesFor, inReach, MOVE_SPEED, resolveMove, segmentsFor } from '../move';
 import { chopTree, gainEnergy, gather, initialState, placePiece, tick } from '../rules';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
 import type { EdgeName, GameState, PieceKind, Prop, PropKind, Tile } from '../types';
-import { facingFromDelta, mirrorFacing, poseClip, poseName } from '../woodsman';
+import { facingFromVector, mirrorFacing, poseClip, poseName } from '../woodsman';
 import { Hud } from '../../ui/hud';
 
 const imagePixels = new WeakMap<CanvasImageSource, { data: Uint8ClampedArray; width: number; height: number }>();
@@ -66,6 +67,7 @@ declare global {
       resolve: (x: number, y: number) => { tx: number; ty: number };
       target: (x: number, y: number) => { tx: number; ty: number; prop: string | null };
       tryWalk: (tx: number, ty: number) => { ok: boolean; tip: string; tx: number; ty: number };
+      stick: (x: number, y: number) => void;
       screenOf: (tx: number, ty: number) => { x: number; y: number };
       fill: () => void;
       beginPlace: (kind: PieceKind) => void;
@@ -114,19 +116,25 @@ export class GameScene extends Phaser.Scene {
   private poseUntil = 0;
   /** Tree that stays standing until the felling swing finishes. */
   private chopTarget: string | null = null;
-  private path: { tx: number; ty: number }[] = [];
-  private from = { x: 0, y: 0 };
-  private to = { x: 0, y: 0 };
-  private stepT = 0;
-  private readonly stepDur = 0.28;
-  private arrive: (() => void) | null = null;
+  private px = 0;
+  private py = 0;
+  private stickX = 0;
+  private stickY = 0;
+  private keys = new Set<string>();
+  private glide: { x: number; y: number } | null = null;
   private minuteBank = 0;
   private saveBank = 0;
   private hudBank = 0;
   private floaters: Floater[] = [];
   private onVis = (): void => undefined;
-  private onKey = (event: KeyboardEvent): void => {
+  private onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') this.handleAction('close');
+    if (event.key === ' ' || event.key.startsWith('Arrow')) event.preventDefault();
+    this.keys.add(event.key.toLowerCase());
+    if ((event.key === 'e' || event.key === ' ') && !event.repeat) this.handleAction('use');
+  };
+  private onKeyUp = (event: KeyboardEvent): void => {
+    this.keys.delete(event.key.toLowerCase());
   };
   private resizeObs?: ResizeObserver;
 
@@ -139,8 +147,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.path = [];
-    this.arrive = null;
+    this.glide = null;
+    this.stickX = 0;
+    this.stickY = 0;
+    this.keys.clear();
     this.resting = false;
     this.placing = null;
     this.pending = null;
@@ -176,7 +186,14 @@ export class GameScene extends Phaser.Scene {
     const root = document.getElementById('hud');
     if (!root) throw new Error('Missing hud');
     this.hud = new Hud(root);
-    this.hud.setHandlers({ onAction: (id) => this.handleAction(id) });
+    this.hud.setHandlers({
+      onAction: (id) => this.handleAction(id),
+      onStick: (x, y) => {
+        this.stickX = x;
+        this.stickY = y;
+        if (Math.hypot(x, y) > 0.1) this.resting = false;
+      },
+    });
 
     const cam = this.cameras.main;
     cam.roundPixels = true;
@@ -209,7 +226,8 @@ export class GameScene extends Phaser.Scene {
       if (this.hidden && this.started) saveGame(this.state);
     };
     document.addEventListener('visibilitychange', this.onVis);
-    window.addEventListener('keydown', this.onKey);
+    window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
 
     window.__firstNight = {
       state: () => this.state,
@@ -222,8 +240,10 @@ export class GameScene extends Phaser.Scene {
       },
       teleport: (tx, ty) => {
         this.stopWalk();
-        this.state = { ...this.state, tx, ty };
         const pos = tileToWorld(tx, ty);
+        this.px = pos.x;
+        this.py = pos.y;
+        this.state = { ...this.state, tx, ty, x: pos.x, y: pos.y };
         this.player.setPosition(pos.x, pos.y);
         this.player.setDepth(depthFor(pos.y, 6));
         this.afterChange();
@@ -239,8 +259,21 @@ export class GameScene extends Phaser.Scene {
         return { tx: tile.tx, ty: tile.ty, prop: prop?.id ?? null };
       },
       tryWalk: (tx: number, ty: number) => {
-        const ok = this.walkTo(tx, ty);
-        return { ok, tip: this.state.tip, tx: this.state.tx, ty: this.state.ty };
+        const at = tileToWorld(tx, ty);
+        const moved = resolveMove(
+          this.px,
+          this.py,
+          at.x - this.px,
+          at.y - this.py,
+          bodiesFor(this.state),
+          segmentsFor(this.state.pieces),
+        );
+        const arrived = Math.hypot(moved.x - at.x, moved.y - at.y) < 6;
+        return { ok: arrived, tip: arrived ? this.state.tip : 'No way through.', tx: this.state.tx, ty: this.state.ty };
+      },
+      stick: (x: number, y: number) => {
+        this.stickX = x;
+        this.stickY = y;
       },
       screenOf: (tx: number, ty: number) => {
         const pos = tileToWorld(tx, ty);
@@ -287,7 +320,8 @@ export class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.resizeObs?.disconnect();
       document.removeEventListener('visibilitychange', this.onVis);
-      window.removeEventListener('keydown', this.onKey);
+      window.removeEventListener('keydown', this.onKeyDown);
+      window.removeEventListener('keyup', this.onKeyUp);
       this.hud.destroy();
       window.__firstNight = undefined;
     });
@@ -295,7 +329,7 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const dt = Math.min(0.05, delta / 1000);
-    this.stepMove(dt);
+    this.stepFree(dt);
     this.expirePose();
     this.stepFloaters(dt);
     if (this.started && !this.hidden && this.sheet === 'none' && !this.placing && this.state.outcome === 'playing') {
@@ -378,9 +412,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private buildPlayer(): void {
-    const pos = tileToWorld(this.state.tx, this.state.ty);
-    this.player = this.add.sprite(pos.x, pos.y, 'world', 'woodsman_idle');
-    this.player.setDepth(depthFor(pos.y, 6));
+    this.px = this.state.x;
+    this.py = this.state.y;
+    this.player = this.add.sprite(this.px, this.py, 'world', 'woodsman_idle');
+    this.player.setDepth(depthFor(this.py, 6));
     this.player.setFlipX(false);
     this.player.on('animationupdate', () => this.syncFrameOrigin(this.player));
     this.showIdle();
@@ -395,6 +430,7 @@ export class GameScene extends Phaser.Scene {
     const topH = top && !top.hidden ? top.offsetHeight : 0;
     const bottomH = bottom && !bottom.hidden ? bottom.offsetHeight : 0;
     cam.setFollowOffset(0, -((bottomH - topH) / (2 * ZOOM)));
+    document.getElementById('hud')?.style.setProperty('--dock', `${bottomH}px`);
   }
 
   private onPointer(pointer: Phaser.Input.Pointer): void {
@@ -404,35 +440,23 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (this.resting) this.resting = false;
-    this.stopWalk();
+    this.glide = null;
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-    const prop = this.propAtPoint(world.x, world.y);
-    if (prop && this.isTree(prop) && !isFelled(this.state.trees, prop.id)) {
-      this.goChop(prop);
+    const hits = this.propsAtPoint(world.x, world.y);
+    const near = hits
+      .filter((prop) => this.actionable(prop) && inReach(this.px, this.py, prop.tx, prop.ty))
+      .sort((a, b) => this.reachDist(a) - this.reachDist(b));
+    if (near[0]) {
+      this.useProp(near[0]);
       return;
     }
-    if (prop?.gather) {
-      this.goGather(prop);
+    const tree = hits.find((prop) => this.isTree(prop) && !isFelled(this.state.trees, prop.id));
+    if (tree) {
+      this.setTip('Walk up to the trunk.');
       return;
     }
-    if (prop?.blocks) {
-      this.setTip(prop.kind === 'rock' ? 'That rock is staying put.' : 'The trees are too tight to walk through.');
-      return;
-    }
-    const tile = this.tileAt(world.x, world.y);
-    if (!tile) {
-      this.setTip('That is past the trees.');
-      return;
-    }
-    if (groundAt(tile.tx, tile.ty) === 'creek_water') {
-      this.setTip('The creek is cold. Leave the wet stones where they are.');
-      return;
-    }
-    if (blockedFor(this.state)(tile.tx, tile.ty)) {
-      this.setTip('You can’t walk through that.');
-      return;
-    }
-    this.walkTo(tile.tx, tile.ty);
+    const gatherable = hits.find((prop) => prop.gather && !this.state.picked[prop.id]);
+    if (gatherable) this.setTip('Walk up to it.');
   }
 
   private tileAt(x: number, y: number): { tx: number; ty: number } | null {
@@ -442,18 +466,31 @@ export class GameScene extends Phaser.Scene {
   }
 
   private propAtPoint(x: number, y: number): Prop | null {
-    let best: PropView | null = null;
+    return this.propsAtPoint(x, y)[0] ?? null;
+  }
+
+  private propsAtPoint(x: number, y: number): Prop[] {
+    const hits: { prop: Prop; depth: number }[] = [];
     for (const view of this.propViews) {
       if (!view.sprite.visible) continue;
       if (!this.opaqueHit(view.sprite, x, y)) continue;
-      if (!best || view.sprite.depth > best.sprite.depth) best = view;
+      hits.push({ prop: view.prop, depth: view.sprite.depth });
     }
-    if (best) return best.prop;
+    for (const prop of PROPS) {
+      if (!this.isTree(prop) || this.isGone(prop)) continue;
+      if (hits.some((hit) => hit.prop.id === prop.id)) continue;
+      const at = tileToWorld(prop.tx, prop.ty);
+      if (Math.hypot(at.x - x, at.y - y) <= 12) hits.push({ prop, depth: at.y });
+    }
+    hits.sort((a, b) => b.depth - a.depth);
     const tile = this.tileAt(x, y);
-    if (!tile) return null;
-    const onTile = propAt(tile.tx, tile.ty);
-    if (!onTile || this.isGone(onTile)) return null;
-    return onTile;
+    if (tile) {
+      const onTile = propAt(tile.tx, tile.ty);
+      if (onTile && !this.isGone(onTile) && !hits.some((hit) => hit.prop.id === onTile.id)) {
+        hits.push({ prop: onTile, depth: -1 });
+      }
+    }
+    return hits.map((hit) => hit.prop);
   }
 
   /** Ignore the clear parts of a sprite so a tree's empty box does not steal a tap. */
@@ -485,111 +522,180 @@ export class GameScene extends Phaser.Scene {
     return kind === 'item_sticks' || kind === 'item_stone' || kind === 'leaf_pile';
   }
 
-  private goGather(prop: Prop): void {
-    this.walkTo(prop.tx, prop.ty, () => {
-      const result = gather(this.state, prop.id);
-      if (!result.ok) {
-        this.setTip(result.message);
-        return;
-      }
-      this.state = result.state;
-      this.faceTile(prop.tx, prop.ty);
-      this.playPose('gather');
-      if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
-      this.afterChange();
-    });
+  private actionable(prop: Prop): boolean {
+    if (this.isTree(prop)) return !isFelled(this.state.trees, prop.id);
+    return Boolean(prop.gather) && !this.state.picked[prop.id];
   }
 
-  private goChop(prop: Prop): void {
+  private reachDist(prop: Prop): number {
+    const at = tileToWorld(prop.tx, prop.ty);
+    return Math.hypot(at.x - this.px, at.y - this.py);
+  }
+
+  private useProp(prop: Prop): void {
+    if (this.isTree(prop)) {
+      this.swingAt(prop);
+      return;
+    }
+    if (prop.gather) this.pickUp(prop);
+  }
+
+  private swingAt(prop: Prop): void {
     if (this.state.tool !== 'hatchet') {
       this.setTip('Put the hatchet in your hand.');
       return;
     }
-    this.walkTo(prop.tx, prop.ty, () => {
-      const result = chopTree(this.state, prop.id);
-      if (!result.ok) {
-        this.setTip(result.message);
-        return;
+    if (!inReach(this.px, this.py, prop.tx, prop.ty)) {
+      this.setTip('Walk up to the trunk.');
+      return;
+    }
+    const result = chopTree(this.state, prop.id);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.state = result.state;
+    this.faceTile(prop.tx, prop.ty);
+    if (result.popup) this.chopTarget = prop.id;
+    this.playPose('chop');
+    if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
+    this.afterChange();
+  }
+
+  private pickUp(prop: Prop): void {
+    if (!inReach(this.px, this.py, prop.tx, prop.ty)) {
+      this.setTip('Walk up to it.');
+      return;
+    }
+    const result = gather(this.state, prop.id);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.state = result.state;
+    this.faceTile(prop.tx, prop.ty);
+    this.playPose('gather');
+    if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
+    this.afterChange();
+  }
+
+  private useNearest(): void {
+    let best: Prop | null = null;
+    let bestD = Infinity;
+    for (const prop of PROPS) {
+      if (!this.actionable(prop)) continue;
+      if (!inReach(this.px, this.py, prop.tx, prop.ty)) continue;
+      const dist = this.reachDist(prop);
+      if (dist < bestD) {
+        best = prop;
+        bestD = dist;
       }
-      this.state = result.state;
-      this.faceTile(prop.tx, prop.ty);
-      if (result.popup) this.chopTarget = prop.id;
-      this.playPose('chop');
-      if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
-      this.afterChange();
-    });
+    }
+    if (!best) {
+      this.setTip('Nothing in reach.');
+      return;
+    }
+    this.useProp(best);
   }
 
   private edgeBlocked(from: Tile, to: Tile): boolean {
     return blocksStep(this.state.pieces, from, to);
   }
 
-  private walkTo(tx: number, ty: number, arrive?: () => void): boolean {
-    const from = { tx: this.state.tx, ty: this.state.ty };
-    const blocked = blockedFor(this.state);
-    const edge = (a: Tile, b: Tile) => this.edgeBlocked(a, b);
-    let plan: { path: { tx: number; ty: number }[]; stand: { tx: number; ty: number } } | null;
-    if (!blocked(tx, ty)) {
-      const path = findPath(from, { tx, ty }, blocked, edge);
-      plan = path === null ? null : { path, stand: { tx, ty } };
-    } else {
-      plan = planRoute(from, tx, ty, blocked, edge);
-    }
-    if (!plan) {
-      this.setTip('No way through.');
-      return false;
-    }
-    this.arrive = arrive ?? null;
-    this.path = plan.path;
-    this.showMarker(plan.stand.tx, plan.stand.ty);
-    if (this.path.length === 0) {
-      this.finishArrive();
-      return true;
-    }
-    this.beginStep();
-    return true;
-  }
-
-  private beginStep(): void {
-    const next = this.path[0];
-    if (!next) {
-      this.finishArrive();
+  private stepFree(dt: number): void {
+    if (!this.started || this.state.outcome !== 'playing' || this.sheet !== 'none' || this.placing) {
+      this.parkWalk();
       return;
     }
-    this.from = { x: this.player.x, y: this.player.y };
-    this.to = tileToWorld(next.tx, next.ty);
-    this.stepT = 0;
-    const facing = facingFromDelta(this.to.x - this.from.x, this.to.y - this.from.y, this.state.facing);
-    this.state = { ...this.state, facing };
-    this.pose = 'walk';
-    this.poseUntil = 0;
-    this.showPose('walk');
+    if (this.glide) {
+      this.stepGlide(dt);
+      return;
+    }
+    if (this.pose === 'chop' || this.pose === 'gather') {
+      this.parkWalk();
+      return;
+    }
+    let dx = 0;
+    let dy = 0;
+    const stick = Math.hypot(this.stickX, this.stickY);
+    if (stick >= 0.15) {
+      dx = this.stickX;
+      dy = this.stickY;
+    } else {
+      if (this.keys.has('arrowright') || this.keys.has('d')) dx += 1;
+      if (this.keys.has('arrowleft') || this.keys.has('a')) dx -= 1;
+      if (this.keys.has('arrowdown') || this.keys.has('s')) dy += 1;
+      if (this.keys.has('arrowup') || this.keys.has('w')) dy -= 1;
+    }
+    const mag = Math.hypot(dx, dy);
+    if (mag < 0.01) {
+      this.parkWalk();
+      return;
+    }
+    if (this.resting) this.resting = false;
+    dx /= mag;
+    dy /= mag;
+    const facing = facingFromVector(dx, dy, this.state.facing);
+    if (facing !== this.state.facing) this.state = { ...this.state, facing };
+    if (this.pose !== 'walk') {
+      this.pose = 'walk';
+      this.poseUntil = 0;
+      this.showPose('walk');
+    }
+    const step = MOVE_SPEED * Math.min(1, mag) * dt;
+    const next = resolveMove(this.px, this.py, dx * step, dy * step, bodiesFor(this.state), segmentsFor(this.state.pieces));
+    this.placeFeet(next.x, next.y);
   }
 
-  private stepMove(dt: number): void {
-    if (this.path.length === 0) return;
-    this.stepT += dt;
-    const u = Math.min(1, this.stepT / this.stepDur);
-    const x = this.from.x + (this.to.x - this.from.x) * u;
-    const y = this.from.y + (this.to.y - this.from.y) * u;
-    this.player.setPosition(Math.round(x), Math.round(y));
-    this.player.setDepth(depthFor(y, 6));
-    if (u < 1) return;
-    const step = this.path.shift();
-    if (!step) return;
-    this.state = { ...this.state, tx: step.tx, ty: step.ty };
-    this.player.setPosition(this.to.x, this.to.y);
-    if (this.path.length === 0) this.finishArrive();
-    else this.beginStep();
+  private stepGlide(dt: number): void {
+    const goal = this.glide;
+    if (!goal) return;
+    const dx = goal.x - this.px;
+    const dy = goal.y - this.py;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 3) {
+      this.glide = null;
+      this.placeFeet(goal.x, goal.y);
+      this.pose = 'idle';
+      this.showIdle();
+      this.finishPlacement();
+      return;
+    }
+    const step = Math.min(dist, MOVE_SPEED * dt);
+    const bodies = bodiesFor(this.state);
+    const walls = segmentsFor(this.state.pieces);
+    const next = resolveMove(this.px, this.py, (dx / dist) * step, (dy / dist) * step, bodies, walls);
+    const left = Math.hypot(next.x - goal.x, next.y - goal.y);
+    if (Math.hypot(next.x - this.px, next.y - this.py) < 0.2 || left > dist - 0.05) {
+      this.glide = null;
+      this.pending = null;
+      this.pose = 'idle';
+      this.showIdle();
+      this.setTip('No way through.');
+      return;
+    }
+    const facing = facingFromVector(dx, dy, this.state.facing);
+    if (facing !== this.state.facing) this.state = { ...this.state, facing };
+    if (this.pose !== 'walk') {
+      this.pose = 'walk';
+      this.showPose('walk');
+    }
+    this.placeFeet(next.x, next.y);
   }
 
-  private finishArrive(): void {
+  private parkWalk(): void {
+    if (this.pose !== 'walk') return;
     this.pose = 'idle';
     this.showIdle();
-    this.marker?.setVisible(false);
-    const fn = this.arrive;
-    this.arrive = null;
-    fn?.();
+  }
+
+  private placeFeet(x: number, y: number): void {
+    this.px = x;
+    this.py = y;
+    const tile = worldToTile(x, y);
+    this.state = { ...this.state, x, y, tx: tile.tx, ty: tile.ty };
+    this.player.setPosition(Math.round(x), Math.round(y));
+    this.player.setDepth(depthFor(y, 6));
   }
 
   private showPose(pose: 'idle' | 'walk' | 'gather' | 'chop'): void {
@@ -635,36 +741,20 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Turn toward a tile. A zero step keeps the facing he already has. */
+  /** Turn toward a tile from wherever his feet are. */
   private faceTile(tx: number, ty: number): void {
-    const from = tileToWorld(this.state.tx, this.state.ty);
     const to = tileToWorld(tx, ty);
-    const facing = facingFromDelta(to.x - from.x, to.y - from.y, this.state.facing);
+    const facing = facingFromVector(to.x - this.px, to.y - this.py, this.state.facing);
     this.state = { ...this.state, facing };
   }
 
   private stopWalk(): void {
+    this.glide = null;
     this.pending = null;
-    this.path = [];
-    this.arrive = null;
-    if (!this.player) return;
-    const pos = tileToWorld(this.state.tx, this.state.ty);
-    this.player.setPosition(pos.x, pos.y);
-    this.player.setDepth(depthFor(pos.y, 6));
-    this.pose = 'idle';
-    this.poseUntil = 0;
-    this.showIdle();
     this.marker?.setVisible(false);
+    this.parkWalk();
   }
 
-  private showMarker(tx: number, ty: number): void {
-    if (!this.marker) return;
-    const pos = tileToWorld(tx, ty);
-    this.marker.setPosition(pos.x, pos.y);
-    this.marker.setDepth(depthFor(pos.y, 2));
-    this.marker.setVisible(true);
-    this.marker.clearTint();
-  }
 
   private handleAction(id: string): void {
     if (id === 'start') {
@@ -727,6 +817,11 @@ export class GameScene extends Phaser.Scene {
       this.confirmPlace();
       return;
     }
+    if (id === 'use') {
+      if (!this.started || this.state.outcome !== 'playing' || this.sheet !== 'none' || this.placing) return;
+      this.useNearest();
+      return;
+    }
     if (id === 'rest') {
       if (!this.started || this.state.outcome !== 'playing') return;
       if (this.placing) this.endPlace();
@@ -756,10 +851,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private afterChange(): void {
-    const pos = tileToWorld(this.state.tx, this.state.ty);
-    if (this.path.length === 0 && this.player) {
-      this.player.setPosition(pos.x, pos.y);
-      this.player.setDepth(depthFor(pos.y, 6));
+    if (this.player) {
+      this.player.setPosition(Math.round(this.px), Math.round(this.py));
+      this.player.setDepth(depthFor(this.py, 6));
     }
     this.refreshShadows();
     this.syncProps();
@@ -999,8 +1093,12 @@ export class GameScene extends Phaser.Scene {
     this.endPlace();
     this.pending = { kind, tile, edge };
     this.setTip(HEADING);
-    const walked = this.walkTo(stand.tx, stand.ty, () => this.finishPlacement());
-    if (!walked) this.stopWalk();
+    const at = tileToWorld(stand.tx, stand.ty);
+    if (Math.hypot(at.x - this.px, at.y - this.py) < 6) {
+      this.finishPlacement();
+      return;
+    }
+    this.glide = { x: at.x, y: at.y };
   }
 
   private standTile(kind: PieceKind, tile: Tile, edge: EdgeName): Tile | null {
