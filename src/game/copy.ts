@@ -1,5 +1,5 @@
 export const OPENING_TIP =
-  'A hatchet, a block of woods, and room to build. Chop a tree and the wood goes in the pack.';
+  'The stick on the left walks you. Stand by a tree and tap it, or tap Use. The hatchet is already in your hand.';
 
 export const REST_TIP = 'Sit a minute. The work can wait. Warmth is only a reading now.';
 

@@ -26,6 +26,9 @@ export interface GameState {
   energy: number;
   tx: number;
   ty: number;
+  /** Feet, in world pixels. Free movement does not snap these to a tile. */
+  x: number;
+  y: number;
   /** Which way he is looking: se, sw, ne, or nw. */
   facing: Facing;
   /** What the hotbar has in hand. The hatchet chops. The plan builds. */

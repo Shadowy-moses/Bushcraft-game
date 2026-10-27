@@ -6,7 +6,9 @@ You can play it in Safari on an iPhone, or in a desktop browser. Progress is sav
 
 ## How to play
 
-Tap the ground to walk. The hatchet starts in the first hotbar slot. Tap a tree to chop it. Three swings bring it down, a stump stays, and the pack gains wood. A small line such as `+10 Wood` floats off the trunk. Stumps can grow back after a while, unless a foundation covers that tile.
+The hatchet starts in the first hotbar slot. On a phone, the thumbstick on the left walks you in any direction. On a desktop, WASD or the arrow keys do the same. He turns to the nearest of his four facings and walks. Trees, stumps, rocks, water, and solid walls stop him. A doorway is a gap he can walk through.
+
+Stand next to a tree and tap it, or tap Use. Every trunk on the block can be chopped, including the ones tucked behind another canopy. Three swings bring it down, a stump stays, and the pack gains wood. A small line such as `+10 Wood` floats off the trunk. Stumps can grow back after a while, unless a foundation covers that tile. Use also picks up a stick when you are standing on it.
 
 The bag, or the building plan in the second slot, opens the crafting bench. Construction has four pieces, all paid in wood:
 

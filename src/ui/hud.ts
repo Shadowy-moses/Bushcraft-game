@@ -4,6 +4,7 @@ import { ICONS } from './icons';
 
 export interface HudHandlers {
   onAction: (id: string) => void;
+  onStick?: (x: number, y: number) => void;
 }
 
 function esc(value: string): string {
@@ -36,6 +37,7 @@ export class Hud {
   private sheetSig = '';
   private frames = new Map<string, FrameRect>();
   private sheetSize = { w: 1, h: 1 };
+  private stickId: number | null = null;
 
   constructor(private root: HTMLElement) {
     this.root.innerHTML = `
@@ -62,10 +64,13 @@ export class Hud {
           </div>
         </div>
       </footer>
+      <div id="stick" hidden aria-label="Move"><div id="stick-knob"></div></div>
+      <button type="button" id="act" data-action="use" aria-label="Use" hidden>${ICONS.hatchet}</button>
       <div id="overlay" hidden></div>
     `;
     this.onClick = (event) => this.handleClick(event);
     this.root.addEventListener('click', this.onClick);
+    this.bindStick();
     void this.loadFrames();
   }
 
@@ -103,6 +108,50 @@ export class Hud {
     } catch {
       /* Painted fallbacks stay in the slots. */
     }
+  }
+
+  private bindStick(): void {
+    const stick = document.getElementById('stick');
+    const knob = document.getElementById('stick-knob');
+    if (!stick || !knob) return;
+    const emit = (clientX: number, clientY: number) => {
+      const rect = stick.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = clientX - cx;
+      let dy = clientY - cy;
+      const max = rect.width * 0.38;
+      const mag = Math.hypot(dx, dy);
+      if (mag > max && mag > 0) {
+        dx = (dx / mag) * max;
+        dy = (dy / mag) * max;
+      }
+      knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      this.handlers.onStick?.(max > 0 ? dx / max : 0, max > 0 ? dy / max : 0);
+    };
+    stick.addEventListener('pointerdown', (event) => {
+      if (this.stickId !== null) return;
+      this.stickId = event.pointerId;
+      stick.setPointerCapture(event.pointerId);
+      emit(event.clientX, event.clientY);
+    });
+    stick.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== this.stickId) return;
+      emit(event.clientX, event.clientY);
+    });
+    const end = (event: PointerEvent) => {
+      if (event.pointerId !== this.stickId) return;
+      this.releaseStick();
+    };
+    stick.addEventListener('pointerup', end);
+    stick.addEventListener('pointercancel', end);
+  }
+
+  private releaseStick(): void {
+    this.stickId = null;
+    const knob = document.getElementById('stick-knob');
+    if (knob) knob.style.transform = 'translate(0px, 0px)';
+    this.handlers.onStick?.(0, 0);
   }
 
   private handleClick(event: MouseEvent): void {
@@ -177,6 +226,14 @@ export class Hud {
     const playing = model.sheet !== 'title' && model.sheet !== 'end';
     document.getElementById('top-bar')?.toggleAttribute('hidden', !playing);
     document.getElementById('bottom-bar')?.toggleAttribute('hidden', !playing);
+    const controls = playing && !model.place;
+    const stick = document.getElementById('stick');
+    if (stick) {
+      const wasShown = !stick.hidden;
+      stick.toggleAttribute('hidden', !controls);
+      if (wasShown && !controls) this.releaseStick();
+    }
+    document.getElementById('act')?.toggleAttribute('hidden', !controls);
     this.paintHotbar(model);
     this.paintDock(model);
     this.paintIngredients(model);
@@ -316,7 +373,7 @@ export class Hud {
           <h1>First Night</h1>
           <p class="for">for David</p>
           <p>Late afternoon in a small wood. The hatchet is already in your hand.</p>
-          <p>Tap the ground to walk. Tap a tree to chop it. Wood lands in the pack, and the bag opens the building plan.</p>
+          <p>The stick on the left walks you. Stand by a tree and tap it, or tap Use. Wood lands in the pack, and the bag opens the building plan.</p>
           <p>Lay a foundation, then walls, a doorway, and a floor. The floor is also the roof of the room under it.</p>
           <button type="button" class="primary" data-action="start">Start the afternoon</button>
         </section>
