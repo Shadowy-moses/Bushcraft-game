@@ -5,8 +5,8 @@ import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
-    expect(Object.keys(atlas.frames)).toHaveLength(79);
-    expect(atlas.meta.size).toEqual({ w: 512, h: 255 });
+    expect(Object.keys(atlas.frames)).toHaveLength(84);
+    expect(atlas.meta.size).toEqual({ w: 512, h: 288 });
     expect(atlas.meta.image).toBe('spritesheet.png');
     for (const name of ATLAS_FRAMES) {
       const frame = atlas.frames[name as keyof typeof atlas.frames];
@@ -54,6 +54,10 @@ describe('artist atlas', () => {
     ]) {
       expect(atlas.frames[name as keyof typeof atlas.frames]?.anchorPx, name).toBeTruthy();
     }
+    expect(atlas.frames.wood_chip_0.frame).toMatchObject({ w: 6, h: 6 });
+    expect(atlas.frames.wood_chip_2.anchorPx).toEqual({ x: 3, y: 3 });
+    expect(atlas.frames.stone_chip_0.anchorPx).toEqual({ x: 3, y: 3 });
+    expect(atlas.frames.stone_chip_1.frame).toMatchObject({ w: 6, h: 6 });
     expect(atlas.frames.woodsman_se_idle_0.anchorPx).toEqual({ x: 16, y: 31 });
     expect(atlas.frames.woodsman_nw_walk_3.anchor).toEqual({ x: 0.5, y: 0.96875 });
     expect(atlas.animations.fire_tipi_lit).toEqual(['fire_tipi_lit_0', 'fire_tipi_lit_1']);
