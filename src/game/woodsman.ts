@@ -39,7 +39,7 @@ export function facingFromVector(dx: number, dy: number, current: Facing): Facin
   return best;
 }
 
-/** Gather and chop were painted for the two near sides. The far side uses that same side. */
+/** Gather was painted for the two near sides. The far side uses that same side. */
 export function workFacing(facing: Facing): 'se' | 'sw' {
   return facing === 'sw' || facing === 'nw' ? 'sw' : 'se';
 }
@@ -47,7 +47,7 @@ export function workFacing(facing: Facing): 'se' | 'sw' {
 export type Pose = 'idle' | 'walk' | 'gather' | 'chop';
 
 export function poseName(facing: Facing, pose: Pose): string {
-  const dir = pose === 'gather' || pose === 'chop' ? workFacing(facing) : facing;
+  const dir = pose === 'gather' ? workFacing(facing) : facing;
   return `woodsman_${dir}_${pose}`;
 }
 
@@ -57,8 +57,9 @@ export interface PoseClip {
 }
 
 /**
- * Idle and walk prefer the directional animation.
- * Gather and chop are single frames, and only the near sides were painted.
+ * Idle, walk, and chop prefer the painted facing.
+ * Gather is only drawn for the two near sides, and an older sheet
+ * may still be missing the far chop. Those borrow the matching near side.
  * Older sheets still have woodsman_idle and woodsman_walk.
  */
 export function poseClip(
@@ -73,6 +74,12 @@ export function poseClip(
     if (hasAnim('woodsman_walk')) return { kind: 'anim', key: 'woodsman_walk' };
   } else if (pose === 'idle') {
     if (hasAnim(preferred)) return { kind: 'anim', key: preferred };
+  } else if (pose === 'chop') {
+    if (hasAnim(preferred)) return { kind: 'anim', key: preferred };
+    if (hasFrame(preferred)) return { kind: 'frame', key: preferred };
+    const borrowed = `woodsman_${workFacing(facing)}_chop`;
+    if (hasAnim(borrowed)) return { kind: 'anim', key: borrowed };
+    if (hasFrame(borrowed)) return { kind: 'frame', key: borrowed };
   } else if (hasAnim(preferred)) {
     return { kind: 'anim', key: preferred };
   }

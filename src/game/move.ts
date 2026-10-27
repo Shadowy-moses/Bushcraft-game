@@ -11,8 +11,8 @@ export const STUMP_RADIUS = 3.5;
 export const ROCK_RADIUS = 7;
 /** World pixels per second at a full stick or key press. */
 export const MOVE_SPEED = 62;
-/** Close enough to chop or pick something up. */
-export const REACH = 20;
+/** Close enough to chop or pick something up. Covers the tile he is standing beside. */
+export const REACH = 42;
 
 export interface Body {
   x: number;

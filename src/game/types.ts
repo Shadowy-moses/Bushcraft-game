@@ -71,6 +71,6 @@ export interface ActionResult {
   state: GameState;
   ok: boolean;
   message: string;
-  /** Floating pickup text, such as "+10 Wood". */
+  /** Floating pickup text, such as "+4 Wood". */
   popup?: string;
 }

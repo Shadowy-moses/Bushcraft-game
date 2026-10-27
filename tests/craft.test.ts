@@ -21,6 +21,8 @@ describe('the building plan', () => {
 
     const ready = recipesFor({ ...initialState(), inventory: { wood: 20 }, energy: 100 });
     expect(ready.find((recipe) => recipe.id === 'foundation')?.enabled).toBe(true);
+    const tired = recipesFor({ ...initialState(), inventory: { wood: 20 }, energy: 0 });
+    expect(tired.find((recipe) => recipe.id === 'foundation')?.enabled).toBe(true);
     expect(ready.find((recipe) => recipe.id === 'wall')?.enabled).toBe(true);
     const short = recipesFor({ ...initialState(), inventory: { wood: 9 }, energy: 100 });
     expect(short.find((recipe) => recipe.id === 'wall')?.enabled).toBe(false);

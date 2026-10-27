@@ -1,4 +1,4 @@
-import { BUILD_ENERGY, WOOD_DOOR, WOOD_FLOOR, WOOD_FOUNDATION, WOOD_WALL } from './constants';
+import { WOOD_DOOR, WOOD_FLOOR, WOOD_FOUNDATION, WOOD_WALL } from './constants';
 import { groundAt, inBounds, propAt } from './map';
 import { isFelled, type TreeMark } from './trees';
 import type { EdgeName, GameState, Piece, PieceKind, Tile } from './types';
@@ -71,10 +71,22 @@ export function edgeOffset(edge: EdgeName): { x: number; y: number } {
   return { x: 8, y: -4 };
 }
 
+/**
+ * Atlas frame for a piece. Walls and doors share a drawing across parallel edges:
+ * ne/sw use the ne face, nw/se use the nw face. Ghost frames are already tinted.
+ */
+export function pieceFrame(kind: PieceKind, edge: EdgeName, ghost: 'ok' | 'bad' | null = null): string {
+  const suffix = ghost === 'ok' ? '_ghost_ok' : ghost === 'bad' ? '_ghost_bad' : '';
+  if (kind === 'foundation') return `twig_foundation${suffix}`;
+  if (kind === 'floor') return `twig_floor${suffix}`;
+  const face = edge === 'sw' || edge === 'ne' ? 'ne' : 'nw';
+  const base = kind === 'doorway' ? 'twig_door' : 'twig_wall';
+  return `${base}_${face}${suffix}`;
+}
+
 /** Screen art for an edge. The two diagonals use different drawings. */
 export function edgeArt(kind: 'wall' | 'doorway', edge: EdgeName): { key: string; flip: boolean } {
-  const alt = edge === 'sw' || edge === 'ne';
-  return { key: kind === 'doorway' ? (alt ? 'door_b' : 'door_a') : alt ? 'wall_b' : 'wall_a', flip: false };
+  return { key: pieceFrame(kind, edge), flip: false };
 }
 
 function clearGround(tile: Tile, state: GameState): string | null {
@@ -169,7 +181,7 @@ export function blocksStep(pieces: Piece[], from: Tile, to: Tile): boolean {
 }
 
 export function canAfford(state: GameState, kind: PieceKind): boolean {
-  return state.inventory.wood >= WOOD_COST[kind] && state.energy >= BUILD_ENERGY;
+  return state.inventory.wood >= WOOD_COST[kind];
 }
 
 export function woodNeed(kind: PieceKind): number {

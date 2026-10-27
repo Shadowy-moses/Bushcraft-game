@@ -12,7 +12,7 @@ import { OPENING_TIP } from './copy';
 import { clamp, tileToWorld } from './iso';
 import { inReach } from './move';
 import { propAt, propById } from './map';
-import { TREE_HITS, WOOD_PER_TREE, isFelled, regrowTrees } from './trees';
+import { TREE_HITS, isFelled, regrowTrees, woodFromTree } from './trees';
 import type { ActionResult, EdgeName, GameState, Inventory, PieceKind } from './types';
 
 export function emptyInventory(): Inventory {
@@ -130,7 +130,8 @@ export function chopTree(state: GameState, id: string): ActionResult {
       left === 1 ? 'The trunk cracks. One more swing.' : 'Chips fly. Keep swinging.',
     );
   }
-  const wood = state.inventory.wood + WOOD_PER_TREE;
+  const gained = woodFromTree(id, state.minutes);
+  const wood = state.inventory.wood + gained;
   return ok(
     {
       ...state,
@@ -139,7 +140,7 @@ export function chopTree(state: GameState, id: string): ActionResult {
       trees: { ...state.trees, [id]: { hits, felledAt: state.minutes } },
     },
     'Down it comes. The stump can wait.',
-    `+${WOOD_PER_TREE} Wood`,
+    `+${gained} Wood`,
   );
 }
 
@@ -147,12 +148,11 @@ export function placePiece(state: GameState, kind: PieceKind, tx: number, ty: nu
   if (state.inventory.wood < WOOD_COST[kind]) {
     return fail(state, `Needs ${WOOD_COST[kind]} wood. You have ${state.inventory.wood}.`);
   }
-  if (state.energy < BUILD_ENERGY) return fail(state, 'Rest first. Raising this takes some energy.');
   const piece = { kind, tx, ty, edge };
   return ok(
     {
       ...state,
-      energy: state.energy - BUILD_ENERGY,
+      energy: Math.max(0, state.energy - BUILD_ENERGY),
       inventory: { wood: state.inventory.wood - WOOD_COST[kind] },
       pieces: [...state.pieces, piece],
     },

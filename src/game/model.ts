@@ -1,7 +1,7 @@
 import { hotbarSlots, recipesFor, statusLine, type HotbarSlot, type Recipe } from './craft';
 import { clockParts, energyWord, warmthWord } from './copy';
 import { warmthPerGameHour } from './rules';
-import type { PieceKind, GameState } from './types';
+import type { PieceKind, GameState, Tool } from './types';
 
 export type SheetId = 'none' | 'title' | 'end' | 'pack' | 'craft';
 
@@ -31,6 +31,7 @@ export interface HudModel {
   endTitle: string;
   endBody: string;
   place: PlaceModel | null;
+  tool: Tool;
 }
 
 export function buildModel(state: GameState, sheet: SheetId, resting: boolean, place: PlaceModel | null = null): HudModel {
@@ -56,5 +57,6 @@ export function buildModel(state: GameState, sheet: SheetId, resting: boolean, p
     endTitle: 'Still standing',
     endBody: 'The afternoon is still yours.',
     place,
+    tool: state.tool,
   };
 }

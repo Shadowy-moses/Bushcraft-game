@@ -26,9 +26,8 @@ interface FrameRect {
 export class Hud {
   private onClick: (event: MouseEvent) => void;
   private model: HudModel | null = null;
-  private armReset = false;
+  private confirmReset = false;
   private handlers: HudHandlers = { onAction: () => undefined };
-  private selectedSlot = 0;
   private category: CraftCategory = 'construction';
   private recipeId = 'foundation';
   private qty = 1;
@@ -80,7 +79,7 @@ export class Hud {
 
   render(model: HudModel, rebuildSheet: boolean): void {
     this.model = model;
-    if (model.sheet !== 'craft' && model.sheet !== 'pack') this.armReset = false;
+    if (model.sheet !== 'craft' && model.sheet !== 'pack') this.confirmReset = false;
     if (rebuildSheet) this.paintSheet();
     this.paintLive();
   }
@@ -160,8 +159,6 @@ export class Hud {
     const action = target.dataset.action;
     if (!action) return;
     if (action.startsWith('slot-')) {
-      this.selectedSlot = Number(action.slice(5)) || 0;
-      this.paintHotbar(this.model);
       this.handlers.onAction(action);
       return;
     }
@@ -198,8 +195,8 @@ export class Hud {
       if (recipe?.enabled && recipe.action) this.handlers.onAction(recipe.action);
       return;
     }
-    if (action === 'reset-arm') {
-      this.armReset = true;
+    if (action === 'reset-ask' || action === 'reset-cancel') {
+      this.confirmReset = action === 'reset-ask';
       this.sheetSig = '';
       this.paintSheet();
       return;
@@ -226,14 +223,14 @@ export class Hud {
     const playing = model.sheet !== 'title' && model.sheet !== 'end';
     document.getElementById('top-bar')?.toggleAttribute('hidden', !playing);
     document.getElementById('bottom-bar')?.toggleAttribute('hidden', !playing);
-    const controls = playing && !model.place;
+    const stickOn = model.sheet === 'none';
     const stick = document.getElementById('stick');
     if (stick) {
       const wasShown = !stick.hidden;
-      stick.toggleAttribute('hidden', !controls);
-      if (wasShown && !controls) this.releaseStick();
+      stick.toggleAttribute('hidden', !stickOn);
+      if (wasShown && !stickOn) this.releaseStick();
     }
-    document.getElementById('act')?.toggleAttribute('hidden', !controls);
+    document.getElementById('act')?.toggleAttribute('hidden', !(stickOn && !model.place));
     this.paintHotbar(model);
     this.paintDock(model);
     this.paintIngredients(model);
@@ -248,12 +245,13 @@ export class Hud {
     const bar = document.getElementById('hotbar');
     if (!bar || !model) return;
     const signature = `${model.hotbar.map((slot) => slot.frame).join(',')}:${this.frames.size}`;
+    const equipped = model.tool === 'plan' ? 1 : 0;
     if (signature !== this.hotbarSig) {
       this.hotbarSig = signature;
       bar.innerHTML = model.hotbar
         .map(
           (slot, index) => `
-            <button type="button" class="slot${index === this.selectedSlot ? ' on' : ''}" data-action="slot-${index}" aria-label="${esc(slot.name)}">
+            <button type="button" class="slot${index === equipped ? ' on' : ''}" data-action="slot-${index}" aria-label="${esc(slot.name)}">
               ${this.iconHtml(slot.frame, false)}
               <span class="count" data-slot="${slot.id}">${slot.count < 0 ? '' : slot.count}</span>
             </button>
@@ -271,7 +269,7 @@ export class Hud {
     this.root.querySelectorAll('.slot').forEach((node) => {
       const action = (node as HTMLElement).dataset.action ?? '';
       const index = Number(action.slice(5));
-      node.classList.toggle('on', index === this.selectedSlot);
+      node.classList.toggle('on', index === equipped);
     });
   }
 
@@ -393,7 +391,7 @@ export class Hud {
       return;
     }
     const recipe = this.currentRecipe();
-    const sig = `${model.sheet}:${this.category}:${recipe?.id}:${this.armReset}:${this.frames.size}`;
+    const sig = `${model.sheet}:${this.category}:${recipe?.id}:${this.confirmReset}:${model.status}:${this.frames.size}`;
     if (sig === this.sheetSig) return;
     this.sheetSig = sig;
     overlay.className = 'craft-mode';
@@ -416,31 +414,40 @@ export class Hud {
         `,
       )
       .join('');
+    const equipped = model.tool === 'plan' ? 1 : 0;
     const slots = model.hotbar
       .map(
         (slot, index) => `
-          <button type="button" class="slot${index === this.selectedSlot ? ' on' : ''}" data-action="slot-${index}" aria-label="${esc(slot.name)}">
+          <button type="button" class="slot${index === equipped ? ' on' : ''}" data-action="slot-${index}" aria-label="${esc(slot.name)}">
             ${this.iconHtml(slot.frame, false)}
             <span class="count" data-slot="${slot.id}">${slot.count < 0 ? '' : slot.count}</span>
           </button>
         `,
       )
       .join('');
-    const reset = this.armReset
-      ? '<button type="button" data-action="restart">Tap again to start over</button>'
-      : '<button type="button" data-action="reset-arm">Start over</button>';
+    const confirm = this.confirmReset
+      ? `
+        <section class="confirm-pop panel" role="dialog" aria-label="Start over">
+          <p>Start the afternoon over? The pack and anything you built go with it.</p>
+          <div class="confirm-actions">
+            <button type="button" data-action="reset-cancel">Keep going</button>
+            <button type="button" class="primary" data-action="restart">Start over</button>
+          </div>
+        </section>
+      `
+      : '';
     return `
       <button type="button" class="craft-dismiss" data-action="close" aria-label="Close"></button>
       <section class="craft panel">
         <header class="craft-head">
           <h2>Inventory</h2>
+          <p class="craft-status">${esc(model.status)}</p>
           <button type="button" data-action="close" aria-label="Close">Close</button>
         </header>
         <div class="craft-body">
           <aside class="inv">
             <p class="kicker">Pack</p>
             <div class="inv-grid">${slots}</div>
-            ${reset}
           </aside>
           <div class="bench">
             <nav class="cats">${cats}</nav>
@@ -448,11 +455,15 @@ export class Hud {
             <aside class="detail">${this.detailHtml(recipe)}</aside>
           </div>
         </div>
+        <footer class="craft-foot">
+          <button type="button" data-action="reset-ask">Start over</button>
+        </footer>
         <footer id="queue" class="queue" hidden>
           <p id="queue-label"></p>
           <div class="bar"><span id="queue-fill"></span></div>
         </footer>
       </section>
+      ${confirm}
     `;
   }
 

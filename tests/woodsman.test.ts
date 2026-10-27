@@ -37,7 +37,8 @@ describe('woodsman facing', () => {
     expect(workFacing('nw')).toBe('sw');
     expect(poseName('ne', 'walk')).toBe('woodsman_ne_walk');
     expect(poseName('ne', 'gather')).toBe('woodsman_se_gather');
-    expect(poseName('nw', 'chop')).toBe('woodsman_sw_chop');
+    expect(poseName('nw', 'chop')).toBe('woodsman_nw_chop');
+    expect(poseName('ne', 'chop')).toBe('woodsman_ne_chop');
     expect(poseName('sw', 'idle')).toBe('woodsman_sw_idle');
   });
 
@@ -69,6 +70,9 @@ describe('woodsman facing', () => {
     expect(poseClip('ne', 'gather', hasAnim, hasFrame)).toEqual({ kind: 'frame', key: 'woodsman_se_gather' });
     expect(poseClip('nw', 'chop', hasAnim, hasFrame)).toEqual({ kind: 'frame', key: 'woodsman_sw_chop' });
     expect(poseClip('sw', 'chop', hasAnim, hasFrame)).toEqual({ kind: 'frame', key: 'woodsman_sw_chop' });
+    const fourChop = (key: string) => key.startsWith('woodsman_') && key.endsWith('_chop');
+    expect(poseClip('nw', 'chop', fourChop, () => false)).toEqual({ kind: 'anim', key: 'woodsman_nw_chop' });
+    expect(poseClip('ne', 'chop', fourChop, () => false)).toEqual({ kind: 'anim', key: 'woodsman_ne_chop' });
 
     const oldAnim = (key: string) => key === 'woodsman_walk';
     const oldFrame = (key: string) => key === 'woodsman_idle' || key === 'woodsman_walk_0' || key === 'woodsman_walk_1';

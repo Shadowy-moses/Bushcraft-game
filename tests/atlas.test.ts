@@ -5,8 +5,8 @@ import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
-    expect(Object.keys(atlas.frames)).toHaveLength(54);
-    expect(atlas.meta.size).toEqual({ w: 512, h: 174 });
+    expect(Object.keys(atlas.frames)).toHaveLength(79);
+    expect(atlas.meta.size).toEqual({ w: 512, h: 255 });
     expect(atlas.meta.image).toBe('spritesheet.png');
     for (const name of ATLAS_FRAMES) {
       const frame = atlas.frames[name as keyof typeof atlas.frames];
@@ -36,8 +36,24 @@ describe('artist atlas', () => {
     expect(atlas.animations.woodsman_sw_gather).toEqual(['woodsman_sw_gather_0']);
     expect(atlas.animations.woodsman_se_chop).toEqual(['woodsman_se_chop_0', 'woodsman_se_chop_1']);
     expect(atlas.animations.woodsman_sw_chop).toEqual(['woodsman_sw_chop_0', 'woodsman_sw_chop_1']);
+    expect(atlas.animations.woodsman_ne_chop).toEqual(['woodsman_ne_chop_0', 'woodsman_ne_chop_1']);
+    expect(atlas.animations.woodsman_nw_chop).toEqual(['woodsman_nw_chop_0', 'woodsman_nw_chop_1']);
     expect('woodsman_ne_gather' in atlas.animations).toBe(false);
-    expect('woodsman_nw_chop' in atlas.animations).toBe(false);
+    for (const name of [
+      'twig_foundation',
+      'twig_foundation_ghost_ok',
+      'twig_foundation_ghost_bad',
+      'twig_wall_ne',
+      'twig_wall_nw',
+      'twig_door_ne',
+      'twig_door_nw',
+      'twig_floor',
+      'pine_stump',
+      'birch_stump',
+      'felled_log',
+    ]) {
+      expect(atlas.frames[name as keyof typeof atlas.frames]?.anchorPx, name).toBeTruthy();
+    }
     expect(atlas.frames.woodsman_se_idle_0.anchorPx).toEqual({ x: 16, y: 31 });
     expect(atlas.frames.woodsman_nw_walk_3.anchor).toEqual({ x: 0.5, y: 0.96875 });
     expect(atlas.animations.fire_tipi_lit).toEqual(['fire_tipi_lit_0', 'fire_tipi_lit_1']);

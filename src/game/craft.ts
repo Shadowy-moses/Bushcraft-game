@@ -1,5 +1,4 @@
 import { WOOD_COST } from './build';
-import { BUILD_ENERGY } from './constants';
 import type { GameState, PieceKind } from './types';
 
 export type CraftCategory = 'tools' | 'construction';
@@ -89,12 +88,19 @@ function pieceRecipe(state: GameState, spec: (typeof PIECES)[number]): Recipe {
     category: 'construction',
     name: spec.name,
     blurb: spec.blurb,
-    frame: spec.id,
+    frame:
+      spec.id === 'foundation'
+        ? 'twig_foundation'
+        : spec.id === 'floor'
+          ? 'twig_floor'
+          : spec.id === 'doorway'
+            ? 'twig_door_ne'
+            : 'twig_wall_ne',
     ingredients: [{ name: 'Wood', have, need }],
     seconds: 0,
     timeLabel: spec.time,
     action: `place-${spec.id}`,
-    enabled: have >= need && state.energy >= BUILD_ENERGY,
+    enabled: have >= need,
     done: false,
   };
 }
