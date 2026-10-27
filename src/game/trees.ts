@@ -6,10 +6,25 @@ export interface TreeMark {
 
 /** Swings to fell a pine or a birch. */
 export const TREE_HITS = 3;
-/** Wood a felled tree drops into the pack. */
-export const WOOD_PER_TREE = 10;
-/** Game minutes before a stump can be a tree again, if nothing was built there. */
-export const REGROW_MINUTES = 90;
+/** Wood a felled tree drops into the pack. Each trunk rolls in this range. */
+export const WOOD_MIN = 3;
+export const WOOD_MAX = 5;
+/**
+ * Game minutes before a stump can be a tree again, if nothing was built there.
+ * At the working clock this is a few real minutes.
+ */
+export const REGROW_MINUTES = 150;
+
+/** Stable 3–5 roll for this trunk at the minute it falls. */
+export function woodFromTree(id: string, minutes: number): number {
+  let hash = 2166136261;
+  const text = `${id}:${Math.floor(minutes)}`;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return WOOD_MIN + ((hash >>> 0) % (WOOD_MAX - WOOD_MIN + 1));
+}
 
 export function isFelled(trees: Record<string, TreeMark>, id: string): boolean {
   return trees[id]?.felledAt != null;

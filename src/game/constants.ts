@@ -1,5 +1,6 @@
 export const TILE_W = 32;
 export const TILE_H = 16;
+/** Integer camera zoom so the pixels stay crisp. The HTML HUD is not scaled with it. */
 export const ZOOM = 3;
 export const COLS = 12;
 export const ROWS = 12;
@@ -21,9 +22,12 @@ export const WOOD_WALL = 10;
 export const WOOD_DOOR = 10;
 export const WOOD_FLOOR = 15;
 
-/** Game minutes that pass each real second while you are up and working. */
-export const PLAY_MINUTES_PER_SECOND = 1.25;
-export const REST_MINUTES_PER_SECOND = 3;
+/**
+ * Game minutes that pass each real second while you are up and working.
+ * 4:30 to 6:00 is 810 game minutes, so a day lasts about 22 real minutes.
+ */
+export const PLAY_MINUTES_PER_SECOND = 0.6;
+export const REST_MINUTES_PER_SECOND = 1.8;
 export const REST_ENERGY_PER_SECOND = 28;
 
 export const SAVE_KEY = 'bushcraft-first-night-v1';

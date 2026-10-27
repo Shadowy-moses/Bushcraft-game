@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { frameOrigin, standinOrigin } from '../atlas';
-import { across, blocksStep, canAfford, edgeArt, edgeOffset, EDGES, pieceKey, pieceSpot, suggestPiece, WOOD_COST } from '../build';
+import { across, blocksStep, canAfford, edgeOffset, EDGES, pieceFrame, pieceKey, pieceSpot, suggestPiece, WOOD_COST } from '../build';
 import { COLS, PLAY_MINUTES_PER_SECOND, REST_ENERGY_PER_SECOND, REST_MINUTES_PER_SECOND, ROWS, ZOOM } from '../constants';
 import { HEADING, REST_TIP } from '../copy';
 import { chebyshev, clamp, depthFor, tileToWorld, worldToTile } from '../iso';
@@ -103,6 +103,8 @@ export class GameScene extends Phaser.Scene {
   private shaded = new Set<string>();
   private buildings = new Map<string, Phaser.GameObjects.Sprite>();
   private stumps = new Map<string, Phaser.GameObjects.Sprite>();
+  private logs = new Map<string, Phaser.GameObjects.Sprite>();
+  private logUntil = new Map<string, number>();
   private marker?: Phaser.GameObjects.Sprite;
   private ghost?: Phaser.GameObjects.Sprite;
   private placing: PieceKind | null = null;
@@ -122,6 +124,8 @@ export class GameScene extends Phaser.Scene {
   private stickY = 0;
   private keys = new Set<string>();
   private glide: { x: number; y: number } | null = null;
+  private followTile = '';
+  private reachMark?: Phaser.GameObjects.Graphics;
   private minuteBank = 0;
   private saveBank = 0;
   private hudBank = 0;
@@ -159,6 +163,8 @@ export class GameScene extends Phaser.Scene {
     this.propViews = [];
     this.buildings = new Map();
     this.stumps = new Map();
+    this.logs = new Map();
+    this.logUntil = new Map();
     this.floaters = [];
     this.pose = 'idle';
     this.poseUntil = 0;
@@ -331,6 +337,7 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(0.05, delta / 1000);
     this.stepFree(dt);
     this.expirePose();
+    this.expireLogs();
     this.stepFloaters(dt);
     if (this.started && !this.hidden && this.sheet === 'none' && !this.placing && this.state.outcome === 'playing') {
       let rate: number = PLAY_MINUTES_PER_SECOND;
@@ -355,6 +362,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.applyTints();
+    this.markReach();
     this.hudBank += dt;
     if (this.hudBank > 0.15) {
       this.hudBank = 0;
@@ -402,8 +410,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private buildMarkers(): void {
-    this.ghost = this.add.sprite(0, 0, 'foundation');
-    this.ghost.setOrigin(0.5, 0.8);
+    this.ghost = this.add.sprite(0, 0, 'world', 'twig_foundation_ghost_ok');
+    this.applyAtlas(this.ghost, 'twig_foundation_ghost_ok');
     this.ghost.setVisible(false);
     const markerOrigin = standinOrigin('tile_marker');
     this.marker = this.add.sprite(0, 0, 'tile_marker');
@@ -540,11 +548,13 @@ export class GameScene extends Phaser.Scene {
     if (prop.gather) this.pickUp(prop);
   }
 
+  private handHatchet(): void {
+    if (this.state.tool === 'hatchet') return;
+    this.state = { ...this.state, tool: 'hatchet' };
+  }
+
   private swingAt(prop: Prop): void {
-    if (this.state.tool !== 'hatchet') {
-      this.setTip('Put the hatchet in your hand.');
-      return;
-    }
+    this.handHatchet();
     if (!inReach(this.px, this.py, prop.tx, prop.ty)) {
       this.setTip('Walk up to the trunk.');
       return;
@@ -603,7 +613,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private stepFree(dt: number): void {
-    if (!this.started || this.state.outcome !== 'playing' || this.sheet !== 'none' || this.placing) {
+    if (!this.started || this.state.outcome !== 'playing' || this.sheet !== 'none') {
       this.parkWalk();
       return;
     }
@@ -696,6 +706,70 @@ export class GameScene extends Phaser.Scene {
     this.state = { ...this.state, x, y, tx: tile.tx, ty: tile.ty };
     this.player.setPosition(Math.round(x), Math.round(y));
     this.player.setDepth(depthFor(y, 6));
+    this.followGhost();
+  }
+
+  /** While a ghost is up, it stays a step ahead of him as he walks. A drag holds it. */
+  private followGhost(): void {
+    if (!this.placing || this.pointer.down) return;
+    const here = `${this.state.tx},${this.state.ty}`;
+    if (here === this.followTile) return;
+    this.followTile = here;
+    const ahead = this.tileAhead();
+    this.ghostAnchor = ahead;
+    this.refreshGhost();
+  }
+
+  private tileAhead(): Tile {
+    const step =
+      this.state.facing === 'se'
+        ? { tx: 1, ty: 0 }
+        : this.state.facing === 'sw'
+          ? { tx: 0, ty: 1 }
+          : this.state.facing === 'ne'
+            ? { tx: 0, ty: -1 }
+            : { tx: -1, ty: 0 };
+    return {
+      tx: clamp(this.state.tx + step.tx, 0, COLS - 1),
+      ty: clamp(this.state.ty + step.ty, 0, ROWS - 1),
+    };
+  }
+
+  private nearestTree(): Prop | null {
+    let best: Prop | null = null;
+    let bestD = Infinity;
+    for (const prop of PROPS) {
+      if (!this.isTree(prop) || isFelled(this.state.trees, prop.id)) continue;
+      if (!inReach(this.px, this.py, prop.tx, prop.ty)) continue;
+      const dist = this.reachDist(prop);
+      if (dist < bestD) {
+        best = prop;
+        bestD = dist;
+      }
+    }
+    return best;
+  }
+
+  /** Gold ring and a warm tint on the nearest trunk he can chop. */
+  private markReach(): void {
+    if (!this.reachMark) this.reachMark = this.add.graphics();
+    const mark = this.reachMark;
+    mark.clear();
+    const show = this.started && this.sheet === 'none' && this.state.outcome === 'playing';
+    const tree = show ? this.nearestTree() : null;
+    if (!tree) {
+      mark.setVisible(false);
+      return;
+    }
+    const at = tileToWorld(tree.tx, tree.ty);
+    mark.setVisible(true);
+    mark.setDepth(depthFor(at.y, 4));
+    mark.lineStyle(5, 0xffd25a, 0.55);
+    mark.strokeEllipse(at.x, at.y - 1, 36, 16);
+    mark.lineStyle(2, 0xfff2c4, 1);
+    mark.strokeEllipse(at.x, at.y - 1, 26, 11);
+    const view = this.propViews.find((item) => item.prop.id === tree.id);
+    view?.sprite.setTint(0xffe7a0);
   }
 
   private showPose(pose: 'idle' | 'walk' | 'gather' | 'chop'): void {
@@ -730,15 +804,26 @@ export class GameScene extends Phaser.Scene {
 
   private expirePose(): void {
     if ((this.pose === 'gather' || this.pose === 'chop') && this.time.now >= this.poseUntil) {
-      const reveal = this.pose === 'chop' && this.chopTarget;
+      const felledId = this.pose === 'chop' ? this.chopTarget : null;
       this.pose = 'idle';
       this.chopTarget = null;
       this.showIdle();
-      if (reveal) {
+      if (felledId && isFelled(this.state.trees, felledId)) this.logUntil.set(felledId, this.time.now + 1400);
+      if (felledId) {
         this.syncProps();
         this.syncStumps();
       }
     }
+  }
+
+  private expireLogs(): void {
+    let changed = false;
+    for (const [id, until] of this.logUntil) {
+      if (this.time.now < until) continue;
+      this.logUntil.delete(id);
+      changed = true;
+    }
+    if (changed) this.syncStumps();
   }
 
   /** Turn toward a tile from wherever his feet are. */
@@ -777,6 +862,7 @@ export class GameScene extends Phaser.Scene {
       }
       if (this.sheet === 'title' || this.sheet === 'end') return;
       this.sheet = 'none';
+      this.handHatchet();
       this.paintHud(true);
       this.layoutCamera();
       return;
@@ -884,18 +970,31 @@ export class GameScene extends Phaser.Scene {
     for (const prop of PROPS) {
       if (!this.isTree(prop) || !isFelled(this.state.trees, prop.id)) continue;
       felled.add(prop.id);
+      const pos = tileToWorld(prop.tx, prop.ty);
+      const showLog = (this.logUntil.get(prop.id) ?? 0) > this.time.now && this.chopTarget !== prop.id;
+      let log = this.logs.get(prop.id);
+      if (!log) {
+        log = this.add.sprite(pos.x, pos.y, 'world', 'felled_log');
+        this.applyAtlas(log, 'felled_log');
+        log.setDepth(depthFor(pos.y, 3));
+        this.logs.set(prop.id, log);
+      }
+      log.setVisible(showLog);
+      const frame = prop.kind === 'birch_tree' ? 'birch_stump' : 'pine_stump';
       let stump = this.stumps.get(prop.id);
       if (!stump) {
-        const pos = tileToWorld(prop.tx, prop.ty);
-        stump = this.add.sprite(pos.x, pos.y, 'stump');
-        stump.setOrigin(0.5, 1);
-        stump.setDepth(depthFor(pos.y, 2));
+        stump = this.add.sprite(pos.x, pos.y, 'world', frame);
+        this.applyAtlas(stump, frame);
+        stump.setDepth(depthFor(pos.y, 4));
         this.stumps.set(prop.id, stump);
       }
-      stump.setVisible(this.chopTarget !== prop.id);
+      stump.setVisible(!showLog && this.chopTarget !== prop.id);
     }
     for (const [id, stump] of this.stumps) {
       if (!felled.has(id)) stump.setVisible(false);
+    }
+    for (const [id, log] of this.logs) {
+      if (!felled.has(id)) log.setVisible(false);
     }
   }
 
@@ -906,31 +1005,15 @@ export class GameScene extends Phaser.Scene {
       live.add(key);
       let sprite = this.buildings.get(key);
       if (!sprite) {
-        sprite = this.add.sprite(0, 0, 'foundation');
+        sprite = this.add.sprite(0, 0, 'world', pieceFrame(piece.kind, piece.edge));
         this.buildings.set(key, sprite);
       }
-      const pos = tileToWorld(piece.tx, piece.ty);
-      if (piece.kind === 'foundation') {
-        sprite.setTexture('foundation');
-        sprite.setOrigin(0.5, 0.8);
-        sprite.setPosition(pos.x, pos.y);
-        sprite.setDepth(depthFor(pos.y, 1));
-        sprite.setFlipX(false);
-      } else if (piece.kind === 'floor') {
-        sprite.setTexture('floor');
-        sprite.setOrigin(0.5, 1);
-        sprite.setPosition(pos.x, pos.y - 14);
-        sprite.setDepth(depthFor(pos.y, 12));
-        sprite.setFlipX(false);
-      } else {
-        const art = edgeArt(piece.kind, piece.edge);
-        const off = edgeOffset(piece.edge);
-        sprite.setTexture(art.key);
-        sprite.setOrigin(0.5, 1);
-        sprite.setFlipX(art.flip);
-        sprite.setPosition(pos.x + off.x, pos.y + off.y);
-        sprite.setDepth(depthFor(pos.y + off.y, 5));
-      }
+      const pose = this.piecePose(piece.kind, piece, null);
+      sprite.setTexture('world', pose.key);
+      sprite.setOrigin(pose.ox, pose.oy);
+      sprite.setFlipX(false);
+      sprite.setPosition(Math.round(pose.x), Math.round(pose.y));
+      sprite.setDepth(depthFor(pose.y, pose.bias));
       sprite.setVisible(true);
     }
     for (const [key, sprite] of this.buildings) {
@@ -976,6 +1059,9 @@ export class GameScene extends Phaser.Scene {
     for (const stump of this.stumps.values()) {
       stump.setTint(lightTint(this.state.minutes, this.state.tx, this.state.ty, false, null));
     }
+    for (const log of this.logs.values()) {
+      log.setTint(lightTint(this.state.minutes, this.state.tx, this.state.ty, false, null));
+    }
   }
 
   private setTip(message: string): void {
@@ -995,11 +1081,7 @@ export class GameScene extends Phaser.Scene {
   private tryBeginPlace(kind: PieceKind): void {
     if (!this.started || this.state.outcome !== 'playing') return;
     if (!canAfford(this.state, kind)) {
-      if (this.state.inventory.wood < WOOD_COST[kind]) {
-        this.setTip(`Needs ${WOOD_COST[kind]} wood. You have ${this.state.inventory.wood}.`);
-      } else {
-        this.setTip('Rest first. Raising this takes some energy.');
-      }
+      this.setTip(`Needs ${WOOD_COST[kind]} wood. You have ${this.state.inventory.wood}.`);
       return;
     }
     this.beginPlace(kind);
@@ -1014,7 +1096,8 @@ export class GameScene extends Phaser.Scene {
     const spot = suggestPiece(this.state, kind);
     this.ghostAnchor = spot.tile;
     this.ghostEdge = spot.edge;
-    this.cameras.main.stopFollow();
+    this.followTile = `${this.state.tx},${this.state.ty}`;
+    this.cameras.main.startFollow(this.player, true, 0.18, 0.18);
     this.refreshGhost();
     this.paintHud(true);
     this.layoutCamera();
@@ -1022,6 +1105,7 @@ export class GameScene extends Phaser.Scene {
 
   private endPlace(): void {
     this.placing = null;
+    this.handHatchet();
     this.ghost?.setVisible(false);
     this.cameras.main.startFollow(this.player, true, 0.18, 0.18);
     this.layoutCamera();
@@ -1038,15 +1122,28 @@ export class GameScene extends Phaser.Scene {
     this.refreshGhost();
   }
 
-  private ghostPose(): { x: number; y: number; key: string; ox: number; oy: number; tall: boolean } {
-    const pos = tileToWorld(this.ghostAnchor.tx, this.ghostAnchor.ty);
-    if (this.placing === 'wall' || this.placing === 'doorway') {
-      const art = edgeArt(this.placing, this.ghostEdge);
-      const off = edgeOffset(this.ghostEdge);
-      return { x: pos.x + off.x, y: pos.y + off.y, key: art.key, ox: 0.5, oy: 1, tall: true };
+  private piecePose(
+    kind: PieceKind,
+    at: { tx: number; ty: number; edge: EdgeName },
+    ghost: 'ok' | 'bad' | null,
+  ): { x: number; y: number; key: string; ox: number; oy: number; tall: boolean; bias: number } {
+    const key = pieceFrame(kind, at.edge, ghost);
+    const origin = frameOrigin(key);
+    const pos = tileToWorld(at.tx, at.ty);
+    if (kind === 'wall' || kind === 'doorway') {
+      const off = edgeOffset(at.edge);
+      return { x: pos.x + off.x, y: pos.y + off.y, key, ox: origin.x, oy: origin.y, tall: true, bias: 5 };
     }
-    if (this.placing === 'floor') return { x: pos.x, y: pos.y - 14, key: 'floor', ox: 0.5, oy: 1, tall: false };
-    return { x: pos.x, y: pos.y, key: 'foundation', ox: 0.5, oy: 0.8, tall: false };
+    if (kind === 'floor') return { x: pos.x, y: pos.y, key, ox: origin.x, oy: origin.y, tall: false, bias: 12 };
+    return { x: pos.x, y: pos.y, key, ox: origin.x, oy: origin.y, tall: false, bias: 1 };
+  }
+
+  private ghostPose(): { x: number; y: number; key: string; ox: number; oy: number; tall: boolean } {
+    if (!this.placing) return { x: 0, y: 0, key: 'twig_foundation_ghost_ok', ox: 0.5, oy: 0.73, tall: false };
+    const spot = pieceSpot(this.placing, this.ghostAnchor, this.ghostEdge, this.state);
+    const ghost = spot.ok && canAfford(this.state, this.placing) ? 'ok' : 'bad';
+    const pose = this.piecePose(this.placing, { tx: this.ghostAnchor.tx, ty: this.ghostAnchor.ty, edge: this.ghostEdge }, ghost);
+    return pose;
   }
 
   private refreshGhost(): void {
@@ -1054,11 +1151,11 @@ export class GameScene extends Phaser.Scene {
     if (!sprite || !this.placing) return;
     const spot = pieceSpot(this.placing, this.ghostAnchor, this.ghostEdge, this.state);
     const pose = this.ghostPose();
-    sprite.setTexture(pose.key);
+    sprite.setTexture('world', pose.key);
     sprite.setOrigin(pose.ox, pose.oy);
     sprite.setFlipX(false);
-    sprite.setAlpha(0.8);
-    sprite.setTintFill(spot.ok ? 0x7a9a44 : 0xc4401c);
+    sprite.setAlpha(1);
+    sprite.clearTint();
     sprite.setPosition(Math.round(pose.x), Math.round(pose.y));
     sprite.setDepth(20000);
     sprite.setVisible(true);

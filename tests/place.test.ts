@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blocksStep, floorSpot, foundationSpot, wallSpot } from '../src/game/build';
+import { blocksStep, floorSpot, foundationSpot, pieceFrame, wallSpot } from '../src/game/build';
 import { findPath } from '../src/game/path';
 import { initialState } from '../src/game/rules';
 import type { Piece } from '../src/game/types';
@@ -55,5 +55,16 @@ describe('building on the block', () => {
     expect(around![0]).not.toEqual(to);
     expect(blocksStep(door, from, to)).toBe(false);
     expect(findPath(from, to, open, (a, b) => blocksStep(door, a, b))).toEqual([to]);
+  });
+
+  it('picks the atlas frame for each piece and its ghost', () => {
+    expect(pieceFrame('foundation', 'se')).toBe('twig_foundation');
+    expect(pieceFrame('foundation', 'se', 'ok')).toBe('twig_foundation_ghost_ok');
+    expect(pieceFrame('floor', 'se', 'bad')).toBe('twig_floor_ghost_bad');
+    expect(pieceFrame('wall', 'ne')).toBe('twig_wall_ne');
+    expect(pieceFrame('wall', 'sw')).toBe('twig_wall_ne');
+    expect(pieceFrame('wall', 'nw', 'ok')).toBe('twig_wall_nw_ghost_ok');
+    expect(pieceFrame('doorway', 'se', 'bad')).toBe('twig_door_nw_ghost_bad');
+    expect(pieceFrame('doorway', 'ne')).toBe('twig_door_ne');
   });
 });
