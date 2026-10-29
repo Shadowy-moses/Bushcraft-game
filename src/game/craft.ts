@@ -62,6 +62,13 @@ const PIECES: { id: PieceKind; name: string; blurb: string; time: string }[] = [
   },
 ];
 
+/** Greyed Place buttons say how much wood is missing. */
+export function placeButtonLabel(have: number, need: number): string {
+  const short = need - have;
+  if (short > 0) return `Need ${short} more wood`;
+  return 'Place';
+}
+
 export function hotbarSlots(state: GameState): HotbarSlot[] {
   return [
     { id: 'hatchet', name: 'Hatchet', count: -1, frame: 'hatchet' },

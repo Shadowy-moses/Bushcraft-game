@@ -1,4 +1,5 @@
 import type { EdgeName, GameState, Piece } from './types';
+import { COLS, TILE_H, TILE_W } from './constants';
 import { tileToWorld, worldToTile } from './iso';
 import { groundAt, inBounds, PROPS } from './map';
 import { isFelled } from './trees';
@@ -9,10 +10,27 @@ export const PLAYER_RADIUS = 3.5;
 export const TRUNK_RADIUS = 6;
 export const STUMP_RADIUS = 3.5;
 export const ROCK_RADIUS = 7;
-/** World pixels per second at a full stick or key press. */
-export const MOVE_SPEED = 62;
-/** Close enough to chop or pick something up. Covers the tile he is standing beside. */
-export const REACH = 42;
+/** World pixels per second while the stick is only part way out. */
+export const WALK_SPEED = 52;
+/** Full deflection. About twice a walk, so a hard push reads as a run. */
+export const RUN_SPEED = 104;
+export const RUN_STICK = 0.85;
+/** Kept for anything that still wants a single pace. A full push uses RUN_SPEED. */
+export const MOVE_SPEED = WALK_SPEED;
+/**
+ * Close enough to chop or pick something up.
+ * Wide enough that the tree you are standing against — the one the ring is on — is the one Use hits.
+ */
+export const REACH = 54;
+/** A ghost this close can be confirmed. Same test the preview uses. */
+export const BUILD_REACH = 78;
+/** Sticks and stones inside this radius are picked up by walking over them. */
+export const PICKUP_RADIUS = 16;
+/**
+ * Fractional-tile inset from the void.
+ * The outer ring of tiles is the rim; standing on it left his body in the black.
+ */
+export const ISLAND_MARGIN = 1.05;
 
 export interface Body {
   x: number;
@@ -52,6 +70,25 @@ export function blockedGround(x: number, y: number): boolean {
   const tile = worldToTile(x, y);
   if (!inBounds(tile.tx, tile.ty)) return true;
   return groundAt(tile.tx, tile.ty) === 'creek_water';
+}
+
+/** True when this point is off the island or his body would hang into the void. */
+export function offIsland(x: number, y: number): boolean {
+  const ftx = (x / (TILE_W / 2) + y / (TILE_H / 2)) / 2;
+  const fty = (y / (TILE_H / 2) - x / (TILE_W / 2)) / 2;
+  const max = COLS - 1 - ISLAND_MARGIN;
+  if (ftx < ISLAND_MARGIN || fty < ISLAND_MARGIN || ftx > max || fty > max) return true;
+  const tile = worldToTile(x, y);
+  return !inBounds(tile.tx, tile.ty);
+}
+
+/** Partial stick walks. A push at the rim runs. Magnitude is 0–1 after the stick is normalised. */
+export function travelSpeed(magnitude: number): { speed: number; running: boolean } {
+  const mag = Math.min(1, Math.max(0, magnitude));
+  if (mag < 0.15) return { speed: 0, running: false };
+  if (mag >= RUN_STICK) return { speed: RUN_SPEED, running: true };
+  const t = (mag - 0.15) / (RUN_STICK - 0.15);
+  return { speed: WALK_SPEED * (0.72 + 0.28 * t), running: false };
 }
 
 export function bodiesFor(state: Pick<GameState, 'trees'>, skipId?: string): Body[] {
@@ -126,8 +163,9 @@ export function pointBlocked(x: number, y: number, bodies: Body[], walls: WallSe
   return false;
 }
 
-/** True when his whole foot-circle is clear. */
+/** True when his whole foot-circle is clear and still on the island. */
 export function canStand(x: number, y: number, bodies: Body[], walls: WallSeg[]): boolean {
+  if (offIsland(x, y)) return false;
   if (pointBlocked(x, y, bodies, walls)) return false;
   for (let i = 0; i < 8; i++) {
     const angle = (i / 8) * Math.PI * 2;
@@ -177,6 +215,10 @@ export function inReach(x: number, y: number, tx: number, ty: number): boolean {
   return Math.hypot(x - at.x, y - at.y) <= REACH;
 }
 
+export function inReachOf(x: number, y: number, at: { x: number; y: number }, reach = REACH): boolean {
+  return Math.hypot(x - at.x, y - at.y) <= reach;
+}
+
 /** A clear place to stand and swing at this trunk. Null when the tree is walled in. */
 export function approachPoint(
   prop: { id: string; tx: number; ty: number },
@@ -185,7 +227,7 @@ export function approachPoint(
   const at = tileToWorld(prop.tx, prop.ty);
   const bodies = bodiesFor(state, prop.id);
   const walls = segmentsFor(state.pieces);
-  for (const extra of [1.5, 4, 7]) {
+  for (const extra of [1.5, 4, 7, 14, 22, 32]) {
     const dist = TRUNK_RADIUS + PLAYER_RADIUS + extra;
     if (dist > REACH) break;
     for (let i = 0; i < 24; i++) {

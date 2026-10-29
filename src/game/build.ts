@@ -1,5 +1,7 @@
 import { WOOD_DOOR, WOOD_FLOOR, WOOD_FOUNDATION, WOOD_WALL } from './constants';
+import { tileToWorld } from './iso';
 import { groundAt, inBounds, propAt } from './map';
+import { BUILD_REACH, inReachOf } from './move';
 import { isFelled, type TreeMark } from './trees';
 import type { EdgeName, GameState, Piece, PieceKind, Tile } from './types';
 
@@ -145,25 +147,88 @@ export function pieceSpot(kind: PieceKind, tile: Tile, edge: EdgeName, state: Ga
   return wallSpot(tile, edge, kind, state);
 }
 
-export function suggestPiece(state: GameState, kind: PieceKind): { tile: Tile; edge: EdgeName } {
+/** Where the sprite sits, which is the point Confirm measures reach from. */
+export function pieceAnchor(kind: PieceKind, tile: Tile, edge: EdgeName): { x: number; y: number } {
+  const pos = tileToWorld(tile.tx, tile.ty);
+  if (kind === 'wall' || kind === 'doorway') {
+    const off = edgeOffset(edge);
+    return { x: pos.x + off.x, y: pos.y + off.y };
+  }
+  return pos;
+}
+
+export function woodShortfall(kind: PieceKind, wood: number): number {
+  return Math.max(0, WOOD_COST[kind] - wood);
+}
+
+export function woodShortMessage(kind: PieceKind, wood: number): string {
+  const n = woodShortfall(kind, wood);
+  return `Need ${n} more wood`;
+}
+
+/**
+ * Ghost and Confirm share this. A green ghost places.
+ * Being able to walk there is not required. Out of reach is red, with one message.
+ */
+export function placementVerdict(
+  kind: PieceKind,
+  tile: Tile,
+  edge: EdgeName,
+  state: GameState,
+  feet: { x: number; y: number },
+): Spot {
+  const spot = pieceSpot(kind, tile, edge, state);
+  if (!spot.ok) return spot;
+  if (woodShortfall(kind, state.inventory.wood) > 0) {
+    return { ok: false, reason: woodShortMessage(kind, state.inventory.wood) };
+  }
+  if (!inReachOf(feet.x, feet.y, pieceAnchor(kind, tile, edge), BUILD_REACH)) {
+    return { ok: false, reason: "Can't reach that spot" };
+  }
+  return spot;
+}
+
+export function suggestPiece(
+  state: GameState,
+  kind: PieceKind,
+  feet?: { x: number; y: number },
+): { tile: Tile; edge: EdgeName } {
+  const acceptable = (tile: Tile, edge: EdgeName): boolean => {
+    if (!pieceSpot(kind, tile, edge, state).ok) return false;
+    if (!feet) return true;
+    return placementVerdict(kind, tile, edge, state, feet).ok;
+  };
   if (kind === 'wall' || kind === 'doorway') {
     const bases = state.pieces.filter((piece) => piece.kind === 'foundation');
     for (const base of bases) {
       for (const edge of EDGES) {
-        if (wallSpot(base, edge, kind, state).ok) return { tile: { tx: base.tx, ty: base.ty }, edge };
+        if (acceptable(base, edge)) return { tile: { tx: base.tx, ty: base.ty }, edge };
+      }
+    }
+    if (feet) {
+      for (const base of bases) {
+        for (const edge of EDGES) {
+          if (wallSpot(base, edge, kind, state).ok) return { tile: { tx: base.tx, ty: base.ty }, edge };
+        }
       }
     }
   }
-  for (let radius = 1; radius <= 5; radius++) {
-    for (let ty = state.ty - radius; ty <= state.ty + radius; ty++) {
-      for (let tx = state.tx - radius; tx <= state.tx + radius; tx++) {
-        if (Math.max(Math.abs(tx - state.tx), Math.abs(ty - state.ty)) !== radius) continue;
-        const tile = { tx, ty };
-        if (pieceSpot(kind, tile, 'se', state).ok) return { tile, edge: 'se' };
+  const scan = (requireReach: boolean): { tile: Tile; edge: EdgeName } | null => {
+    for (let radius = 1; radius <= 5; radius++) {
+      for (let ty = state.ty - radius; ty <= state.ty + radius; ty++) {
+        for (let tx = state.tx - radius; tx <= state.tx + radius; tx++) {
+          if (Math.max(Math.abs(tx - state.tx), Math.abs(ty - state.ty)) !== radius) continue;
+          const tile = { tx, ty };
+          const edge: EdgeName = 'se';
+          if (!pieceSpot(kind, tile, edge, state).ok) continue;
+          if (requireReach && feet && !placementVerdict(kind, tile, edge, state, feet).ok) continue;
+          return { tile, edge };
+        }
       }
     }
-  }
-  return { tile: { tx: state.tx + 1, ty: state.ty }, edge: 'se' };
+    return null;
+  };
+  return scan(Boolean(feet)) ?? scan(false) ?? { tile: { tx: state.tx + 1, ty: state.ty }, edge: 'se' };
 }
 
 /** A solid wall stops the step. A doorway is a gap. */

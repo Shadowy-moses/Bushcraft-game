@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DAWN_MINUTES, PLAY_MINUTES_PER_SECOND, START_MINUTES } from '../src/game/constants';
+import { restingTip } from '../src/game/copy';
 import { tileToWorld } from '../src/game/iso';
 import { placePiece, chopTree, gather, initialState, tick } from '../src/game/rules';
 import { REGROW_MINUTES, isFelled, woodFromTree } from '../src/game/trees';
@@ -36,7 +37,8 @@ describe('wood and the hatchet', () => {
     const last = chopTree(state, id);
     expect(gain).toBeGreaterThanOrEqual(3);
     expect(gain).toBeLessThanOrEqual(5);
-    expect(last.popup).toBe(`+${gain} Wood`);
+    expect(last.popup).toBe(`+${gain} wood`);
+    expect(last.state.energy).toBe(100 - 2);
     expect(last.state.inventory.wood).toBe(gain);
     expect(isFelled(last.state.trees, id)).toBe(true);
     expect(chopTree({ ...last.state, x: last.state.x, y: last.state.y, tool: 'hatchet' }, id).message).toMatch(/stump/i);
@@ -66,18 +68,24 @@ describe('wood and the hatchet', () => {
   });
 
   it('spends wood and energy when a piece goes up', () => {
-    const ready = { ...initialState(), inventory: { wood: 20 }, energy: 100 };
+    const ready = { ...initialState(), inventory: { wood: 10 }, energy: 100 };
     const laid = placePiece(ready, 'foundation', 7, 3, 'se');
     expect(laid.ok).toBe(true);
     expect(laid.state.inventory.wood).toBe(0);
+    expect(placePiece({ ...initialState(), inventory: { wood: 3 } }, 'wall', 7, 3, 'se').message).toBe('Need 2 more wood');
     expect(laid.state.energy).toBe(94);
     expect(laid.state.pieces).toHaveLength(1);
     expect(placePiece(laid.state, 'foundation', 8, 3, 'se').ok).toBe(false);
 
-    const tired = placePiece({ ...initialState(), inventory: { wood: 20 }, energy: 0 }, 'foundation', 7, 3, 'se');
+    const tired = placePiece({ ...initialState(), inventory: { wood: 10 }, energy: 0 }, 'foundation', 7, 3, 'se');
     expect(tired.ok).toBe(true);
     expect(tired.state.energy).toBe(0);
     expect(tired.state.pieces).toHaveLength(1);
+  });
+
+  it('names the time spent resting', () => {
+    expect(restingTip(0)).toBe('Resting… +0 min');
+    expect(restingTip(12.4)).toBe('Resting… +12 min');
   });
 
   it('lets the afternoon last long enough to raise a hut', () => {

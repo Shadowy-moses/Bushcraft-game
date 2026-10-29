@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tileToWorld } from '../src/game/iso';
+import { tileToWorld, worldToTile } from '../src/game/iso';
 import { PROPS } from '../src/game/map';
 import {
   PLAYER_RADIUS,
@@ -8,8 +8,10 @@ import {
   canStand,
   bodiesFor,
   inReach,
+  offIsland,
   resolveMove,
   segmentsFor,
+  travelSpeed,
 } from '../src/game/move';
 import { initialState } from '../src/game/rules';
 import type { Piece } from '../src/game/types';
@@ -53,9 +55,41 @@ describe('free movement', () => {
     const state = { ...initialState(), pieces: [] as Piece[] };
     for (const prop of PROPS) {
       if (prop.kind !== 'pine_tree' && prop.kind !== 'birch_tree') continue;
+      const at = tileToWorld(prop.tx, prop.ty);
       const spot = approachPoint(prop, state);
+      if (offIsland(at.x, at.y)) {
+        if (spot) {
+          expect(offIsland(spot.x, spot.y), prop.id).toBe(false);
+          expect(inReach(spot.x, spot.y, prop.tx, prop.ty)).toBe(true);
+        }
+        continue;
+      }
       expect(spot, prop.id).not.toBeNull();
       expect(inReach(spot!.x, spot!.y, prop.tx, prop.ty)).toBe(true);
     }
+  });
+
+  it('keeps him on the island when he walks at the rim', () => {
+    const bodies = bodiesFor(initialState());
+    const start = tileToWorld(2, 6);
+    expect(canStand(start.x, start.y, bodies, [])).toBe(true);
+    const pushed = resolveMove(start.x, start.y, -500, -200, bodies, []);
+    expect(offIsland(pushed.x, pushed.y)).toBe(false);
+    expect(canStand(pushed.x, pushed.y, bodies, [])).toBe(true);
+    const tile = worldToTile(pushed.x, pushed.y);
+    expect(tile.tx).toBeGreaterThanOrEqual(1);
+    expect(tile.tx).toBeLessThanOrEqual(10);
+    expect(tile.ty).toBeGreaterThanOrEqual(1);
+    expect(tile.ty).toBeLessThanOrEqual(10);
+    expect(offIsland(tileToWorld(0, 6).x, tileToWorld(0, 6).y)).toBe(true);
+    expect(offIsland(start.x - 200, start.y)).toBe(true);
+  });
+
+  it('walks on a short stick and runs when it is pushed out', () => {
+    const walk = travelSpeed(0.4);
+    const run = travelSpeed(1);
+    expect(walk.running).toBe(false);
+    expect(run.running).toBe(true);
+    expect(run.speed).toBeGreaterThan(walk.speed * 1.5);
   });
 });
