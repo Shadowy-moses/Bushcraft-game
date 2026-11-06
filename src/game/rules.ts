@@ -1,4 +1,4 @@
-import { blocksStep, hasFoundation, WOOD_COST } from './build';
+import { blocksStep, hasFoundation, WOOD_COST, woodShortMessage } from './build';
 import {
   BUILD_ENERGY,
   CHOP_ENERGY,
@@ -85,20 +85,21 @@ function ok(state: GameState, message: string, popup?: string): ActionResult {
   return { state: { ...state, tip: message }, ok: true, message, popup };
 }
 
-export function gather(state: GameState, id: string): ActionResult {
+export function gather(state: GameState, id: string, free = false): ActionResult {
   const node = propById(id);
   if (!node?.gather) return fail(state, 'Nothing to pick up there.');
   if (state.picked[id]) return fail(state, 'Nothing left there.');
-  if (!inReach(state.x, state.y, node.tx, node.ty)) return fail(state, 'Walk up to it.');
-  if (state.energy < GATHER_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
+  if (!free && !inReach(state.x, state.y, node.tx, node.ty)) return fail(state, 'Walk up to it.');
+  if (!free && state.energy < GATHER_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
   const picked = { ...state.picked, [id]: true as const };
+  const energy = free ? state.energy : state.energy - GATHER_ENERGY;
   if (node.gather === 'sticks') {
     const wood = state.inventory.wood + 1;
     return ok(
       {
         ...state,
         inventory: { wood },
-        energy: state.energy - GATHER_ENERGY,
+        energy,
         picked,
       },
       'A stick. Real timber comes from a tree.',
@@ -106,8 +107,9 @@ export function gather(state: GameState, id: string): ActionResult {
     );
   }
   return ok(
-    { ...state, energy: state.energy - GATHER_ENERGY, picked },
+    { ...state, energy, picked },
     'Set that aside. The hatchet wants a trunk.',
+    node.gather === 'stones' ? 'Stone' : undefined,
   );
 }
 
@@ -140,13 +142,13 @@ export function chopTree(state: GameState, id: string): ActionResult {
       trees: { ...state.trees, [id]: { hits, felledAt: state.minutes } },
     },
     'Down it comes. The stump can wait.',
-    `+${gained} Wood`,
+    `+${gained} wood`,
   );
 }
 
 export function placePiece(state: GameState, kind: PieceKind, tx: number, ty: number, edge: EdgeName): ActionResult {
   if (state.inventory.wood < WOOD_COST[kind]) {
-    return fail(state, `Needs ${WOOD_COST[kind]} wood. You have ${state.inventory.wood}.`);
+    return fail(state, woodShortMessage(kind, state.inventory.wood));
   }
   const piece = { kind, tx, ty, edge };
   return ok(

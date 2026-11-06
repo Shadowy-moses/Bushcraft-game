@@ -1,7 +1,13 @@
 export const OPENING_TIP =
-  'The stick on the left walks you. Stand by a tree and tap it, or tap Use. The hatchet is already in your hand.';
+  'Push the stick to walk, and all the way out to run. Stand by a tree and tap it, or tap Use. The hatchet is already in your hand.';
 
 export const REST_TIP = 'Sit a minute. The work can wait. Warmth is only a reading now.';
+
+/** Short line while the clock runs ahead. `minutes` is game time spent resting. */
+export function restingTip(minutes: number): string {
+  const n = Math.max(0, Math.round(minutes));
+  return `Resting… +${n} min`;
+}
 
 export const HEADING = 'Heading over.';
 

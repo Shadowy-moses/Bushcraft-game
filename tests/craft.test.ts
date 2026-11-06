@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hotbarSlots, recipesFor, statusLine } from '../src/game/craft';
+import { hotbarSlots, placeButtonLabel, recipesFor, statusLine } from '../src/game/craft';
 import { initialState } from '../src/game/rules';
 
 describe('the building plan', () => {
@@ -19,13 +19,22 @@ describe('the building plan', () => {
     });
     expect(broke.map((recipe) => recipe.id)).toEqual(['hatchet', 'foundation', 'wall', 'doorway', 'floor']);
 
-    const ready = recipesFor({ ...initialState(), inventory: { wood: 20 }, energy: 100 });
+    const ready = recipesFor({ ...initialState(), inventory: { wood: 10 }, energy: 100 });
     expect(ready.find((recipe) => recipe.id === 'foundation')?.enabled).toBe(true);
-    const tired = recipesFor({ ...initialState(), inventory: { wood: 20 }, energy: 0 });
+    const tired = recipesFor({ ...initialState(), inventory: { wood: 10 }, energy: 0 });
     expect(tired.find((recipe) => recipe.id === 'foundation')?.enabled).toBe(true);
     expect(ready.find((recipe) => recipe.id === 'wall')?.enabled).toBe(true);
-    const short = recipesFor({ ...initialState(), inventory: { wood: 9 }, energy: 100 });
+    const nine = recipesFor({ ...initialState(), inventory: { wood: 9 }, energy: 100 });
+    expect(nine.find((recipe) => recipe.id === 'foundation')?.enabled).toBe(false);
+    expect(nine.find((recipe) => recipe.id === 'floor')?.enabled).toBe(true);
+    expect(nine.find((recipe) => recipe.id === 'wall')?.enabled).toBe(true);
+    const short = recipesFor({ ...initialState(), inventory: { wood: 4 }, energy: 100 });
     expect(short.find((recipe) => recipe.id === 'wall')?.enabled).toBe(false);
+  });
+
+  it('says how much wood a greyed place button is missing', () => {
+    expect(placeButtonLabel(7, 10)).toBe('Need 3 more wood');
+    expect(placeButtonLabel(10, 10)).toBe('Place');
   });
 
   it('names the cold and a roof', () => {

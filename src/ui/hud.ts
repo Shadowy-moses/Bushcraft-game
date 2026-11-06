@@ -1,4 +1,4 @@
-import { CRAFT_CATEGORIES, type CraftCategory, type Recipe } from '../game/craft';
+import { CRAFT_CATEGORIES, placeButtonLabel, type CraftCategory, type Recipe } from '../game/craft';
 import type { HudModel } from '../game/model';
 import { ICONS } from './icons';
 
@@ -41,30 +41,29 @@ export class Hud {
   constructor(private root: HTMLElement) {
     this.root.innerHTML = `
       <header id="top-bar">
+        <canvas id="minimap" width="208" height="208" aria-label="Nearby trees"></canvas>
         <div class="clock panel">
           <div id="time">--:--</div>
           <div id="daypart"></div>
         </div>
       </header>
+      <div id="vitals" class="panel">
+        <div class="vital"><span class="vicon">${ICONS.health}</span><div class="bar health"><span id="health-fill"></span></div></div>
+        <div class="vital"><span class="vicon">${ICONS.warmth}</span><div class="bar warmth"><span id="warmth-fill"></span></div></div>
+        <div class="vital"><span class="vicon">${ICONS.energy}</span><div class="bar energy"><span id="energy-fill"></span></div></div>
+        <p id="status"></p>
+        <button type="button" id="rest-button" data-action="rest">Rest</button>
+      </div>
       <footer id="bottom-bar">
         <p id="tip" aria-live="polite"></p>
-        <div class="hud-cluster">
-          <div id="vitals" class="panel">
-            <div class="vital"><span class="vicon">${ICONS.health}</span><div class="bar health"><span id="health-fill"></span></div></div>
-            <div class="vital"><span class="vicon">${ICONS.warmth}</span><div class="bar warmth"><span id="warmth-fill"></span></div></div>
-            <div class="vital"><span class="vicon">${ICONS.energy}</span><div class="bar energy"><span id="energy-fill"></span></div></div>
-            <p id="status"></p>
-            <button type="button" id="rest-button" data-action="rest">Rest</button>
-          </div>
-          <div class="dock">
-            <button type="button" id="bag" data-action="craft" aria-label="Inventory">${ICONS.bag}</button>
-            <div class="hotbar" id="hotbar"></div>
-            <div class="place-actions" id="place-actions" hidden></div>
-          </div>
-        </div>
+        <div class="place-actions" id="place-actions" hidden></div>
       </footer>
       <div id="stick" hidden aria-label="Move"><div id="stick-knob"></div></div>
-      <button type="button" id="act" data-action="use" aria-label="Use" hidden>${ICONS.hatchet}</button>
+      <div id="right-dock">
+        <button type="button" id="bag" data-action="craft" aria-label="Inventory">${ICONS.bag}</button>
+        <div class="hotbar" id="hotbar"></div>
+        <button type="button" id="act" data-action="use" aria-label="Use" hidden><span class="act-icon">${ICONS.hatchet}</span><span class="act-label">Use</span></button>
+      </div>
       <div id="overlay" hidden></div>
     `;
     this.onClick = (event) => this.handleClick(event);
@@ -223,6 +222,8 @@ export class Hud {
     const playing = model.sheet !== 'title' && model.sheet !== 'end';
     document.getElementById('top-bar')?.toggleAttribute('hidden', !playing);
     document.getElementById('bottom-bar')?.toggleAttribute('hidden', !playing);
+    document.getElementById('vitals')?.toggleAttribute('hidden', !playing);
+    document.getElementById('right-dock')?.toggleAttribute('hidden', !playing);
     const stickOn = model.sheet === 'none';
     const stick = document.getElementById('stick');
     if (stick) {
@@ -236,9 +237,66 @@ export class Hud {
     this.paintIngredients(model);
     this.paintQueue(model);
     this.paintQty();
+    this.paintCraftGo();
+    this.drawMinimap();
+  }
+
+  private paintCraftGo(): void {
     const craft = document.querySelector<HTMLButtonElement>('[data-action="craft-go"]');
     const recipe = this.currentRecipe();
-    if (craft && recipe) craft.disabled = !recipe.enabled;
+    if (!craft || !recipe) return;
+    const wood = recipe.ingredients.find((item) => item.name === 'Wood');
+    const placing = recipe.action.startsWith('place-');
+    if (placing && wood) {
+      craft.textContent = placeButtonLabel(wood.have, wood.need);
+      craft.disabled = wood.have < wood.need;
+      return;
+    }
+    craft.textContent = 'Craft';
+    craft.disabled = !recipe.enabled;
+  }
+
+  private drawMinimap(): void {
+    const canvas = document.getElementById('minimap');
+    const model = this.model;
+    if (!(canvas instanceof HTMLCanvasElement) || !model) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(18, 16, 14, 0.78)';
+    ctx.fillRect(0, 0, w, h);
+    const cx = w / 2;
+    const cy = h / 2 + 8;
+    const scale = 11;
+    const project = (tx: number, ty: number) => ({
+      x: cx + (tx - model.youTx - (ty - model.youTy)) * scale,
+      y: cy + (tx - model.youTx + (ty - model.youTy)) * scale * 0.52,
+    });
+    ctx.strokeStyle = 'rgba(214, 204, 180, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 78);
+    ctx.lineTo(cx + 78, cy);
+    ctx.lineTo(cx, cy + 78);
+    ctx.lineTo(cx - 78, cy);
+    ctx.closePath();
+    ctx.stroke();
+    for (const tree of model.trees) {
+      if (Math.max(Math.abs(tree.tx - model.youTx), Math.abs(tree.ty - model.youTy)) > 6) continue;
+      const at = project(tree.tx, tree.ty);
+      ctx.fillStyle = tree.felled ? '#6e6254' : '#8ea36a';
+      ctx.fillRect(at.x - 3, at.y - 8, 6, 10);
+    }
+    ctx.fillStyle = '#f3ecdc';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#d9d0bc';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', cx, 26);
   }
 
   private paintHotbar(model: HudModel | null): void {
@@ -479,7 +537,10 @@ export class Hud {
         `,
       )
       .join('');
-    const craftLabel = recipe.action.startsWith('place-') ? 'Place' : 'Craft';
+    const wood = recipe.ingredients.find((item) => item.name === 'Wood');
+    const craftLabel = recipe.action.startsWith('place-')
+      ? placeButtonLabel(wood?.have ?? 0, wood?.need ?? 0)
+      : 'Craft';
     return `
       ${this.iconHtml(recipe.frame, true)}
       <h3>${esc(recipe.name)}</h3>
@@ -491,7 +552,7 @@ export class Hud {
         <span id="qty-value">${this.qty}</span>
         <button type="button" data-action="qty-inc" aria-label="More">+</button>
       </div>
-      <button type="button" class="primary" data-action="craft-go" ${recipe.enabled ? '' : 'disabled'}>${craftLabel}</button>
+      <button type="button" class="primary" data-action="craft-go" ${recipe.enabled ? '' : 'disabled'}>${esc(craftLabel)}</button>
     `;
   }
 

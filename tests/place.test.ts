@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { blocksStep, floorSpot, foundationSpot, pieceFrame, wallSpot } from '../src/game/build';
+import { blocksStep, floorSpot, foundationSpot, pieceFrame, placementVerdict, wallSpot } from '../src/game/build';
+import { tileToWorld } from '../src/game/iso';
 import { findPath } from '../src/game/path';
 import { initialState } from '../src/game/rules';
 import type { Piece } from '../src/game/types';
@@ -55,6 +56,37 @@ describe('building on the block', () => {
     expect(around![0]).not.toEqual(to);
     expect(blocksStep(door, from, to)).toBe(false);
     expect(findPath(from, to, open, (a, b) => blocksStep(door, a, b))).toEqual([to]);
+  });
+
+  it('places a doorway in reach even when walls close the path', () => {
+    const feet = tileToWorld(7, 5);
+    const state = {
+      ...initialState(),
+      ...feet,
+      tx: 7,
+      ty: 5,
+      inventory: { wood: 20 },
+      pieces: [
+        { kind: 'foundation', tx: 7, ty: 3, edge: 'se' },
+        { kind: 'wall', tx: 7, ty: 3, edge: 'se' },
+        { kind: 'wall', tx: 7, ty: 3, edge: 'sw' },
+        { kind: 'wall', tx: 7, ty: 3, edge: 'nw' },
+      ] as Piece[],
+    };
+    const door = placementVerdict('doorway', { tx: 7, ty: 3 }, 'ne', state, feet);
+    expect(door.ok).toBe(true);
+    const treeInTheWay = placementVerdict('foundation', { tx: 8, ty: 3 }, 'se', state, feet);
+    expect(treeInTheWay.ok).toBe(true);
+  });
+
+  it('uses one reason for short wood and for a ghost that is out of reach', () => {
+    const feet = tileToWorld(7, 5);
+    const here = { ...initialState(), ...feet, tx: 7, ty: 5 };
+    expect(placementVerdict('foundation', { tx: 8, ty: 3 }, 'se', here, feet).reason).toBe('Need 10 more wood');
+    const stocked = { ...here, inventory: { wood: 40 } };
+    const far = placementVerdict('foundation', { tx: 1, ty: 8 }, 'se', stocked, feet);
+    expect(far.ok).toBe(false);
+    expect(far.reason).toBe("Can't reach that spot");
   });
 
   it('picks the atlas frame for each piece and its ghost', () => {

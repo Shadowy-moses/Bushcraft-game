@@ -54,7 +54,7 @@ html, body {
 [hidden] { display: none !important; }
 
 #overlay, button, .clock, .slot, #stick, #act { pointer-events: auto; }
-#top-bar, #bottom-bar, .hud-cluster, .dock, .hotbar, .place-actions, #vitals { pointer-events: none; }
+#top-bar, #bottom-bar, #right-dock, .hotbar, .place-actions, #vitals, #minimap { pointer-events: none; }
 
 .panel {
   background:
@@ -74,6 +74,17 @@ html, body {
   justify-content: center;
   padding: calc(8px + env(safe-area-inset-top)) 12px 0;
   background: transparent;
+}
+
+#minimap {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
+  width: 104px;
+  height: 104px;
+  border: 1px solid var(--line);
+  background: rgba(18, 16, 14, 0.78);
+  image-rendering: pixelated;
 }
 
 .clock {
@@ -102,7 +113,7 @@ html, body {
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 0 calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
+  padding: 0 calc(96px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(96px + env(safe-area-inset-left));
   background: transparent;
 }
 
@@ -120,17 +131,12 @@ html, body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
-.hud-cluster {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
 #vitals {
-  align-self: flex-end;
+  position: absolute;
+  left: calc(12px + env(safe-area-inset-left));
+  bottom: calc(var(--dock, 72px) + 148px);
   width: 148px;
-  padding: 6px 6px 6px;
+  padding: 6px;
 }
 
 .vital {
@@ -185,15 +191,18 @@ html, body {
   text-align: right;
 }
 
-.dock {
+#right-dock {
+  position: absolute;
+  right: calc(12px + env(safe-area-inset-right));
+  bottom: calc(var(--dock, 72px) + 8px);
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
-.hotbar, .place-actions { display: flex; gap: 4px; }
+.hotbar, .place-actions { display: flex; gap: 8px; }
+.hotbar { flex-direction: column; }
 
 .slot, #bag, .place-actions button, #rest-button, .cat, .tile, .stepper button, .craft button {
   font: inherit;
@@ -246,9 +255,10 @@ html, body {
 
 #rest-button.ready { border-color: var(--moss); color: var(--cream); }
 
-.place-actions { flex: 1; }
+.place-actions { width: 100%; }
 .place-actions button {
   flex: 1;
+  min-height: 48px;
   font-size: 13px;
   padding: 8px 10px;
 }
@@ -285,8 +295,8 @@ button:focus-visible {
 }
 
 .craft-dismiss {
-  flex: 0 0 8px;
-  min-height: 8px;
+  flex: 0 0 44px;
+  min-height: 44px;
   border: 0;
   background: transparent;
 }
@@ -504,7 +514,7 @@ h3 { font-size: 16px; margin: 6px 0; }
 #stick {
   position: absolute;
   left: calc(12px + env(safe-area-inset-left));
-  bottom: calc(var(--dock, 168px) + 10px);
+  bottom: calc(var(--dock, 72px) + 8px);
   width: 116px;
   height: 116px;
   border-radius: 50%;
@@ -527,21 +537,30 @@ h3 { font-size: 16px; margin: 6px 0; }
 }
 
 #act {
-  position: absolute;
-  right: calc(12px + env(safe-area-inset-right));
-  bottom: calc(var(--dock, 168px) + 36px);
-  width: 64px;
-  height: 64px;
-  min-width: 64px;
-  min-height: 64px;
+  width: 72px;
+  height: 72px;
+  min-width: 72px;
+  min-height: 72px;
   border-radius: 50%;
-  padding: 10px;
-  background: rgba(18, 16, 14, 0.78);
-  border: 2px solid rgba(214, 204, 180, 0.55);
+  padding: 8px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background: rgba(18, 16, 14, 0.82);
+  border: 2px solid rgba(214, 204, 180, 0.7);
   color: var(--cream);
 }
 
-#act svg { width: 100%; height: 100%; display: block; }
+#act .act-icon { width: 28px; height: 28px; display: grid; place-items: center; }
+#act .act-icon svg { width: 28px; height: 28px; display: block; }
+#act .act-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1;
+}
 
 @media (orientation: landscape) and (max-height: 500px) {
   .slot, #bag, #rest-button, .place-actions button, .cat, .stepper button, .craft-head button, .detail .primary, .inv > button {
@@ -549,15 +568,7 @@ h3 { font-size: 16px; margin: 6px 0; }
     min-height: 44px;
   }
   .slot, #bag { width: 44px; height: 44px; }
-  #vitals { width: 132px; padding: 4px; }
-  .hud-cluster {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: end;
-    width: 100%;
-  }
-  #vitals { grid-column: 3; justify-self: end; }
-  .dock { grid-column: 2; width: auto; }
+  #vitals { width: 132px; padding: 4px; bottom: calc(var(--dock, 48px) + 96px); }
   #tip { display: none; }
   .craft { margin-top: calc(4px + env(safe-area-inset-top)); }
   .craft-body { flex-direction: row; }
@@ -575,5 +586,6 @@ h3 { font-size: 16px; margin: 6px 0; }
   h1 { font-size: 28px; }
   #stick { width: 88px; height: 88px; }
   #stick-knob { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
-  #act { width: 56px; height: 56px; min-width: 56px; min-height: 56px; }
+  #act { width: 64px; height: 64px; min-width: 64px; min-height: 64px; }
+  #minimap { width: 72px; height: 72px; }
 }

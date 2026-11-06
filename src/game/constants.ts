@@ -14,13 +14,14 @@ export const START_WARMTH = 80;
 export const START_ENERGY = 100;
 
 export const GATHER_ENERGY = 5;
-export const CHOP_ENERGY = 4;
+/** Half the old cost, so a full bar of stamina covers twice as many swings. */
+export const CHOP_ENERGY = 2;
 export const BUILD_ENERGY = 6;
 
-export const WOOD_FOUNDATION = 20;
-export const WOOD_WALL = 10;
-export const WOOD_DOOR = 10;
-export const WOOD_FLOOR = 15;
+export const WOOD_FOUNDATION = 10;
+export const WOOD_WALL = 5;
+export const WOOD_DOOR = 5;
+export const WOOD_FLOOR = 8;
 
 /**
  * Game minutes that pass each real second while you are up and working.

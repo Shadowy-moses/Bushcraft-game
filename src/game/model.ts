@@ -1,6 +1,8 @@
 import { hotbarSlots, recipesFor, statusLine, type HotbarSlot, type Recipe } from './craft';
 import { clockParts, energyWord, warmthWord } from './copy';
+import { PROPS } from './map';
 import { warmthPerGameHour } from './rules';
+import { isFelled } from './trees';
 import type { PieceKind, GameState, Tool } from './types';
 
 export type SheetId = 'none' | 'title' | 'end' | 'pack' | 'craft';
@@ -9,6 +11,12 @@ export interface PlaceModel {
   kind: PieceKind;
   valid: boolean;
   hint: string;
+}
+
+export interface MinimapTree {
+  tx: number;
+  ty: number;
+  felled: boolean;
 }
 
 export interface HudModel {
@@ -32,6 +40,9 @@ export interface HudModel {
   endBody: string;
   place: PlaceModel | null;
   tool: Tool;
+  youTx: number;
+  youTy: number;
+  trees: MinimapTree[];
 }
 
 export function buildModel(state: GameState, sheet: SheetId, resting: boolean, place: PlaceModel | null = null): HudModel {
@@ -58,5 +69,12 @@ export function buildModel(state: GameState, sheet: SheetId, resting: boolean, p
     endBody: 'The afternoon is still yours.',
     place,
     tool: state.tool,
+    youTx: state.tx,
+    youTy: state.ty,
+    trees: PROPS.filter((prop) => prop.kind === 'pine_tree' || prop.kind === 'birch_tree').map((prop) => ({
+      tx: prop.tx,
+      ty: prop.ty,
+      felled: isFelled(state.trees, prop.id),
+    })),
   };
 }
