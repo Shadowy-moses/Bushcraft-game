@@ -54,10 +54,10 @@ describe('artist atlas', () => {
     ]) {
       expect(atlas.frames[name as keyof typeof atlas.frames]?.anchorPx, name).toBeTruthy();
     }
-    expect(atlas.frames.wood_chip_0.frame).toMatchObject({ w: 6, h: 6 });
-    expect(atlas.frames.wood_chip_2.anchorPx).toEqual({ x: 3, y: 3 });
-    expect(atlas.frames.stone_chip_0.anchorPx).toEqual({ x: 3, y: 3 });
-    expect(atlas.frames.stone_chip_1.frame).toMatchObject({ w: 6, h: 6 });
+    expect(atlas.frames.wood_chip_0.frame).toMatchObject({ w: 12, h: 12 });
+    expect(atlas.frames.wood_chip_2.anchorPx).toEqual({ x: 6, y: 6 });
+    expect(atlas.frames.stone_chip_0.anchorPx).toEqual({ x: 6, y: 6 });
+    expect(atlas.frames.stone_chip_1.frame).toMatchObject({ w: 12, h: 12 });
     expect(atlas.frames.woodsman_se_idle_0.anchorPx).toEqual({ x: 16, y: 31 });
     for (const name of ['twig_wall_ne', 'twig_door_ne', 'twig_wall_ne_ghost_ok', 'twig_wall_ne_ghost_bad', 'twig_door_ne_ghost_ok', 'twig_door_ne_ghost_bad']) {
       expect(atlas.frames[name as keyof typeof atlas.frames].frame, name).toMatchObject({ w: 31, h: 39 });

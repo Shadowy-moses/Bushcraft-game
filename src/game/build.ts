@@ -49,6 +49,76 @@ export function across(tx: number, ty: number, edge: EdgeName): Tile {
   return { tx, ty: ty - 1 };
 }
 
+export function oppositeEdge(edge: EdgeName): EdgeName {
+  if (edge === 'se') return 'nw';
+  if (edge === 'nw') return 'se';
+  if (edge === 'sw') return 'ne';
+  return 'sw';
+}
+
+/**
+ * Next edge around the foundation under this ghost.
+ * An edge that already holds a wall or doorway is skipped.
+ * `open` is false only when every edge of that foundation is taken.
+ */
+export function rotateWall(
+  pieces: Piece[],
+  tile: Tile,
+  edge: EdgeName,
+): { tile: Tile; edge: EdgeName; open: boolean } {
+  let base = tile;
+  let current = edge;
+  if (!hasFoundation(pieces, tile.tx, tile.ty)) {
+    const other = across(tile.tx, tile.ty, edge);
+    if (hasFoundation(pieces, other.tx, other.ty)) {
+      base = other;
+      current = oppositeEdge(edge);
+    }
+  }
+  const start = EDGES.indexOf(current);
+  const from = start < 0 ? 0 : start;
+  for (let step = 1; step <= EDGES.length; step++) {
+    const candidate = EDGES[(from + step) % EDGES.length];
+    if (!socketTaken(pieces, base.tx, base.ty, candidate)) {
+      return { tile: base, edge: candidate, open: true };
+    }
+  }
+  return { tile: base, edge: EDGES[(from + 1) % EDGES.length], open: false };
+}
+
+/** Closest foundation edge to a world point, ignoring edges farther than maxDist. */
+export function nearestSocket(
+  pieces: Piece[],
+  x: number,
+  y: number,
+  maxDist: number,
+): { tile: Tile; edge: EdgeName; dist: number } | null {
+  let best: { tile: Tile; edge: EdgeName; dist: number } | null = null;
+  for (const piece of pieces) {
+    if (piece.kind !== 'foundation') continue;
+    const tile = { tx: piece.tx, ty: piece.ty };
+    for (const edge of EDGES) {
+      const at = pieceAnchor('wall', tile, edge);
+      const dist = Math.hypot(at.x - x, at.y - y);
+      if (dist > maxDist) continue;
+      if (!best || dist < best.dist) best = { tile, edge, dist };
+    }
+  }
+  return best;
+}
+
+/** Scale a drag delta down and cap it, so one flick cannot cross the block. */
+export function dampStep(dx: number, dy: number, gain: number, maxStep: number): { x: number; y: number } {
+  let x = dx * gain;
+  let y = dy * gain;
+  const mag = Math.hypot(x, y);
+  if (mag > maxStep && mag > 0) {
+    x = (x / mag) * maxStep;
+    y = (y / mag) * maxStep;
+  }
+  return { x, y };
+}
+
 export function hasFoundation(pieces: Piece[], tx: number, ty: number): boolean {
   return pieces.some((piece) => piece.kind === 'foundation' && piece.tx === tx && piece.ty === ty);
 }

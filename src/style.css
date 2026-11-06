@@ -72,7 +72,7 @@ html, body {
   right: 0;
   display: flex;
   justify-content: center;
-  padding: calc(8px + env(safe-area-inset-top)) 12px 0;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 0 168px;
   background: transparent;
 }
 
@@ -80,8 +80,8 @@ html, body {
   position: absolute;
   top: calc(8px + env(safe-area-inset-top));
   left: calc(10px + env(safe-area-inset-left));
-  width: 104px;
-  height: 104px;
+  width: 156px;
+  height: 156px;
   border: 1px solid var(--line);
   background: rgba(18, 16, 14, 0.78);
   image-rendering: pixelated;
@@ -134,7 +134,7 @@ html, body {
 #vitals {
   position: absolute;
   left: calc(12px + env(safe-area-inset-left));
-  bottom: calc(var(--dock, 72px) + 148px);
+  bottom: calc(var(--dock, 72px) + 176px);
   width: 148px;
   padding: 6px;
 }
@@ -156,7 +156,7 @@ html, body {
 
 .vicon .pixel { width: 16px; height: 16px; }
 
-.icon { width: 28px; height: 28px; }
+.icon { width: 40px; height: 40px; }
 .icon.lg { width: 72px; height: 72px; }
 .sheet-icon {
   display: block;
@@ -243,8 +243,8 @@ html, body {
   text-shadow: 0 1px 1px #000;
 }
 
-#bag { width: 48px; padding: 0; display: grid; place-items: center; }
-#bag .pixel { width: 28px; height: 28px; }
+#bag { width: 48px; height: 48px; padding: 0; display: grid; place-items: center; }
+#bag .pixel { width: 36px; height: 36px; }
 
 #rest-button {
   width: 100%;
@@ -254,6 +254,7 @@ html, body {
 }
 
 #rest-button.ready { border-color: var(--moss); color: var(--cream); }
+#rest-button:disabled { opacity: 0.4; }
 
 .place-actions { width: 100%; }
 .place-actions button {
@@ -515,21 +516,39 @@ h3 { font-size: 16px; margin: 6px 0; }
   position: absolute;
   left: calc(12px + env(safe-area-inset-left));
   bottom: calc(var(--dock, 72px) + 8px);
-  width: 116px;
-  height: 116px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
   background: rgba(18, 16, 14, 0.42);
   border: 2px solid rgba(214, 204, 180, 0.55);
   touch-action: none;
 }
 
+#stick-run {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 62px;
+  height: 62px;
+  margin: -31px 0 0 -31px;
+  border-radius: 50%;
+  border: 2px dashed rgba(214, 204, 180, 0.5);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+#stick.run #stick-run {
+  border-style: solid;
+  border-color: rgba(232, 196, 120, 0.95);
+}
+
 #stick-knob {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 48px;
-  height: 48px;
-  margin: -24px 0 0 -24px;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
   border-radius: 50%;
   background: rgba(217, 208, 188, 0.88);
   border: 1px solid rgba(10, 9, 8, 0.65);
@@ -553,8 +572,8 @@ h3 { font-size: 16px; margin: 6px 0; }
   color: var(--cream);
 }
 
-#act .act-icon { width: 28px; height: 28px; display: grid; place-items: center; }
-#act .act-icon svg { width: 28px; height: 28px; display: block; }
+#act .act-icon { width: 32px; height: 32px; display: grid; place-items: center; }
+#act .act-icon svg { width: 32px; height: 32px; display: block; }
 #act .act-label {
   font-size: 11px;
   letter-spacing: 0.14em;
@@ -567,8 +586,8 @@ h3 { font-size: 16px; margin: 6px 0; }
     min-width: 44px;
     min-height: 44px;
   }
-  .slot, #bag { width: 44px; height: 44px; }
-  #vitals { width: 132px; padding: 4px; bottom: calc(var(--dock, 48px) + 96px); }
+  .slot, #bag { width: 48px; height: 48px; }
+  #vitals { width: 132px; padding: 4px; bottom: calc(var(--dock, 48px) + 120px); }
   #tip { display: none; }
   .craft { margin-top: calc(4px + env(safe-area-inset-top)); }
   .craft-body { flex-direction: row; }
@@ -585,7 +604,8 @@ h3 { font-size: 16px; margin: 6px 0; }
   .detail { grid-column: 2; grid-row: 2; overflow: auto; max-height: 100%; }
   h1 { font-size: 28px; }
   #stick { width: 88px; height: 88px; }
-  #stick-knob { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
-  #act { width: 64px; height: 64px; min-width: 64px; min-height: 64px; }
-  #minimap { width: 72px; height: 72px; }
+  #stick-knob { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+  #stick-run { width: 56px; height: 56px; margin: -28px 0 0 -28px; }
+  #act { width: 72px; height: 72px; min-width: 72px; min-height: 72px; }
+  #minimap { width: 120px; height: 120px; }
 }

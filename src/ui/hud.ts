@@ -41,7 +41,7 @@ export class Hud {
   constructor(private root: HTMLElement) {
     this.root.innerHTML = `
       <header id="top-bar">
-        <canvas id="minimap" width="208" height="208" aria-label="Nearby trees"></canvas>
+        <canvas id="minimap" width="320" height="320" aria-label="Nearby trees"></canvas>
         <div class="clock panel">
           <div id="time">--:--</div>
           <div id="daypart"></div>
@@ -58,7 +58,7 @@ export class Hud {
         <p id="tip" aria-live="polite"></p>
         <div class="place-actions" id="place-actions" hidden></div>
       </footer>
-      <div id="stick" hidden aria-label="Move"><div id="stick-knob"></div></div>
+      <div id="stick" hidden aria-label="Move"><div id="stick-run"></div><div id="stick-knob"></div></div>
       <div id="right-dock">
         <button type="button" id="bag" data-action="craft" aria-label="Inventory">${ICONS.bag}</button>
         <div class="hotbar" id="hotbar"></div>
@@ -125,28 +125,40 @@ export class Hud {
         dy = (dy / mag) * max;
       }
       knob.style.transform = `translate(${dx}px, ${dy}px)`;
-      this.handlers.onStick?.(max > 0 ? dx / max : 0, max > 0 ? dy / max : 0);
+      const nx = max > 0 ? dx / max : 0;
+      const ny = max > 0 ? dy / max : 0;
+      stick.classList.toggle('run', Math.hypot(nx, ny) >= 0.85);
+      this.handlers.onStick?.(nx, ny);
     };
-    stick.addEventListener('pointerdown', (event) => {
-      if (this.stickId !== null) return;
-      this.stickId = event.pointerId;
-      stick.setPointerCapture(event.pointerId);
-      emit(event.clientX, event.clientY);
-    });
-    stick.addEventListener('pointermove', (event) => {
+    const move = (event: PointerEvent) => {
       if (event.pointerId !== this.stickId) return;
       emit(event.clientX, event.clientY);
-    });
+    };
     const end = (event: PointerEvent) => {
       if (event.pointerId !== this.stickId) return;
       this.releaseStick();
     };
-    stick.addEventListener('pointerup', end);
-    stick.addEventListener('pointercancel', end);
+    stick.addEventListener('pointerdown', (event) => {
+      if (this.stickId !== null) return;
+      this.stickId = event.pointerId;
+      try {
+        stick.setPointerCapture(event.pointerId);
+      } catch {
+        /* The window listeners still follow the finger. */
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      emit(event.clientX, event.clientY);
+    });
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
   }
 
   private releaseStick(): void {
     this.stickId = null;
+    const stick = document.getElementById('stick');
+    stick?.classList.remove('run');
     const knob = document.getElementById('stick-knob');
     if (knob) knob.style.transform = 'translate(0px, 0px)';
     this.handlers.onStick?.(0, 0);
@@ -214,10 +226,11 @@ export class Hud {
     this.fill('warmth-fill', model.warmth);
     this.fill('energy-fill', model.energy);
     document.getElementById('warmth-fill')?.parentElement?.classList.toggle('low', model.lowWarmth);
-    const rest = document.getElementById('rest-button');
+    const rest = document.querySelector<HTMLButtonElement>('#rest-button');
     if (rest) {
-      rest.textContent = model.restLabel;
-      rest.classList.toggle('ready', model.restReady);
+      rest.textContent = model.place ? 'Rest' : model.restLabel;
+      rest.classList.toggle('ready', model.restReady && !model.place);
+      rest.disabled = Boolean(model.place);
     }
     const playing = model.sheet !== 'title' && model.sheet !== 'end';
     document.getElementById('top-bar')?.toggleAttribute('hidden', !playing);
@@ -268,35 +281,36 @@ export class Hud {
     ctx.fillStyle = 'rgba(18, 16, 14, 0.78)';
     ctx.fillRect(0, 0, w, h);
     const cx = w / 2;
-    const cy = h / 2 + 8;
-    const scale = 11;
+    const cy = h / 2 + w * 0.04;
+    const scale = Math.max(14, Math.round(w / 16));
+    const reach = scale * 5.6;
     const project = (tx: number, ty: number) => ({
       x: cx + (tx - model.youTx - (ty - model.youTy)) * scale,
       y: cy + (tx - model.youTx + (ty - model.youTy)) * scale * 0.52,
     });
-    ctx.strokeStyle = 'rgba(214, 204, 180, 0.45)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(214, 204, 180, 0.55)';
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(cx, cy - 78);
-    ctx.lineTo(cx + 78, cy);
-    ctx.lineTo(cx, cy + 78);
-    ctx.lineTo(cx - 78, cy);
+    ctx.moveTo(cx, cy - reach);
+    ctx.lineTo(cx + reach, cy);
+    ctx.lineTo(cx, cy + reach);
+    ctx.lineTo(cx - reach, cy);
     ctx.closePath();
     ctx.stroke();
     for (const tree of model.trees) {
-      if (Math.max(Math.abs(tree.tx - model.youTx), Math.abs(tree.ty - model.youTy)) > 6) continue;
+      if (Math.max(Math.abs(tree.tx - model.youTx), Math.abs(tree.ty - model.youTy)) > 8) continue;
       const at = project(tree.tx, tree.ty);
       ctx.fillStyle = tree.felled ? '#6e6254' : '#8ea36a';
-      ctx.fillRect(at.x - 3, at.y - 8, 6, 10);
+      ctx.fillRect(at.x - scale * 0.28, at.y - scale * 0.7, scale * 0.56, scale * 0.95);
     }
     ctx.fillStyle = '#f3ecdc';
     ctx.beginPath();
-    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.arc(cx, cy, Math.max(6, scale * 0.38), 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#d9d0bc';
-    ctx.font = '16px sans-serif';
+    ctx.font = `${Math.round(w * 0.09)}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('N', cx, 26);
+    ctx.fillText('N', cx, w * 0.12);
   }
 
   private paintHotbar(model: HudModel | null): void {
@@ -559,7 +573,7 @@ export class Hud {
   private iconHtml(frame: string, large: boolean): string {
     const rect = this.frames.get(frame);
     if (!rect) return `<span class="icon${large ? ' lg' : ''}">${ICONS[frame] ?? ICONS.hands}</span>`;
-    const fit = large ? 72 : 28;
+    const fit = large ? 72 : 40;
     const scale = fit / Math.max(rect.w, rect.h);
     const base = import.meta.env.BASE_URL;
     return `<span class="icon${large ? ' lg' : ''}"><span class="sheet-icon" style="width:${rect.w}px;height:${rect.h}px;background-image:url('${base}assets/spritesheet.png');background-position:-${rect.x}px -${rect.y}px;background-size:${this.sheetSize.w}px ${this.sheetSize.h}px;transform:scale(${scale})"></span></span>`;
