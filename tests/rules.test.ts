@@ -38,7 +38,7 @@ describe('wood and the hatchet', () => {
     expect(gain).toBeGreaterThanOrEqual(3);
     expect(gain).toBeLessThanOrEqual(5);
     expect(last.popup).toBe(`+${gain} wood`);
-    expect(last.state.energy).toBe(100 - 2);
+    expect(last.state.energy).toBe(100 - 1);
     expect(last.state.inventory.wood).toBe(gain);
     expect(isFelled(last.state.trees, id)).toBe(true);
     expect(chopTree({ ...last.state, x: last.state.x, y: last.state.y, tool: 'hatchet' }, id).message).toMatch(/stump/i);

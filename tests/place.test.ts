@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blocksStep, floorSpot, foundationSpot, pieceFrame, placementVerdict, wallSpot } from '../src/game/build';
+import { blocksStep, dampStep, floorSpot, foundationSpot, nearestSocket, pieceFrame, placementVerdict, rotateWall, wallSpot } from '../src/game/build';
 import { tileToWorld } from '../src/game/iso';
 import { findPath } from '../src/game/path';
 import { initialState } from '../src/game/rules';
@@ -87,6 +87,38 @@ describe('building on the block', () => {
     const far = placementVerdict('foundation', { tx: 1, ty: 8 }, 'se', stocked, feet);
     expect(far.ok).toBe(false);
     expect(far.reason).toBe("Can't reach that spot");
+  });
+
+  it('rotates through the open edges and skips one that is already built', () => {
+    const pieces = [
+      { kind: 'foundation', tx: 7, ty: 3, edge: 'se' },
+      { kind: 'wall', tx: 7, ty: 3, edge: 'se' },
+    ] as Piece[];
+    const tile = { tx: 7, ty: 3 };
+    const first = rotateWall(pieces, tile, 'se');
+    const second = rotateWall(pieces, first.tile, first.edge);
+    const third = rotateWall(pieces, second.tile, second.edge);
+    const fourth = rotateWall(pieces, third.tile, third.edge);
+    expect([first, second, third, fourth].map((step) => step.edge)).toEqual(['sw', 'ne', 'nw', 'sw']);
+    expect([first, second, third, fourth].every((step) => step.open)).toBe(true);
+    expect([first, second, third, fourth].every((step) => step.tile.tx === 7 && step.tile.ty === 3)).toBe(true);
+    const full = [
+      ...pieces,
+      { kind: 'wall', tx: 7, ty: 3, edge: 'sw' },
+      { kind: 'wall', tx: 7, ty: 3, edge: 'ne' },
+      { kind: 'doorway', tx: 7, ty: 3, edge: 'nw' },
+    ] as Piece[];
+    expect(rotateWall(full, tile, 'se').open).toBe(false);
+  });
+
+  it('keeps a short drag on the same tile and snaps a wall to a nearby edge', () => {
+    const creep = dampStep(400, -200, 0.45, 8);
+    expect(Math.hypot(creep.x, creep.y)).toBeLessThanOrEqual(8);
+    const pieces = [{ kind: 'foundation', tx: 7, ty: 3, edge: 'se' } as Piece];
+    const at = tileToWorld(7, 3);
+    const near = nearestSocket(pieces, at.x + 8, at.y + 4, 26);
+    expect(near?.edge).toBe('se');
+    expect(nearestSocket(pieces, at.x + 200, at.y + 200, 26)).toBeNull();
   });
 
   it('picks the atlas frame for each piece and its ghost', () => {

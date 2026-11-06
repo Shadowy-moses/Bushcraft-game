@@ -388,20 +388,20 @@
    "frame": {
     "x": 408,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "sourceSize": {
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "anchor": {
     "x": 0.5,
@@ -412,28 +412,28 @@
     "y": 0.5
    },
    "anchorPx": {
-    "x": 3,
-    "y": 3
+    "x": 6,
+    "y": 6
    }
   },
   "wood_chip_1": {
    "frame": {
-    "x": 416,
+    "x": 422,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "sourceSize": {
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "anchor": {
     "x": 0.5,
@@ -444,28 +444,28 @@
     "y": 0.5
    },
    "anchorPx": {
-    "x": 3,
-    "y": 3
+    "x": 6,
+    "y": 6
    }
   },
   "wood_chip_2": {
    "frame": {
-    "x": 424,
+    "x": 436,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "sourceSize": {
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "anchor": {
     "x": 0.5,
@@ -476,28 +476,28 @@
     "y": 0.5
    },
    "anchorPx": {
-    "x": 3,
-    "y": 3
+    "x": 6,
+    "y": 6
    }
   },
   "stone_chip_0": {
    "frame": {
-    "x": 432,
+    "x": 450,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "sourceSize": {
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "anchor": {
     "x": 0.5,
@@ -508,28 +508,28 @@
     "y": 0.5
    },
    "anchorPx": {
-    "x": 3,
-    "y": 3
+    "x": 6,
+    "y": 6
    }
   },
   "stone_chip_1": {
    "frame": {
-    "x": 440,
+    "x": 464,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "rotated": false,
    "trimmed": false,
    "spriteSourceSize": {
     "x": 0,
     "y": 0,
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "sourceSize": {
-    "w": 6,
-    "h": 6
+    "w": 12,
+    "h": 12
    },
    "anchor": {
     "x": 0.5,
@@ -540,13 +540,13 @@
     "y": 0.5
    },
    "anchorPx": {
-    "x": 3,
-    "y": 3
+    "x": 6,
+    "y": 6
    }
   },
   "item_sticks": {
    "frame": {
-    "x": 448,
+    "x": 478,
     "y": 0,
     "w": 16,
     "h": 16
@@ -578,7 +578,7 @@
   },
   "item_stone": {
    "frame": {
-    "x": 466,
+    "x": 496,
     "y": 0,
     "w": 16,
     "h": 16
@@ -610,8 +610,8 @@
   },
   "item_fiber": {
    "frame": {
-    "x": 484,
-    "y": 0,
+    "x": 0,
+    "y": 58,
     "w": 16,
     "h": 16
    },
@@ -642,7 +642,7 @@
   },
   "item_cordage": {
    "frame": {
-    "x": 0,
+    "x": 18,
     "y": 58,
     "w": 16,
     "h": 16
@@ -674,7 +674,7 @@
   },
   "fire_tipi_unlit": {
    "frame": {
-    "x": 18,
+    "x": 36,
     "y": 58,
     "w": 32,
     "h": 40
@@ -706,7 +706,7 @@
   },
   "fire_tipi_lit_0": {
    "frame": {
-    "x": 52,
+    "x": 70,
     "y": 58,
     "w": 32,
     "h": 40
@@ -738,7 +738,7 @@
   },
   "fire_tipi_lit_1": {
    "frame": {
-    "x": 86,
+    "x": 104,
     "y": 58,
     "w": 32,
     "h": 40
@@ -770,7 +770,7 @@
   },
   "fire_logcabin_unlit": {
    "frame": {
-    "x": 120,
+    "x": 138,
     "y": 58,
     "w": 32,
     "h": 40
@@ -802,7 +802,7 @@
   },
   "fire_logcabin_lit_0": {
    "frame": {
-    "x": 154,
+    "x": 172,
     "y": 58,
     "w": 32,
     "h": 40
@@ -834,7 +834,7 @@
   },
   "fire_logcabin_lit_1": {
    "frame": {
-    "x": 188,
+    "x": 206,
     "y": 58,
     "w": 32,
     "h": 40
@@ -866,7 +866,7 @@
   },
   "leanto_frame": {
    "frame": {
-    "x": 222,
+    "x": 240,
     "y": 58,
     "w": 64,
     "h": 48
@@ -898,7 +898,7 @@
   },
   "leanto_done": {
    "frame": {
-    "x": 288,
+    "x": 306,
     "y": 58,
     "w": 64,
     "h": 48
@@ -930,7 +930,7 @@
   },
   "woodsman_se_idle_0": {
    "frame": {
-    "x": 354,
+    "x": 372,
     "y": 58,
     "w": 32,
     "h": 32
@@ -962,7 +962,7 @@
   },
   "woodsman_se_idle_1": {
    "frame": {
-    "x": 388,
+    "x": 406,
     "y": 58,
     "w": 32,
     "h": 32
@@ -994,7 +994,7 @@
   },
   "woodsman_se_walk_0": {
    "frame": {
-    "x": 422,
+    "x": 440,
     "y": 58,
     "w": 32,
     "h": 32
@@ -1026,7 +1026,7 @@
   },
   "woodsman_se_walk_1": {
    "frame": {
-    "x": 456,
+    "x": 474,
     "y": 58,
     "w": 32,
     "h": 32

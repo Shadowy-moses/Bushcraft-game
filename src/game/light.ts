@@ -21,9 +21,9 @@ export function timeTint(minutes: number): number {
   const h = (((minutes % 1440) + 1440) % 1440) / 60;
   if (h >= 16 && h < 18) return lerpTint(0xfff6ea, 0xf0d4b4, (h - 16) / 2);
   if (h >= 18 && h < 20) return lerpTint(0xf0d4b4, 0xa8b0c0, (h - 18) / 2);
-  if (h >= 20 && h < 22) return lerpTint(0xa8b0c0, 0x7e8aa4, (h - 20) / 2);
-  if (h >= 22) return lerpTint(0x7e8aa4, 0x66748f, Math.min(1, (h - 22) / 2));
-  if (h < 5) return 0x66748f;
+  if (h >= 20 && h < 22) return lerpTint(0xa8b0c0, 0x96a2b8, (h - 20) / 2);
+  if (h >= 22) return lerpTint(0x96a2b8, 0x8e9aaf, Math.min(1, (h - 22) / 2));
+  if (h < 5) return 0x8e9aaf;
   if (h < 6) return lerpTint(0x66748f, 0xe4d2b8, h - 5);
   return 0xfff6ea;
 }
@@ -44,7 +44,7 @@ export const SHADOW_TINT = 0x6a6158;
 export function skyColor(minutes: number): string {
   const h = (((minutes % 1440) + 1440) % 1440) / 60;
   if (h >= 16 && h < 18.5) return '#3a2c24';
-  if (h >= 18.5 && h < 20.5) return '#242830';
+  if (h >= 18.5 && h < 20.5) return '#2a3038';
   if (h >= 5 && h < 7) return '#3a342c';
-  return '#141820';
+  return '#243040';
 }

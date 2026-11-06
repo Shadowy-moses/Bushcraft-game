@@ -1,6 +1,19 @@
 import Phaser from 'phaser';
 import { frameOrigin, standinOrigin } from '../atlas';
-import { EDGES, canAfford, edgeOffset, pieceFrame, pieceKey, pieceSpot, placementVerdict, suggestPiece, woodShortMessage } from '../build';
+import {
+  canAfford,
+  dampStep,
+  edgeOffset,
+  nearestSocket,
+  pieceAnchor,
+  pieceFrame,
+  pieceKey,
+  pieceSpot,
+  placementVerdict,
+  rotateWall,
+  suggestPiece,
+  woodShortMessage,
+} from '../build';
 import { COLS, PLAY_MINUTES_PER_SECOND, REST_ENERGY_PER_SECOND, REST_MINUTES_PER_SECOND, ROWS, ZOOM } from '../constants';
 import { restingTip } from '../copy';
 import { clamp, depthFor, tileToWorld, worldToTile } from '../iso';
@@ -119,6 +132,12 @@ export class GameScene extends Phaser.Scene {
   private pending: PendingPlace | null = null;
   private ghostAnchor: Tile = { tx: 0, ty: 0 };
   private ghostEdge: EdgeName = 'se';
+  /** World point the ghost eases toward. Snaps to a tile or a foundation edge. */
+  private aimX = 0;
+  private aimY = 0;
+  private dragX = 0;
+  private dragY = 0;
+  private draggingGhost = false;
   private placeValid = false;
   private placeHint = '';
   private pointer = { x: 0, y: 0, down: false };
@@ -131,8 +150,6 @@ export class GameScene extends Phaser.Scene {
   private stickX = 0;
   private stickY = 0;
   private keys = new Set<string>();
-  private followTile = '';
-  private ghostRepeat = 0;
   private rested = 0;
   private chips: Chip[] = [];
   private reachMark?: Phaser.GameObjects.Graphics;
@@ -176,7 +193,6 @@ export class GameScene extends Phaser.Scene {
     this.logUntil = new Map();
     this.floaters = [];
     this.chips = [];
-    this.ghostRepeat = 0;
     this.rested = 0;
     this.pose = 'idle';
     this.poseUntil = 0;
@@ -223,14 +239,32 @@ export class GameScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.pointer = { x: pointer.x, y: pointer.y, down: true };
+      if (this.placing) {
+        this.dragX = pointer.x;
+        this.dragY = pointer.y;
+        this.draggingGhost = false;
+        return;
+      }
       this.onPointer(pointer);
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      const prevX = this.pointer.x;
+      const prevY = this.pointer.y;
       this.pointer = { x: pointer.x, y: pointer.y, down: pointer.isDown };
-      if (this.placing && pointer.isDown) this.moveGhost(pointer);
+      if (!this.placing || !pointer.isDown) return;
+      const sdx = pointer.x - prevX;
+      const sdy = pointer.y - prevY;
+      if (sdx === 0 && sdy === 0) return;
+      if (Math.hypot(pointer.x - this.dragX, pointer.y - this.dragY) < 6) return;
+      this.draggingGhost = true;
+      this.slideGhost(sdx, sdy);
     });
-    this.input.on('pointerup', () => {
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      const moved = Math.hypot(pointer.x - this.dragX, pointer.y - this.dragY);
+      const tap = this.placing && !this.draggingGhost && moved < 12;
       this.pointer.down = false;
+      this.draggingGhost = false;
+      if (tap) this.tapGhost(pointer);
     });
     this.scale.on('resize', () => this.layoutCamera());
     this.resizeObs = new ResizeObserver(() => this.layoutCamera());
@@ -311,6 +345,7 @@ export class GameScene extends Phaser.Scene {
       moveGhost: (tx, ty) => {
         if (!this.placing) return;
         this.ghostAnchor = { tx, ty };
+        this.aimFromGhost();
         this.refreshGhost();
       },
       flipGhost: () => this.handleAction('flip'),
@@ -466,11 +501,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onPointer(pointer: Phaser.Input.Pointer): void {
-    if (!this.started || this.state.outcome !== 'playing' || this.sheet !== 'none') return;
-    if (this.placing) {
-      this.moveGhost(pointer);
-      return;
-    }
+    if (!this.started || this.state.outcome !== 'playing' || this.sheet !== 'none' || this.placing) return;
     if (this.resting) {
       this.resting = false;
       this.rested = 0;
@@ -581,6 +612,7 @@ export class GameScene extends Phaser.Scene {
 
   private swingAt(prop: Prop): void {
     this.handHatchet();
+    if (this.pose === 'chop' && this.time.now < this.poseUntil) return;
     if (!inReach(this.px, this.py, prop.tx, prop.ty)) {
       this.setTip('Walk up to the trunk.');
       return;
@@ -637,15 +669,6 @@ export class GameScene extends Phaser.Scene {
       this.parkWalk();
       return;
     }
-    if (this.placing) {
-      this.parkWalk();
-      this.stepGhostStick(dt);
-      return;
-    }
-    if (this.pose === 'chop' || this.pose === 'gather') {
-      this.parkWalk();
-      return;
-    }
     let dx = 0;
     let dy = 0;
     const stick = Math.hypot(this.stickX, this.stickY);
@@ -661,8 +684,13 @@ export class GameScene extends Phaser.Scene {
     const mag = Math.hypot(dx, dy);
     const travel = travelSpeed(Math.min(1, mag));
     if (travel.speed <= 0) {
+      if (this.placing) this.nudgeGhost(dt);
       this.parkWalk();
       return;
+    }
+    if ((this.pose === 'chop' || this.pose === 'gather') && travel.speed > 0) {
+      this.poseUntil = 0;
+      this.expirePose();
     }
     if (this.resting) this.resting = false;
     dx /= mag;
@@ -678,27 +706,18 @@ export class GameScene extends Phaser.Scene {
     const step = travel.speed * dt;
     const next = resolveMove(this.px, this.py, dx * step, dy * step, bodiesFor(this.state), segmentsFor(this.state.pieces));
     this.placeFeet(next.x, next.y);
+    if (this.placing) this.nudgeGhost(dt);
   }
 
-  /** While a plan is up, the stick steps the ghost instead of the woodsman. */
-  private stepGhostStick(dt: number): void {
+  /** A held stick creeps the ghost. A quick nudge is only a few pixels, not a whole tile. */
+  private nudgeGhost(dt: number): void {
+    if (this.draggingGhost || this.pointer.down) return;
     const mag = Math.hypot(this.stickX, this.stickY);
-    if (mag < 0.45) {
-      this.ghostRepeat = 0;
-      return;
-    }
-    this.ghostRepeat -= dt;
-    if (this.ghostRepeat > 0) return;
-    this.ghostRepeat = 0.16;
-    const facing = facingFromVector(this.stickX, this.stickY, this.state.facing);
-    const step =
-      facing === 'se' ? { tx: 1, ty: 0 } : facing === 'sw' ? { tx: 0, ty: 1 } : facing === 'ne' ? { tx: 0, ty: -1 } : { tx: -1, ty: 0 };
-    const tx = clamp(this.ghostAnchor.tx + step.tx, 0, COLS - 1);
-    const ty = clamp(this.ghostAnchor.ty + step.ty, 0, ROWS - 1);
-    if (facing !== this.state.facing) this.state = { ...this.state, facing };
-    if (tx === this.ghostAnchor.tx && ty === this.ghostAnchor.ty) return;
-    this.ghostAnchor = { tx, ty };
-    this.refreshGhost();
+    if (mag < 0.45) return;
+    const speed = 16 * Math.min(1, mag);
+    this.aimX += (this.stickX / mag) * speed * dt;
+    this.aimY += (this.stickY / mag) * speed * dt;
+    this.snapAim();
   }
 
   private parkWalk(): void {
@@ -716,33 +735,6 @@ export class GameScene extends Phaser.Scene {
     this.player.setPosition(Math.round(x), Math.round(y));
     this.player.setDepth(depthFor(y, 6));
     this.collectUnderfoot();
-    this.followGhost();
-  }
-
-  /** While a ghost is up, it stays a step ahead of him as he walks. A drag holds it. */
-  private followGhost(): void {
-    if (!this.placing || this.pointer.down) return;
-    const here = `${this.state.tx},${this.state.ty}`;
-    if (here === this.followTile) return;
-    this.followTile = here;
-    const ahead = this.tileAhead();
-    this.ghostAnchor = ahead;
-    this.refreshGhost();
-  }
-
-  private tileAhead(): Tile {
-    const step =
-      this.state.facing === 'se'
-        ? { tx: 1, ty: 0 }
-        : this.state.facing === 'sw'
-          ? { tx: 0, ty: 1 }
-          : this.state.facing === 'ne'
-            ? { tx: 0, ty: -1 }
-            : { tx: -1, ty: 0 };
-    return {
-      tx: clamp(this.state.tx + step.tx, 0, COLS - 1),
-      ty: clamp(this.state.ty + step.ty, 0, ROWS - 1),
-    };
   }
 
   /** One reach test for the ring and for Use, so they name the same tree. */
@@ -904,8 +896,10 @@ export class GameScene extends Phaser.Scene {
     }
     if (id === 'flip') {
       if (this.placing !== 'wall' && this.placing !== 'doorway') return;
-      const index = EDGES.indexOf(this.ghostEdge);
-      this.ghostEdge = EDGES[(index + 1) % EDGES.length];
+      const turned = rotateWall(this.state.pieces, this.ghostAnchor, this.ghostEdge);
+      this.ghostAnchor = turned.tile;
+      this.ghostEdge = turned.edge;
+      this.aimFromGhost();
       this.refreshGhost();
       return;
     }
@@ -925,8 +919,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (id === 'rest') {
-      if (!this.started || this.state.outcome !== 'playing') return;
-      if (this.placing) this.endPlace();
+      if (!this.started || this.state.outcome !== 'playing' || this.placing) return;
       this.sheet = 'none';
       if (this.state.energy >= 100 && !this.resting) {
         this.setTip('Already rested.');
@@ -1119,7 +1112,7 @@ export class GameScene extends Phaser.Scene {
     const spot = suggestPiece(this.state, kind, { x: this.px, y: this.py });
     this.ghostAnchor = spot.tile;
     this.ghostEdge = spot.edge;
-    this.followTile = `${this.state.tx},${this.state.ty}`;
+    this.aimFromGhost();
     this.cameras.main.startFollow(this.player, true, 0.18, 0.18);
     this.refreshGhost();
     this.paintHud(true);
@@ -1135,11 +1128,62 @@ export class GameScene extends Phaser.Scene {
     this.paintHud(true);
   }
 
-  private moveGhost(pointer: Phaser.Input.Pointer): void {
+  private aimFromGhost(): void {
+    const at = pieceAnchor(this.placing ?? 'foundation', this.ghostAnchor, this.ghostEdge);
+    this.aimX = at.x;
+    this.aimY = at.y;
+  }
+
+  /** Drag moves the aim a short way, then the ghost snaps to a tile or a foundation edge. */
+  private slideGhost(screenDx: number, screenDy: number): void {
+    const cam = this.cameras.main;
+    const origin = cam.getWorldPoint(0, 0);
+    const shifted = cam.getWorldPoint(screenDx, screenDy);
+    const step = dampStep(shifted.x - origin.x, shifted.y - origin.y, 0.45, 8);
+    this.aimX += step.x;
+    this.aimY += step.y;
+    this.snapAim();
+  }
+
+  /** A tap lands on a nearby edge or the next tile. A tap across the island does nothing. */
+  private tapGhost(pointer: Phaser.Input.Pointer): void {
+    if (!this.placing) return;
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    if (this.placing === 'wall' || this.placing === 'doorway') {
+      const near = nearestSocket(this.state.pieces, world.x, world.y, 22);
+      if (!near) return;
+      this.ghostAnchor = near.tile;
+      this.ghostEdge = near.edge;
+      this.aimFromGhost();
+      this.refreshGhost();
+      return;
+    }
     const tile = worldToTile(world.x, world.y);
-    const tx = clamp(tile.tx, -1, COLS);
-    const ty = clamp(tile.ty, -1, ROWS);
+    const nearTile =
+      Math.abs(tile.tx - this.ghostAnchor.tx) <= 1 && Math.abs(tile.ty - this.ghostAnchor.ty) <= 1;
+    if (!nearTile) return;
+    this.ghostAnchor = { tx: clamp(tile.tx, 0, COLS - 1), ty: clamp(tile.ty, 0, ROWS - 1) };
+    this.aimFromGhost();
+    this.refreshGhost();
+  }
+
+  private snapAim(): void {
+    if (!this.placing) return;
+    if (this.placing === 'wall' || this.placing === 'doorway') {
+      const near = nearestSocket(this.state.pieces, this.aimX, this.aimY, 26);
+      if (!near) return;
+      const current = pieceAnchor(this.placing, this.ghostAnchor, this.ghostEdge);
+      const stay = Math.hypot(current.x - this.aimX, current.y - this.aimY);
+      if (stay <= near.dist + 6 && stay <= 26) return;
+      if (near.tile.tx === this.ghostAnchor.tx && near.tile.ty === this.ghostAnchor.ty && near.edge === this.ghostEdge) return;
+      this.ghostAnchor = near.tile;
+      this.ghostEdge = near.edge;
+      this.refreshGhost();
+      return;
+    }
+    const tile = worldToTile(this.aimX, this.aimY);
+    const tx = clamp(tile.tx, 0, COLS - 1);
+    const ty = clamp(tile.ty, 0, ROWS - 1);
     if (tx === this.ghostAnchor.tx && ty === this.ghostAnchor.ty) return;
     this.ghostAnchor = { tx, ty };
     this.refreshGhost();

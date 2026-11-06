@@ -14,8 +14,11 @@ export const START_WARMTH = 80;
 export const START_ENERGY = 100;
 
 export const GATHER_ENERGY = 5;
-/** Half the old cost, so a full bar of stamina covers twice as many swings. */
-export const CHOP_ENERGY = 2;
+/**
+ * One point a swing. A full bar is twice the last round, and a second tap
+ * during the swing does not spend again.
+ */
+export const CHOP_ENERGY = 1;
 export const BUILD_ENERGY = 6;
 
 export const WOOD_FOUNDATION = 10;
@@ -25,9 +28,9 @@ export const WOOD_FLOOR = 8;
 
 /**
  * Game minutes that pass each real second while you are up and working.
- * 4:30 to 6:00 is 810 game minutes, so a day lasts about 22 real minutes.
+ * 4:30 to 6:00 is 810 game minutes, so that night lasts about 34 real minutes.
  */
-export const PLAY_MINUTES_PER_SECOND = 0.6;
+export const PLAY_MINUTES_PER_SECOND = 0.4;
 export const REST_MINUTES_PER_SECOND = 1.8;
 export const REST_ENERGY_PER_SECOND = 28;
 
