@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import { frameOrigin, standinOrigin } from '../atlas';
 import {
+  approachBuild,
   canAfford,
   dampStep,
+  edgeAhead,
   edgeOffset,
   nearestSocket,
   pieceAnchor,
@@ -14,13 +16,22 @@ import {
   suggestPiece,
   woodShortMessage,
 } from '../build';
-import { COLS, PLAY_MINUTES_PER_SECOND, REST_ENERGY_PER_SECOND, REST_MINUTES_PER_SECOND, ROWS, ZOOM } from '../constants';
+import {
+  COLS,
+  FOLLOW_MAX_H,
+  FOLLOW_MAX_W,
+  PLAY_MINUTES_PER_SECOND,
+  REST_ENERGY_PER_SECOND,
+  REST_MINUTES_PER_SECOND,
+  ROWS,
+  ZOOM,
+} from '../constants';
 import { restingTip } from '../copy';
 import { clamp, depthFor, tileToWorld, worldToTile } from '../iso';
 import { SHADOW_TINT, lightTint, multiplyTint, skyColor } from '../light';
 import { PROPS, groundAt, inBounds, propAt } from '../map';
 import { buildModel, type PlaceModel, type SheetId } from '../model';
-import { bodiesFor, inReach, PICKUP_RADIUS, resolveMove, segmentsFor, travelSpeed } from '../move';
+import { BUILD_REACH, bodiesFor, inReach, inReachOf, PICKUP_RADIUS, resolveMove, segmentsFor, travelSpeed } from '../move';
 import { chopTree, gainEnergy, gather, initialState, placePiece, tick } from '../rules';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
@@ -96,6 +107,8 @@ declare global {
       confirmPlace: () => void;
       occlude: () => { key: string; alpha: number }[];
       chips: () => number;
+      zoom: () => { zoom: number; viewW: number; viewH: number };
+      hint: () => boolean;
       look: () => {
         facing: GameState['facing'];
         pose: string;
@@ -138,6 +151,12 @@ export class GameScene extends Phaser.Scene {
   private dragX = 0;
   private dragY = 0;
   private draggingGhost = false;
+  private edgeHint?: Phaser.GameObjects.Sprite;
+  private edgeMark?: Phaser.GameObjects.Graphics;
+  private ghostHome = { x: 0, y: 0 };
+  private shove = { x: 0, y: 0, until: 0 };
+  private approach: { x: number; y: number; kind: PieceKind; tile: Tile; edge: EdgeName } | null = null;
+  private approachStill = 0;
   private placeValid = false;
   private placeHint = '';
   private pointer = { x: 0, y: 0, down: false };
@@ -264,9 +283,14 @@ export class GameScene extends Phaser.Scene {
       const tap = this.placing && !this.draggingGhost && moved < 12;
       this.pointer.down = false;
       this.draggingGhost = false;
+      this.edgeHint?.setVisible(false);
+      this.edgeMark?.setVisible(false);
       if (tap) this.tapGhost(pointer);
     });
-    this.scale.on('resize', () => this.layoutCamera());
+    this.scale.on('resize', () => {
+      this.layoutCamera();
+      this.time.delayedCall(0, () => this.layoutCamera());
+    });
     this.resizeObs = new ResizeObserver(() => this.layoutCamera());
     const top = document.getElementById('top-bar');
     const bottom = document.getElementById('bottom-bar');
@@ -362,6 +386,12 @@ export class GameScene extends Phaser.Scene {
           .filter(([, sprite]) => sprite.alpha < 0.95)
           .map(([key, sprite]) => ({ key, alpha: sprite.alpha })),
       chips: () => this.chips.length,
+      zoom: () => ({
+        zoom: this.cameras.main.zoom,
+        viewW: this.cameras.main.width,
+        viewH: this.cameras.main.height,
+      }),
+      hint: () => Boolean(this.edgeHint?.visible),
       look: () => ({
         facing: this.state.facing,
         pose: this.pose,
@@ -388,7 +418,10 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const dt = Math.min(0.05, delta / 1000);
-    this.stepFree(dt);
+    if (this.cameras.main.zoom !== ZOOM) this.layoutCamera();
+    if (this.approach) this.stepApproach(dt);
+    else this.stepFree(dt);
+    this.stepGhostShove();
     this.expirePose();
     this.expireLogs();
     this.stepFloaters(dt);
@@ -472,6 +505,13 @@ export class GameScene extends Phaser.Scene {
     this.ghost = this.add.sprite(0, 0, 'world', 'twig_foundation_ghost_ok');
     this.applyAtlas(this.ghost, 'twig_foundation_ghost_ok');
     this.ghost.setVisible(false);
+    this.edgeHint = this.add.sprite(0, 0, 'world', 'twig_wall_ne_ghost_ok');
+    this.applyAtlas(this.edgeHint, 'twig_wall_ne_ghost_ok');
+    this.edgeHint.setVisible(false);
+    this.edgeHint.setAlpha(0.85);
+    this.edgeHint.setTint(0xffe08a);
+    this.edgeMark = this.add.graphics();
+    this.edgeMark.setVisible(false);
     const markerOrigin = standinOrigin('tile_marker');
     this.marker = this.add.sprite(0, 0, 'tile_marker');
     this.marker.setOrigin(markerOrigin.x, markerOrigin.y);
@@ -490,6 +530,13 @@ export class GameScene extends Phaser.Scene {
 
   private layoutCamera(): void {
     const cam = this.cameras.main;
+    const parentW = Math.max(1, this.scale.width);
+    const parentH = Math.max(1, this.scale.height);
+    const viewW = Math.min(parentW, FOLLOW_MAX_W);
+    const viewH = Math.min(parentH, FOLLOW_MAX_H);
+    const vx = Math.round((parentW - viewW) / 2);
+    const vy = Math.round((parentH - viewH) / 2);
+    cam.setViewport(vx, vy, viewW, viewH);
     cam.setZoom(ZOOM);
     cam.roundPixels = true;
     const top = document.getElementById('top-bar');
@@ -627,7 +674,7 @@ export class GameScene extends Phaser.Scene {
     if (result.popup) this.chopTarget = prop.id;
     this.playPose('chop');
     const at = tileToWorld(prop.tx, prop.ty);
-    this.sprayChips(at.x, at.y - 6, 'wood');
+    this.sprayChips(at.x, at.y - 14, 'wood');
     this.cameras.main.shake(120, 0.0028);
     if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
     this.afterChange();
@@ -896,7 +943,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (id === 'flip') {
       if (this.placing !== 'wall' && this.placing !== 'doorway') return;
-      const turned = rotateWall(this.state.pieces, this.ghostAnchor, this.ghostEdge);
+      const turned = rotateWall(this.state.pieces, this.ghostAnchor, this.ghostEdge, { x: this.px, y: this.py });
       this.ghostAnchor = turned.tile;
       this.ghostEdge = turned.edge;
       this.aimFromGhost();
@@ -1121,8 +1168,12 @@ export class GameScene extends Phaser.Scene {
 
   private endPlace(): void {
     this.placing = null;
+    this.approach = null;
+    this.approachStill = 0;
     this.handHatchet();
     this.ghost?.setVisible(false);
+    this.edgeHint?.setVisible(false);
+    this.edgeMark?.setVisible(false);
     this.cameras.main.startFollow(this.player, true, 0.18, 0.18);
     this.layoutCamera();
     this.paintHud(true);
@@ -1142,7 +1193,111 @@ export class GameScene extends Phaser.Scene {
     const step = dampStep(shifted.x - origin.x, shifted.y - origin.y, 0.45, 8);
     this.aimX += step.x;
     this.aimY += step.y;
+    const before = `${this.ghostAnchor.tx},${this.ghostAnchor.ty},${this.ghostEdge}`;
     this.snapAim();
+    const after = `${this.ghostAnchor.tx},${this.ghostAnchor.ty},${this.ghostEdge}`;
+    if (before === after && (this.placing === 'wall' || this.placing === 'doorway')) {
+      const mag = Math.hypot(step.x, step.y) || 1;
+      this.shove = { x: (step.x / mag) * 5, y: (step.y / mag) * 5, until: this.time.now + 180 };
+      this.showEdgeHint();
+    } else {
+      this.edgeHint?.setVisible(false);
+      this.edgeMark?.clear();
+      this.edgeMark?.setVisible(false);
+    }
+  }
+
+  /** Gold ghost on the edge this drag would snap to, before the snap actually happens. */
+  private showEdgeHint(): void {
+    const hint = this.edgeHint;
+    if (!hint || (this.placing !== 'wall' && this.placing !== 'doorway')) return;
+    const next = edgeAhead(this.state.pieces, this.ghostAnchor, this.ghostEdge, this.aimX, this.aimY);
+    if (!next) {
+      hint.setVisible(false);
+      return;
+    }
+    const pose = this.piecePose(this.placing, { tx: next.tile.tx, ty: next.tile.ty, edge: next.edge }, 'ok');
+    hint.setTexture('world', pose.key);
+    hint.setOrigin(pose.ox, pose.oy);
+    hint.setPosition(Math.round(pose.x), Math.round(pose.y));
+    hint.setDepth(19990);
+    hint.setAlpha(0.9);
+    hint.setTint(0xffe08a);
+    hint.setVisible(true);
+    const mark = this.edgeMark;
+    if (!mark) return;
+    mark.clear();
+    mark.lineStyle(4, 0xffe08a, 1);
+    mark.strokeEllipse(pose.x, pose.y - 2, 34, 16);
+    mark.lineStyle(2, 0xfff6d0, 1);
+    mark.strokeEllipse(pose.x, pose.y - 2, 22, 10);
+    mark.setDepth(19980);
+    mark.setVisible(true);
+  }
+
+  private stepGhostShove(): void {
+    const ghost = this.ghost;
+    if (!ghost?.visible) return;
+    const left = this.shove.until - this.time.now;
+    if (left <= 0) return;
+    const t = Math.max(0, left / 180);
+    ghost.setPosition(this.ghostHome.x + this.shove.x * t, this.ghostHome.y + this.shove.y * t);
+  }
+
+  private willWalkCloser(kind: PieceKind, tile: Tile, edge: EdgeName, reason: string): boolean {
+    if (kind !== 'wall' && kind !== 'doorway') return false;
+    if (reason !== "Can't reach that spot") return false;
+    return pieceSpot(kind, tile, edge, this.state).ok;
+  }
+
+  private stepApproach(dt: number): void {
+    const job = this.approach;
+    if (!job || !this.placing) {
+      this.approach = null;
+      return;
+    }
+    const anchor = pieceAnchor(job.kind, job.tile, job.edge);
+    if (inReachOf(this.px, this.py, anchor, BUILD_REACH)) {
+      this.approach = null;
+      this.approachStill = 0;
+      this.confirmPlace();
+      return;
+    }
+    const dx = job.x - this.px;
+    const dy = job.y - this.py;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 3) {
+      this.approach = null;
+      this.setTip("Can't reach that spot");
+      this.refreshGhost();
+      return;
+    }
+    const step = Math.min(dist, 104 * dt);
+    const next = resolveMove(
+      this.px,
+      this.py,
+      (dx / dist) * step,
+      (dy / dist) * step,
+      bodiesFor(this.state),
+      segmentsFor(this.state.pieces),
+    );
+    const moved = Math.hypot(next.x - this.px, next.y - this.py);
+    this.approachStill = moved < 0.15 ? this.approachStill + 1 : 0;
+    if (this.approachStill > 20) {
+      this.approach = null;
+      this.approachStill = 0;
+      this.setTip("Can't reach that spot");
+      this.refreshGhost();
+      return;
+    }
+    const facing = facingFromVector(dx, dy, this.state.facing);
+    if (facing !== this.state.facing) this.state = { ...this.state, facing };
+    if (this.pose !== 'walk') {
+      this.pose = 'walk';
+      this.poseUntil = 0;
+      this.showPose('walk');
+    }
+    this.placeFeet(next.x, next.y);
   }
 
   /** A tap lands on a nearby edge or the next tile. A tap across the island does nothing. */
@@ -1208,7 +1363,8 @@ export class GameScene extends Phaser.Scene {
   private ghostPose(): { x: number; y: number; key: string; ox: number; oy: number; tall: boolean } {
     if (!this.placing) return { x: 0, y: 0, key: 'twig_foundation_ghost_ok', ox: 0.5, oy: 0.73, tall: false };
     const spot = placementVerdict(this.placing, this.ghostAnchor, this.ghostEdge, this.state, { x: this.px, y: this.py });
-    const ghost = spot.ok ? 'ok' : 'bad';
+    const walk = this.willWalkCloser(this.placing, this.ghostAnchor, this.ghostEdge, spot.reason);
+    const ghost = spot.ok || walk ? 'ok' : 'bad';
     const pose = this.piecePose(this.placing, { tx: this.ghostAnchor.tx, ty: this.ghostAnchor.ty, edge: this.ghostEdge }, ghost);
     return pose;
   }
@@ -1217,18 +1373,20 @@ export class GameScene extends Phaser.Scene {
     const sprite = this.ghost;
     if (!sprite || !this.placing) return;
     const spot = placementVerdict(this.placing, this.ghostAnchor, this.ghostEdge, this.state, { x: this.px, y: this.py });
+    const walk = this.willWalkCloser(this.placing, this.ghostAnchor, this.ghostEdge, spot.reason);
     const pose = this.ghostPose();
     sprite.setTexture('world', pose.key);
     sprite.setOrigin(pose.ox, pose.oy);
     sprite.setFlipX(false);
-    sprite.setAlpha(1);
     sprite.clearTint();
+    sprite.setAlpha(1);
     sprite.setPosition(Math.round(pose.x), Math.round(pose.y));
+    this.ghostHome = { x: sprite.x, y: sprite.y };
     sprite.setDepth(20000);
     sprite.setVisible(true);
     this.keepGhostInView(pose, pose.tall);
-    this.placeValid = spot.ok;
-    this.placeHint = spot.reason;
+    this.placeValid = spot.ok || walk;
+    this.placeHint = walk ? "He'll walk closer. Tap Confirm." : spot.reason;
     if (this.state.tip !== this.placeHint) this.setTip(this.placeHint);
     else this.paintHud(false);
   }
@@ -1240,10 +1398,24 @@ export class GameScene extends Phaser.Scene {
     const edge = this.ghostEdge;
     const spot = placementVerdict(kind, tile, edge, this.state, { x: this.px, y: this.py });
     if (!spot.ok) {
+      if (this.willWalkCloser(kind, tile, edge, spot.reason) && !this.approach) {
+        const anchor = pieceAnchor(kind, tile, edge);
+        const stand = approachBuild(anchor, { x: this.px, y: this.py }, this.state);
+        if (stand) {
+          this.approach = { x: stand.x, y: stand.y, kind, tile, edge };
+          this.approachStill = 0;
+          this.setTip("He'll walk closer.");
+          return;
+        }
+      }
+      if (this.approach) return;
       this.setTip(spot.reason);
       this.refreshGhost();
       return;
     }
+    this.approach = null;
+    this.approachStill = 0;
+    this.edgeHint?.setVisible(false);
     this.endPlace();
     this.pending = { kind, tile, edge };
     this.finishPlacement();
@@ -1293,12 +1465,12 @@ export class GameScene extends Phaser.Scene {
       const sprite = this.add.sprite(x, y, 'world', frame);
       this.applyAtlas(sprite, frame);
       sprite.setDepth(32000);
-      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2;
-      const speed = 18 + Math.random() * 26;
+      sprite.setTint(0xfff6d2);
+      const pop = 40 + Math.random() * 18;
       this.chips.push({
         sprite,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
+        vx: (Math.random() - 0.5) * 18,
+        vy: -pop,
         life: 0,
       });
     }
@@ -1308,11 +1480,11 @@ export class GameScene extends Phaser.Scene {
     for (let i = this.chips.length - 1; i >= 0; i--) {
       const chip = this.chips[i];
       chip.life += dt;
-      chip.vy += 48 * dt;
+      chip.vy += 28 * dt;
       chip.sprite.x += chip.vx * dt;
       chip.sprite.y += chip.vy * dt;
-      chip.sprite.setAlpha(Math.max(0, 1 - chip.life / 0.6));
-      if (chip.life < 0.6) continue;
+      chip.sprite.setAlpha(chip.life < 0.32 ? 1 : Math.max(0, (0.5 - chip.life) / 0.18));
+      if (chip.life < 0.5) continue;
       chip.sprite.destroy();
       this.chips.splice(i, 1);
     }

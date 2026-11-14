@@ -1,7 +1,7 @@
 import { WOOD_DOOR, WOOD_FLOOR, WOOD_FOUNDATION, WOOD_WALL } from './constants';
 import { tileToWorld } from './iso';
 import { groundAt, inBounds, propAt } from './map';
-import { BUILD_REACH, inReachOf } from './move';
+import { BUILD_REACH, bodiesFor, canStand, inReachOf, segmentsFor } from './move';
 import { isFelled, type TreeMark } from './trees';
 import type { EdgeName, GameState, Piece, PieceKind, Tile } from './types';
 
@@ -56,34 +56,124 @@ export function oppositeEdge(edge: EdgeName): EdgeName {
   return 'sw';
 }
 
+function foundationBase(pieces: Piece[], tile: Tile, edge: EdgeName): { tile: Tile; edge: EdgeName } {
+  if (hasFoundation(pieces, tile.tx, tile.ty)) return { tile, edge };
+  const other = across(tile.tx, tile.ty, edge);
+  if (hasFoundation(pieces, other.tx, other.ty)) return { tile: other, edge: oppositeEdge(edge) };
+  return { tile, edge };
+}
+
+function openEdges(pieces: Piece[], tile: Tile, edge: EdgeName): EdgeName[] {
+  const start = EDGES.indexOf(edge);
+  const from = start < 0 ? 0 : start;
+  const open: EdgeName[] = [];
+  for (let step = 1; step <= EDGES.length; step++) {
+    const candidate = EDGES[(from + step) % EDGES.length];
+    if (!socketTaken(pieces, tile.tx, tile.ty, candidate)) open.push(candidate);
+  }
+  return open;
+}
+
+function edgeInReach(tile: Tile, edge: EdgeName, feet: { x: number; y: number }): boolean {
+  return inReachOf(feet.x, feet.y, pieceAnchor('wall', tile, edge), BUILD_REACH);
+}
+
 /**
  * Next edge around the foundation under this ghost.
- * An edge that already holds a wall or doorway is skipped.
+ * Built edges are skipped. When he can reach any open edge, the others are skipped too.
+ * `reachable` is false only when every open edge is out of reach (Confirm walks him closer).
  * `open` is false only when every edge of that foundation is taken.
  */
 export function rotateWall(
   pieces: Piece[],
   tile: Tile,
   edge: EdgeName,
-): { tile: Tile; edge: EdgeName; open: boolean } {
-  let base = tile;
-  let current = edge;
-  if (!hasFoundation(pieces, tile.tx, tile.ty)) {
-    const other = across(tile.tx, tile.ty, edge);
-    if (hasFoundation(pieces, other.tx, other.ty)) {
-      base = other;
-      current = oppositeEdge(edge);
-    }
+  feet?: { x: number; y: number },
+): { tile: Tile; edge: EdgeName; open: boolean; reachable: boolean } {
+  const base = foundationBase(pieces, tile, edge);
+  const open = openEdges(pieces, base.tile, base.edge);
+  if (open.length === 0) {
+    const start = EDGES.indexOf(base.edge);
+    const from = start < 0 ? 0 : start;
+    return {
+      tile: base.tile,
+      edge: EDGES[(from + 1) % EDGES.length],
+      open: false,
+      reachable: false,
+    };
   }
-  const start = EDGES.indexOf(current);
+  const near = feet ? open.filter((candidate) => edgeInReach(base.tile, candidate, feet)) : open;
+  const pool = near.length > 0 ? near : open;
+  const start = EDGES.indexOf(base.edge);
   const from = start < 0 ? 0 : start;
+  let next = pool[0];
   for (let step = 1; step <= EDGES.length; step++) {
     const candidate = EDGES[(from + step) % EDGES.length];
-    if (!socketTaken(pieces, base.tx, base.ty, candidate)) {
-      return { tile: base, edge: candidate, open: true };
+    if (pool.includes(candidate)) {
+      next = candidate;
+      break;
     }
   }
-  return { tile: base, edge: EDGES[(from + 1) % EDGES.length], open: false };
+  return { tile: base.tile, edge: next, open: true, reachable: !feet || near.length > 0 };
+}
+
+/** The open edge a small drag is heading toward, before it is close enough to snap. */
+export function edgeAhead(
+  pieces: Piece[],
+  tile: Tile,
+  edge: EdgeName,
+  aimX: number,
+  aimY: number,
+): { tile: Tile; edge: EdgeName } | null {
+  const here = pieceAnchor('wall', tile, edge);
+  const dx = aimX - here.x;
+  const dy = aimY - here.y;
+  const aim = Math.hypot(dx, dy);
+  if (aim < 0.8) return null;
+  let best: { tile: Tile; edge: EdgeName } | null = null;
+  let bestScore = 0.3;
+  for (const piece of pieces) {
+    if (piece.kind !== 'foundation') continue;
+    const base = { tx: piece.tx, ty: piece.ty };
+    for (const candidate of EDGES) {
+      if (base.tx === tile.tx && base.ty === tile.ty && candidate === edge) continue;
+      if (socketTaken(pieces, base.tx, base.ty, candidate)) continue;
+      const at = pieceAnchor('wall', base, candidate);
+      const vx = at.x - here.x;
+      const vy = at.y - here.y;
+      const len = Math.hypot(vx, vy);
+      if (len < 4 || len > 40) continue;
+      const dot = (dx * vx + dy * vy) / (aim * len);
+      if (dot > bestScore) {
+        bestScore = dot;
+        best = { tile: base, edge: candidate };
+      }
+    }
+  }
+  return best;
+}
+
+/** A stand within build reach of an anchor, biased toward where he already is. */
+export function approachBuild(
+  anchor: { x: number; y: number },
+  feet: { x: number; y: number },
+  state: Pick<GameState, 'trees' | 'pieces'>,
+): { x: number; y: number } | null {
+  if (inReachOf(feet.x, feet.y, anchor, BUILD_REACH)) return { x: feet.x, y: feet.y };
+  const bodies = bodiesFor(state);
+  const walls = segmentsFor(state.pieces);
+  const base = Math.atan2(feet.y - anchor.y, feet.x - anchor.x);
+  for (const dist of [32, 46, 60, 72]) {
+    for (let i = 0; i < 16; i++) {
+      const side = i % 2 === 0 ? 1 : -1;
+      const angle = base + side * Math.ceil(i / 2) * (Math.PI / 16);
+      const x = anchor.x + Math.cos(angle) * dist;
+      const y = anchor.y + Math.sin(angle) * dist;
+      if (!inReachOf(x, y, anchor, BUILD_REACH - 6)) continue;
+      if (canStand(x, y, bodies, walls)) return { x, y };
+    }
+  }
+  return null;
 }
 
 /** Closest foundation edge to a world point, ignoring edges farther than maxDist. */

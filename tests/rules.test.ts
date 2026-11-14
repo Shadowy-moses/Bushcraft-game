@@ -15,6 +15,7 @@ describe('wood and the hatchet', () => {
     const sticks = gather(beside, 'item_sticks-8-3');
     expect(sticks.ok).toBe(true);
     expect(sticks.popup).toBe('+1 Wood');
+    expect(sticks.message).toBe('+1 wood (stick). Trees give more.');
     expect(sticks.state.inventory.wood).toBe(1);
 
     const stone = gather(beside, 'item_stone-8-4');
