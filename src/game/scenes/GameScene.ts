@@ -78,7 +78,9 @@ interface Chip {
   sprite: Phaser.GameObjects.Sprite;
   vx: number;
   vy: number;
+  spin: number;
   life: number;
+  ground: number;
 }
 
 interface PendingPlace {
@@ -109,7 +111,7 @@ declare global {
       confirmPlace: () => void;
       occlude: () => { key: string; alpha: number }[];
       chips: () => number;
-      chipAt: () => { x: number; y: number; s: number; a: number }[];
+      chipAt: () => { x: number; y: number; s: number; a: number; sx: number; sy: number }[];
       zoom: () => { zoom: number; viewW: number; viewH: number };
       hint: () => boolean;
       look: () => {
@@ -393,13 +395,23 @@ export class GameScene extends Phaser.Scene {
           .filter(([, sprite]) => sprite.alpha < 0.95)
           .map(([key, sprite]) => ({ key, alpha: sprite.alpha })),
       chips: () => this.chips.length,
-      chipAt: () =>
-        this.chips.map((chip) => ({
-          x: Math.round(chip.sprite.x),
-          y: Math.round(chip.sprite.y),
-          s: chip.sprite.scaleX,
-          a: chip.sprite.alpha,
-        })),
+      chipAt: () => {
+        const camera = this.cameras.main;
+        const m = (camera as unknown as { matrix: { matrix: number[] } }).matrix.matrix;
+        const rect = this.game.canvas.getBoundingClientRect();
+        return this.chips.map((chip) => {
+          const x = (chip.sprite.x - camera.scrollX) * m[0] + (chip.sprite.y - camera.scrollY) * m[2] + m[4];
+          const y = (chip.sprite.x - camera.scrollX) * m[1] + (chip.sprite.y - camera.scrollY) * m[3] + m[5];
+          return {
+            x: Math.round(chip.sprite.x),
+            y: Math.round(chip.sprite.y),
+            s: chip.sprite.scaleX,
+            a: chip.sprite.alpha,
+            sx: Math.round(rect.left + x),
+            sy: Math.round(rect.top + y),
+          };
+        });
+      },
       zoom: () => ({
         zoom: this.cameras.main.zoom,
         viewW: this.cameras.main.width,
@@ -734,7 +746,7 @@ export class GameScene extends Phaser.Scene {
     if (result.popup) this.chopTarget = prop.id;
     this.playPose('chop');
     const at = tileToWorld(prop.tx, prop.ty);
-    this.sprayChips(at.x, at.y - 14, 'wood');
+    this.sprayChips(at.x, at.y, 'wood');
     this.cameras.main.shake(120, 0.0028);
     if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
     this.afterChange();
@@ -772,7 +784,7 @@ export class GameScene extends Phaser.Scene {
     this.faceTile(prop.tx, prop.ty);
     this.playPose('strike');
     const at = tileToWorld(prop.tx, prop.ty);
-    this.sprayChips(at.x, at.y - 8, 'stone');
+    this.sprayChips(at.x, at.y, 'stone');
     this.cameras.main.shake(90, 0.0022);
     if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
     this.afterChange();
@@ -789,7 +801,7 @@ export class GameScene extends Phaser.Scene {
     this.faceTile(prop.tx, prop.ty);
     this.playPose('strike');
     const at = tileToWorld(prop.tx, prop.ty);
-    this.sprayChips(at.x, at.y - 10, 'stone');
+    this.sprayChips(at.x, at.y, 'stone');
     if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
     this.afterChange();
   }
@@ -1643,23 +1655,25 @@ export class GameScene extends Phaser.Scene {
 
   private sprayChips(x: number, y: number, kind: 'wood' | 'stone'): void {
     const frames = kind === 'wood' ? ['wood_chip_0', 'wood_chip_1', 'wood_chip_2'] : ['stone_chip_0', 'stone_chip_1'];
-    const count = kind === 'wood' ? 7 : 5;
+    const count = 4;
     for (let i = 0; i < count; i++) {
-      const frame = frames[i % frames.length];
+      const frame = frames[Math.floor(Math.random() * frames.length)];
       if (!this.textures.exists('world') || !this.textures.get('world').has(frame)) continue;
-      const sprite = this.add.sprite(x, y, 'world', frame);
+      const side = (Math.random() - 0.5) * 18;
+      const along = (Math.random() - 0.5) * 8;
+      const sprite = this.add.sprite(x + side, y + along, 'world', frame);
       this.applyAtlas(sprite, frame);
-      sprite.setScale(2);
-      sprite.setDepth(40000);
-      sprite.setTint(0xffffff);
-      const spread = i / (count - 1);
-      const angle = -Math.PI * 0.95 + spread * Math.PI * 0.9;
-      const pop = 90 + Math.random() * 40;
+      sprite.setScale(1.25 + Math.random() * 0.25);
+      sprite.setDepth(depthFor(y + along, 40));
+      sprite.setAngle((Math.random() - 0.5) * 70);
+      const pop = 34 + Math.random() * 40;
       this.chips.push({
         sprite,
-        vx: Math.cos(angle) * pop,
-        vy: Math.sin(angle) * pop * 0.55,
+        vx: side * 0.55 + (Math.random() - 0.5) * 8,
+        vy: -pop,
+        spin: (Math.random() - 0.5) * 140,
         life: 0,
+        ground: y + 4,
       });
     }
   }
@@ -1668,9 +1682,15 @@ export class GameScene extends Phaser.Scene {
     for (let i = this.chips.length - 1; i >= 0; i--) {
       const chip = this.chips[i];
       chip.life += dt;
-      chip.vy += 28 * dt;
+      if (chip.sprite.y < chip.ground) chip.vy += 280 * dt;
       chip.sprite.x += chip.vx * dt;
       chip.sprite.y += chip.vy * dt;
+      if (chip.sprite.y > chip.ground) {
+        chip.sprite.y = chip.ground;
+        chip.vy = 0;
+        chip.vx *= 0.5;
+      }
+      chip.sprite.angle += chip.spin * dt;
       chip.sprite.setAlpha(chip.life < 0.32 ? 1 : Math.max(0, (0.5 - chip.life) / 0.18));
       if (chip.life < 0.5) continue;
       chip.sprite.destroy();
@@ -1706,15 +1726,15 @@ export class GameScene extends Phaser.Scene {
 
   private popup(message: string, tx: number, ty: number): void {
     const pos = tileToWorld(tx, ty);
-    const text = this.add.text(pos.x, pos.y - 28, message, {
+    const text = this.add.text(pos.x, pos.y - 46, message, {
       fontFamily: '"Courier New", ui-monospace, monospace',
       fontSize: '11px',
       color: '#f4ecda',
       stroke: '#1a1420',
-      strokeThickness: 3,
+      strokeThickness: 4,
     });
     text.setOrigin(0.5, 1);
-    text.setDepth(30000);
+    text.setDepth(50000);
     this.floaters.push({ text, life: 0, y: text.y });
   }
 
