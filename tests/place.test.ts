@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { blocksStep, dampStep, floorSpot, foundationSpot, nearestSocket, pieceFrame, placementVerdict, rotateWall, wallSpot } from '../src/game/build';
+import { approachBuild, blocksStep, dampStep, edgeAhead, floorSpot, foundationSpot, nearestSocket, pieceAnchor, pieceFrame, placementVerdict, rotateWall, wallSpot } from '../src/game/build';
+import { BUILD_REACH, inReachOf } from '../src/game/move';
 import { tileToWorld } from '../src/game/iso';
 import { findPath } from '../src/game/path';
 import { initialState } from '../src/game/rules';
-import type { Piece } from '../src/game/types';
+import type { EdgeName, Piece } from '../src/game/types';
 
 describe('building on the block', () => {
   it('lays the first foundation on clear ground and snaps the next one to it', () => {
@@ -109,6 +110,35 @@ describe('building on the block', () => {
       { kind: 'doorway', tx: 7, ty: 3, edge: 'nw' },
     ] as Piece[];
     expect(rotateWall(full, tile, 'se').open).toBe(false);
+  });
+
+  it('only cycles edges he can reach, and still offers one when he must walk in', () => {
+    const pieces = [{ kind: 'foundation', tx: 7, ty: 3, edge: 'se' } as Piece];
+    const tile = { tx: 7, ty: 3 };
+    const feet = { x: -4, y: 114 };
+    const seen = new Set<string>();
+    let edge: EdgeName = 'se';
+    for (let i = 0; i < 6; i++) {
+      const turned = rotateWall(pieces, tile, edge, feet);
+      expect(turned.open, turned.edge).toBe(true);
+      expect(turned.reachable, turned.edge).toBe(true);
+      expect(inReachOf(feet.x, feet.y, pieceAnchor('wall', turned.tile, turned.edge), BUILD_REACH)).toBe(true);
+      seen.add(turned.edge);
+      edge = turned.edge as EdgeName;
+    }
+    expect(seen.has('ne')).toBe(false);
+    expect(seen.has('se')).toBe(false);
+    const far = rotateWall(pieces, tile, 'se', { x: -220, y: 80 });
+    expect(far.reachable).toBe(false);
+    expect(far.open).toBe(true);
+    const anchor = pieceAnchor('wall', tile, 'sw');
+    const stand = approachBuild(anchor, { x: anchor.x - 140, y: anchor.y + 30 }, { ...initialState(), pieces });
+    expect(stand).not.toBeNull();
+    expect(inReachOf(stand!.x, stand!.y, anchor, BUILD_REACH)).toBe(true);
+    const here = pieceAnchor('wall', tile, 'se');
+    const toward = pieceAnchor('wall', tile, 'ne');
+    const hint = edgeAhead(pieces, tile, 'se', here.x + (toward.x - here.x) * 0.3, here.y + (toward.y - here.y) * 0.3);
+    expect(hint?.edge).toBe('ne');
   });
 
   it('keeps a short drag on the same tile and snaps a wall to a nearby edge', () => {

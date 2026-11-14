@@ -1,7 +1,13 @@
 export const TILE_W = 32;
 export const TILE_H = 16;
-/** Integer camera zoom so the pixels stay crisp. The HTML HUD is not scaled with it. */
+/**
+ * Integer follow zoom. Wide windows keep this zoom and crop the view,
+ * so the camera stays on him and the minimap is the overview.
+ */
 export const ZOOM = 3;
+/** Largest on-screen follow window. Bigger displays letterbox instead of zooming out. */
+export const FOLLOW_MAX_W = 480;
+export const FOLLOW_MAX_H = 900;
 export const COLS = 12;
 export const ROWS = 12;
 

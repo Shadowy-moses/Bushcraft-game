@@ -102,7 +102,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
         energy,
         picked,
       },
-      'A stick. Real timber comes from a tree.',
+      '+1 wood (stick). Trees give more.',
       '+1 Wood',
     );
   }
