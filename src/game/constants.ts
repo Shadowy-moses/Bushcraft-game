@@ -30,8 +30,6 @@ export const CHOP_ENERGY = 1;
  * See ROCK_HITS in stone.ts. A stone hut is about twice the stamina of a twig hut.
  */
 export const STRIKE_ENERGY = 2;
-/** Loose rocks knapped into the hammerstone. */
-export const HAMMERSTONE_ROCKS = 2;
 export const BUILD_ENERGY = 6;
 
 export const WOOD_FOUNDATION = 10;

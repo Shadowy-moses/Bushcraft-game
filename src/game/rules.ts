@@ -3,7 +3,6 @@ import {
   BUILD_ENERGY,
   CHOP_ENERGY,
   GATHER_ENERGY,
-  HAMMERSTONE_ROCKS,
   PLAYER_START,
   START_ENERGY,
   START_MINUTES,
@@ -14,7 +13,7 @@ import { OPENING_TIP } from './copy';
 import { clamp, tileToWorld } from './iso';
 import { inReach } from './move';
 import { propAt, propById } from './map';
-import { flakeOnLastStrike, ROCK_HITS, stoneFromStrike } from './stone';
+import { CORE_KNAPS, flakesFromKnap, ROCK_HITS, stoneFromStrike } from './stone';
 import { TREE_HITS, isFelled, regrowTrees, woodFromTree } from './trees';
 import type { ActionResult, EdgeName, GameState, Inventory, Material, Piece, PieceKind } from './types';
 
@@ -37,6 +36,7 @@ export function initialState(): GameState {
     pieces: [],
     trees: {},
     rocks: {},
+    cores: {},
     picked: {},
     outcome: 'playing',
     tip: OPENING_TIP,
@@ -110,16 +110,19 @@ export function gather(state: GameState, id: string, free = false): ActionResult
       '+1 Wood',
     );
   }
-  if (node.gather === 'rocks') {
+  if (node.gather === 'cobble') {
+    if (state.inventory.hammerstone) {
+      return ok({ ...state, energy, picked }, 'You already carry a hammerstone.');
+    }
     return ok(
       {
         ...state,
-        inventory: { ...state.inventory, rocks: state.inventory.rocks + 1 },
+        tool: 'hammerstone',
+        inventory: { ...state.inventory, hammerstone: true },
         energy,
         picked,
       },
-      'A loose rock.',
-      '+1 rock',
+      'A hard, round cobble. Good hammerstone.',
     );
   }
   return ok(
@@ -189,26 +192,6 @@ export function placePiece(
   );
 }
 
-export function knapHammerstone(state: GameState): ActionResult {
-  if (state.inventory.hammerstone) return fail(state, 'You already have a hammerstone.');
-  if (state.inventory.rocks < HAMMERSTONE_ROCKS) {
-    const n = HAMMERSTONE_ROCKS - state.inventory.rocks;
-    return fail(state, `Need ${n} more rock`);
-  }
-  return ok(
-    {
-      ...state,
-      tool: 'hammerstone',
-      inventory: {
-        ...state.inventory,
-        rocks: state.inventory.rocks - HAMMERSTONE_ROCKS,
-        hammerstone: true,
-      },
-    },
-    'A hammerstone. It will break rock.',
-  );
-}
-
 export function strikeRock(state: GameState, id: string): ActionResult {
   const node = propById(id);
   if (!node || node.kind !== 'rock_node') return fail(state, 'That is not a rock worth striking.');
@@ -221,19 +204,42 @@ export function strikeRock(state: GameState, id: string): ActionResult {
   if (state.energy < STRIKE_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
   const hits = prev + 1;
   const gained = stoneFromStrike(hits);
-  const flake = hits >= ROCK_HITS && flakeOnLastStrike(id);
-  const stone = state.inventory.stone + gained;
-  const flakes = state.inventory.flakes + (flake ? 1 : 0);
   const done = hits >= ROCK_HITS;
   return ok(
     {
       ...state,
       energy: state.energy - STRIKE_ENERGY,
-      inventory: { ...state.inventory, stone, flakes },
+      inventory: { ...state.inventory, stone: state.inventory.stone + gained },
       rocks: { ...state.rocks, [id]: hits },
     },
-    done ? (flake ? 'A flint flake in the rubble.' : 'Nothing left but rubble.') : 'The rock chips.',
-    flake ? `+${gained} stone` : `+${gained} stone`,
+    done ? 'Nothing left but rubble.' : 'The rock chips.',
+    `+${gained} stone`,
+  );
+}
+
+/** Knapping a flint core in place. Two strikes, two or three flakes, then it is spent. */
+export function knapFlint(state: GameState, id: string): ActionResult {
+  const node = propById(id);
+  if (!node || node.kind !== 'flint_core') return fail(state, 'That is not a flint core.');
+  if (!state.inventory.hammerstone || state.tool !== 'hammerstone') {
+    return fail(state, 'Put the hammerstone in your hand.');
+  }
+  const prev = state.cores[id] ?? 0;
+  if (prev >= CORE_KNAPS) return fail(state, 'The core is spent.');
+  if (!inReach(state.x, state.y, node.tx, node.ty)) return fail(state, 'Walk up to the core.');
+  if (state.energy < STRIKE_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
+  const hits = prev + 1;
+  const gained = flakesFromKnap(id, hits);
+  const word = gained === 1 ? 'flake' : 'flakes';
+  return ok(
+    {
+      ...state,
+      energy: state.energy - STRIKE_ENERGY,
+      inventory: { ...state.inventory, flakes: state.inventory.flakes + gained },
+      cores: { ...state.cores, [id]: hits },
+    },
+    hits >= CORE_KNAPS ? 'The core is spent.' : 'Flakes spit off the core.',
+    `+${gained} ${word}`,
   );
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { placementVerdict } from '../src/game/build';
 import { CHOP_ENERGY, STRIKE_ENERGY } from '../src/game/constants';
-import { emptyInventory, initialState, knapHammerstone, placePiece, strikeRock, upgradePiece } from '../src/game/rules';
+import { emptyInventory, gather, initialState, knapFlint, placePiece, strikeRock, upgradePiece } from '../src/game/rules';
 import type { GameState } from '../src/game/types';
 import { ROCK_HITS, stoneFromStrike } from '../src/game/stone';
 import { TREE_HITS } from '../src/game/trees';
@@ -39,19 +39,45 @@ describe('stone', () => {
     expect(strikeRock(state, 'rock_node-1-8').message).toMatch(/rubble/i);
   });
 
-  it('knaps a hammerstone from two rocks and upgrades a twig wall', () => {
-    const bare = knapHammerstone(initialState());
-    expect(bare.ok).toBe(false);
-    expect(bare.message).toBe('Need 2 more rock');
-    const knapped = knapHammerstone({
-      ...initialState(),
-      inventory: { ...emptyInventory(), rocks: 2 },
-    });
-    expect(knapped.ok).toBe(true);
-    expect(knapped.state.inventory.hammerstone).toBe(true);
-    expect(knapped.state.inventory.rocks).toBe(0);
-    expect(knapped.state.tool).toBe('hammerstone');
+  it('picks up a creek cobble as the hammerstone, once', () => {
+    const feet = tileToWorld(2, 8);
+    const stood = { ...initialState(), ...feet, tx: 2, ty: 8 };
+    const taken = gather(stood, 'river_cobbles-2-8', true);
+    expect(taken.ok).toBe(true);
+    expect(taken.message).toBe('A hard, round cobble. Good hammerstone.');
+    expect(taken.state.inventory.hammerstone).toBe(true);
+    expect(taken.state.tool).toBe('hammerstone');
+    const again = gather({ ...taken.state, picked: {} }, 'river_cobbles-3-9', true);
+    expect(again.message).toBe('You already carry a hammerstone.');
+    expect(again.state.inventory.hammerstone).toBe(true);
+  });
 
+  it('knaps a flint core in place for two or three flakes, and stone nodes stay flake-free', () => {
+    const feet = tileToWorld(4, 8);
+    let state: GameState = {
+      ...initialState(),
+      ...feet,
+      tx: 4,
+      ty: 8,
+      tool: 'hammerstone',
+      inventory: { ...emptyInventory(), hammerstone: true },
+    };
+    const first = knapFlint(state, 'flint_core-4-9');
+    expect(first.ok).toBe(true);
+    expect(first.popup).toMatch(/^\+1 flake$/);
+    state = first.state;
+    const second = knapFlint(state, 'flint_core-4-9');
+    expect(second.ok).toBe(true);
+    expect(second.state.cores['flint_core-4-9']).toBe(2);
+    expect(second.state.inventory.flakes).toBeGreaterThanOrEqual(2);
+    expect(second.state.inventory.flakes).toBeLessThanOrEqual(3);
+    expect(knapFlint(second.state, 'flint_core-4-9').message).toMatch(/spent/i);
+
+    const rock = strikeRock(atRock(), 'rock_node-1-8');
+    expect(rock.state.inventory.flakes).toBe(0);
+    expect(rock.state.inventory.stone).toBe(1);
+
+    const knapped = gather({ ...initialState(), ...tileToWorld(2, 8), tx: 2, ty: 8 }, 'river_cobbles-2-8', true);
     const built = placePiece(
       { ...knapped.state, inventory: { ...knapped.state.inventory, wood: 10, stone: 5 } },
       'wall',

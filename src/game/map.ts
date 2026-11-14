@@ -114,11 +114,15 @@ export const PROPS: Prop[] = [
   prop('rock_node', 7, 10, false),
   prop('rock_node', 8, 10, false),
 
-  // Loose rocks. Walk over them, the same as sticks. Two knap a hammerstone.
-  prop('item_rock', 3, 9, false, 'rocks'),
-  prop('item_rock', 5, 10, false, 'rocks'),
-  prop('item_rock', 9, 8, false, 'rocks'),
-  prop('item_rock', 6, 10, false, 'rocks'),
+  // Rounded river cobbles. The first one you pick up is the hammerstone.
+  prop('river_cobbles', 2, 8, false, 'cobble'),
+  prop('river_cobbles', 3, 9, false, 'cobble'),
+  prop('river_cobbles', 6, 10, false, 'cobble'),
+
+  // Rare flint nodules. Knap them in place with the hammerstone.
+  prop('flint_core', 4, 9, false),
+  prop('flint_core', 9, 7, false),
+  prop('flint_core', 6, 8, false),
 
   prop('leaf_pile', 4, 6, false, 'leaves'),
   prop('leaf_pile', 6, 6, false, 'leaves'),

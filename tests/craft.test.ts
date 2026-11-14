@@ -21,7 +21,6 @@ describe('the building plan', () => {
     });
     expect(broke.map((recipe) => recipe.id)).toEqual([
       'hatchet',
-      'hammerstone',
       'foundation',
       'wall',
       'doorway',
@@ -31,6 +30,7 @@ describe('the building plan', () => {
       'stone-doorway',
       'stone-floor',
     ]);
+    expect(broke.some((recipe) => recipe.id === 'hammerstone')).toBe(false);
 
     const ready = recipesFor({ ...initialState(), inventory: { ...emptyInventory(), wood: 10 }, energy: 100 });
     expect(ready.find((recipe) => recipe.id === 'foundation')?.enabled).toBe(true);

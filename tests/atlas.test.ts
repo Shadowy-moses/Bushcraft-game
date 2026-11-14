@@ -5,7 +5,7 @@ import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
-    expect(Object.keys(atlas.frames)).toHaveLength(117);
+    expect(Object.keys(atlas.frames)).toHaveLength(122);
     expect(atlas.meta.size).toEqual({ w: 512, h: 314 });
     expect(atlas.meta.image).toBe('spritesheet.png');
     for (const name of ATLAS_FRAMES) {
@@ -72,6 +72,11 @@ describe('artist atlas', () => {
     expect(atlas.frames.item_hammerstone.anchorPx).toEqual({ x: 8, y: 12 });
     expect(atlas.frames.item_flake.frame).toMatchObject({ w: 16, h: 16 });
     expect(atlas.frames.item_rock.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.river_cobbles.frame).toMatchObject({ w: 24, h: 14 });
+    expect(atlas.frames.river_cobbles.anchorPx).toEqual({ x: 12, y: 12 });
+    expect(atlas.frames.flint_core_0.frame).toMatchObject({ w: 20, h: 16 });
+    expect(atlas.frames.flint_core_2.anchorPx).toEqual({ x: 10, y: 15 });
+    expect(atlas.frames.item_flint_core.frame).toMatchObject({ w: 16, h: 16 });
     expect(atlas.frames.stone_wall_ne.frame).toMatchObject({ w: 31, h: 39 });
     expect(atlas.frames.stone_wall_ne.anchorPx).toEqual({ x: 10, y: 36 });
     expect(atlas.frames.woodsman_se_strike_0.anchorPx).toEqual({ x: 16, y: 31 });

@@ -6,7 +6,21 @@ export function stoneFromStrike(hit: number): number {
   return hit >= ROCK_HITS ? 2 : 1;
 }
 
-/** About half the nodes hide a flint flake in the last blow. */
+/** Two knaps walk a core from fresh to spent. The second blow drops 1 or 2 flakes. */
+export const CORE_KNAPS = 2;
+
+export function flakesFromKnap(id: string, hit: number): number {
+  if (hit < CORE_KNAPS) return 1;
+  return flakeOnLastStrike(id) ? 2 : 1;
+}
+
+export function flintFrame(hits: number): string {
+  if (hits >= CORE_KNAPS) return 'flint_core_2';
+  if (hits === 1) return 'flint_core_1';
+  return 'flint_core_0';
+}
+
+/** About half the cores drop an extra flake on the last knap. */
 export function flakeOnLastStrike(id: string): boolean {
   let hash = 2166136261;
   for (let i = 0; i < id.length; i++) {

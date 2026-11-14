@@ -1,5 +1,4 @@
 import { materialCost } from './build';
-import { HAMMERSTONE_ROCKS } from './constants';
 import type { GameState, Material, PieceKind } from './types';
 
 export type CraftCategory = 'tools' | 'construction';
@@ -143,8 +142,6 @@ function pieceRecipe(state: GameState, spec: (typeof PIECES)[number], material: 
 }
 
 export function recipesFor(state: GameState): Recipe[] {
-  const rocks = state.inventory.rocks;
-  const owned = state.inventory.hammerstone;
   return [
     {
       id: 'hatchet',
@@ -158,19 +155,6 @@ export function recipesFor(state: GameState): Recipe[] {
       action: '',
       enabled: false,
       done: true,
-    },
-    {
-      id: 'hammerstone',
-      category: 'tools',
-      name: 'Hammerstone',
-      blurb: 'A cobble knapped for striking. Five blows break a rock node down to rubble, and the stone builds or upgrades a wall.',
-      frame: 'item_hammerstone',
-      ingredients: [{ name: 'Rocks', have: rocks, need: HAMMERSTONE_ROCKS }],
-      seconds: 0,
-      timeLabel: 'From loose rocks',
-      action: 'craft-hammerstone',
-      enabled: !owned && rocks >= HAMMERSTONE_ROCKS,
-      done: owned,
     },
     ...PIECES.map((spec) => pieceRecipe(state, spec, 'twig')),
     ...STONE_PIECES.map((spec) => pieceRecipe(state, spec, 'stone')),

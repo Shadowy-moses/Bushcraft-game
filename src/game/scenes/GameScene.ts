@@ -33,8 +33,8 @@ import { SHADOW_TINT, lightTint, multiplyTint, skyColor } from '../light';
 import { PROPS, groundAt, inBounds, propAt } from '../map';
 import { buildModel, type PlaceModel, type SheetId } from '../model';
 import { BUILD_REACH, bodiesFor, inReach, inReachOf, PICKUP_RADIUS, resolveMove, segmentsFor, travelSpeed } from '../move';
-import { chopTree, gainEnergy, gather, initialState, knapHammerstone, placePiece, strikeRock, tick, upgradePiece } from '../rules';
-import { rockFrame } from '../stone';
+import { chopTree, gainEnergy, gather, initialState, knapFlint, placePiece, strikeRock, tick, upgradePiece } from '../rules';
+import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
@@ -103,12 +103,13 @@ declare global {
       screenOf: (tx: number, ty: number) => { x: number; y: number };
       fill: () => void;
       beginPlace: (kind: PieceKind) => void;
-      ghost: () => { kind: PieceKind | null; tx: number; ty: number; edge: EdgeName; valid: boolean };
+      ghost: () => { kind: PieceKind | null; tx: number; ty: number; edge: EdgeName; valid: boolean; scale: number; marked: boolean };
       moveGhost: (tx: number, ty: number) => void;
       flipGhost: () => void;
       confirmPlace: () => void;
       occlude: () => { key: string; alpha: number }[];
       chips: () => number;
+      chipAt: () => { x: number; y: number; s: number; a: number }[];
       zoom: () => { zoom: number; viewW: number; viewH: number };
       hint: () => boolean;
       look: () => {
@@ -158,6 +159,7 @@ export class GameScene extends Phaser.Scene {
   private edgeMark?: Phaser.GameObjects.Graphics;
   private ghostHome = { x: 0, y: 0 };
   private shove = { x: 0, y: 0, until: 0 };
+  private ghostPulse = 0;
   private approach: { x: number; y: number; kind: PieceKind; tile: Tile; edge: EdgeName } | null = null;
   private approachStill = 0;
   private placeValid = false;
@@ -273,11 +275,11 @@ export class GameScene extends Phaser.Scene {
       const prevX = this.pointer.x;
       const prevY = this.pointer.y;
       this.pointer = { x: pointer.x, y: pointer.y, down: pointer.isDown };
-      if (!this.placing || !pointer.isDown) return;
+      const held = pointer.isDown || pointer.leftButtonDown();
+      if (!this.placing || !held) return;
       const sdx = pointer.x - prevX;
       const sdy = pointer.y - prevY;
       if (sdx === 0 && sdy === 0) return;
-      if (Math.hypot(pointer.x - this.dragX, pointer.y - this.dragY) < 6) return;
       this.draggingGhost = true;
       this.slideGhost(sdx, sdy);
     });
@@ -287,7 +289,7 @@ export class GameScene extends Phaser.Scene {
       this.pointer.down = false;
       this.draggingGhost = false;
       this.edgeHint?.setVisible(false);
-      this.edgeMark?.setVisible(false);
+      this.paintCurrentEdge();
       if (tap) this.tapGhost(pointer);
     });
     this.scale.on('resize', () => {
@@ -383,12 +385,21 @@ export class GameScene extends Phaser.Scene {
         ty: this.ghostAnchor.ty,
         edge: this.ghostEdge,
         valid: this.placeValid,
+        scale: this.ghost?.scaleX ?? 1,
+        marked: Boolean(this.edgeMark?.visible),
       }),
       occlude: () =>
         [...this.buildings.entries()]
           .filter(([, sprite]) => sprite.alpha < 0.95)
           .map(([key, sprite]) => ({ key, alpha: sprite.alpha })),
       chips: () => this.chips.length,
+      chipAt: () =>
+        this.chips.map((chip) => ({
+          x: Math.round(chip.sprite.x),
+          y: Math.round(chip.sprite.y),
+          s: chip.sprite.scaleX,
+          a: chip.sprite.alpha,
+        })),
       zoom: () => ({
         zoom: this.cameras.main.zoom,
         viewW: this.cameras.main.width,
@@ -489,7 +500,13 @@ export class GameScene extends Phaser.Scene {
     for (const prop of PROPS) {
       const pos = tileToWorld(prop.tx, prop.ty);
       const frame =
-        prop.kind === 'rock_node' ? 'rock_node_0' : prop.kind === 'item_rock' ? 'item_rock' : prop.kind;
+        prop.kind === 'rock_node'
+          ? 'rock_node_0'
+          : prop.kind === 'flint_core'
+            ? 'flint_core_0'
+            : prop.kind === 'river_cobbles'
+              ? 'river_cobbles'
+              : prop.kind;
       const sprite =
         prop.kind === 'leaf_pile'
           ? this.add.sprite(pos.x, pos.y, 'leaf_pile')
@@ -561,6 +578,11 @@ export class GameScene extends Phaser.Scene {
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const hits = this.propsAtPoint(world.x, world.y);
     if (this.state.tool === 'hammerstone') {
+      const core = hits.find((prop) => prop.kind === 'flint_core' && inReach(this.px, this.py, prop.tx, prop.ty));
+      if (core) {
+        this.knapAt(core);
+        return;
+      }
       const rock = hits.find((prop) => prop.kind === 'rock_node' && inReach(this.px, this.py, prop.tx, prop.ty));
       if (rock) {
         this.strikeAt(rock);
@@ -661,7 +683,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private removable(kind: PropKind): boolean {
-    return kind === 'item_sticks' || kind === 'item_stone' || kind === 'item_rock' || kind === 'leaf_pile';
+    return kind === 'item_sticks' || kind === 'item_stone' || kind === 'item_rock' || kind === 'river_cobbles' || kind === 'leaf_pile';
   }
 
   private actionable(prop: Prop): boolean {
@@ -675,6 +697,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private useProp(prop: Prop): void {
+    if (prop.kind === 'flint_core') {
+      this.knapAt(prop);
+      return;
+    }
     if (prop.kind === 'rock_node') {
       this.strikeAt(prop);
       return;
@@ -752,6 +778,22 @@ export class GameScene extends Phaser.Scene {
     this.afterChange();
   }
 
+  private knapAt(prop: Prop): void {
+    if ((this.pose === 'chop' || this.pose === 'strike') && this.time.now < this.poseUntil) return;
+    const result = knapFlint(this.state, prop.id);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.state = result.state;
+    this.faceTile(prop.tx, prop.ty);
+    this.playPose('strike');
+    const at = tileToWorld(prop.tx, prop.ty);
+    this.sprayChips(at.x, at.y - 10, 'stone');
+    if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
+    this.afterChange();
+  }
+
   private nearestTwig(): Piece | null {
     let best: Piece | null = null;
     let bestD = Infinity;
@@ -783,6 +825,13 @@ export class GameScene extends Phaser.Scene {
   private useNearest(): void {
     if (this.state.tool === 'hammerstone') {
       const node = this.nearestInReach(false);
+      const core = PROPS.filter((prop) => prop.kind === 'flint_core' && (this.state.cores[prop.id] ?? 0) < 2)
+        .filter((prop) => inReach(this.px, this.py, prop.tx, prop.ty))
+        .sort((a, b) => this.reachDist(a) - this.reachDist(b))[0];
+      if (core) {
+        this.knapAt(core);
+        return;
+      }
       const rock = PROPS.filter((prop) => prop.kind === 'rock_node' && (this.state.rocks[prop.id] ?? 0) < 5)
         .filter((prop) => inReach(this.px, this.py, prop.tx, prop.ty))
         .sort((a, b) => this.reachDist(a) - this.reachDist(b))[0];
@@ -1042,15 +1091,6 @@ export class GameScene extends Phaser.Scene {
       this.openCraft();
       return;
     }
-    if (id === 'craft-hammerstone') {
-      const result = knapHammerstone(this.state);
-      this.setTip(result.message);
-      if (!result.ok) return;
-      this.state = result.state;
-      this.sheet = 'none';
-      this.afterChange();
-      return;
-    }
     if (id.startsWith('place-')) {
       const stone = id.startsWith('place-stone-');
       const kind = (stone ? id.slice('place-stone-'.length) : id.slice('place-'.length)) as PieceKind;
@@ -1063,6 +1103,7 @@ export class GameScene extends Phaser.Scene {
       this.ghostAnchor = turned.tile;
       this.ghostEdge = turned.edge;
       this.aimFromGhost();
+      this.ghostPulse = 1;
       this.refreshGhost();
       return;
     }
@@ -1147,9 +1188,14 @@ export class GameScene extends Phaser.Scene {
 
   private syncRocks(): void {
     for (const view of this.propViews) {
-      if (view.prop.kind !== 'rock_node') continue;
-      const frame = rockFrame(this.state.rocks[view.prop.id] ?? 0);
-      if (view.sprite.frame.name !== frame) this.applyAtlas(view.sprite, frame);
+      if (view.prop.kind === 'rock_node') {
+        const frame = rockFrame(this.state.rocks[view.prop.id] ?? 0);
+        if (view.sprite.frame.name !== frame) this.applyAtlas(view.sprite, frame);
+      }
+      if (view.prop.kind === 'flint_core') {
+        const frame = flintFrame(this.state.cores[view.prop.id] ?? 0);
+        if (view.sprite.frame.name !== frame) this.applyAtlas(view.sprite, frame);
+      }
     }
   }
 
@@ -1320,18 +1366,32 @@ export class GameScene extends Phaser.Scene {
     const step = dampStep(shifted.x - origin.x, shifted.y - origin.y, 0.45, 8);
     this.aimX += step.x;
     this.aimY += step.y;
-    const before = `${this.ghostAnchor.tx},${this.ghostAnchor.ty},${this.ghostEdge}`;
     this.snapAim();
-    const after = `${this.ghostAnchor.tx},${this.ghostAnchor.ty},${this.ghostEdge}`;
-    if (before === after && (this.placing === 'wall' || this.placing === 'doorway')) {
+    if (this.placing === 'wall' || this.placing === 'doorway') {
       const mag = Math.hypot(step.x, step.y) || 1;
-      this.shove = { x: (step.x / mag) * 5, y: (step.y / mag) * 5, until: this.time.now + 180 };
+      this.shove = { x: (step.x / mag) * 8, y: (step.y / mag) * 8, until: this.time.now + 220 };
+      this.ghostPulse = Math.max(this.ghostPulse, 0.7);
       this.showEdgeHint();
-    } else {
-      this.edgeHint?.setVisible(false);
-      this.edgeMark?.clear();
-      this.edgeMark?.setVisible(false);
+      this.paintCurrentEdge();
     }
+  }
+
+  /** Gold ring on the edge the ghost is actually sitting on, for the whole placement. */
+  private paintCurrentEdge(): void {
+    const mark = this.edgeMark;
+    if (!mark || (this.placing !== 'wall' && this.placing !== 'doorway')) {
+      mark?.clear();
+      mark?.setVisible(false);
+      return;
+    }
+    const at = pieceAnchor(this.placing, this.ghostAnchor, this.ghostEdge);
+    mark.clear();
+    mark.lineStyle(4, 0xffe08a, 1);
+    mark.strokeEllipse(at.x, at.y - 2, 36, 16);
+    mark.lineStyle(2, 0xfff6d0, 1);
+    mark.strokeEllipse(at.x, at.y - 2, 24, 10);
+    mark.setDepth(19980);
+    mark.setVisible(true);
   }
 
   /** Gold ghost on the edge this drag would snap to, before the snap actually happens. */
@@ -1351,24 +1411,20 @@ export class GameScene extends Phaser.Scene {
     hint.setAlpha(0.9);
     hint.setTint(0xffe08a);
     hint.setVisible(true);
-    const mark = this.edgeMark;
-    if (!mark) return;
-    mark.clear();
-    mark.lineStyle(4, 0xffe08a, 1);
-    mark.strokeEllipse(pose.x, pose.y - 2, 34, 16);
-    mark.lineStyle(2, 0xfff6d0, 1);
-    mark.strokeEllipse(pose.x, pose.y - 2, 22, 10);
-    mark.setDepth(19980);
-    mark.setVisible(true);
   }
 
   private stepGhostShove(): void {
     const ghost = this.ghost;
-    if (!ghost?.visible) return;
+    if (!ghost?.visible) {
+      if (ghost) ghost.setScale(1);
+      return;
+    }
     const left = this.shove.until - this.time.now;
-    if (left <= 0) return;
-    const t = Math.max(0, left / 180);
-    ghost.setPosition(this.ghostHome.x + this.shove.x * t, this.ghostHome.y + this.shove.y * t);
+    const shoveT = left > 0 ? Math.max(0, left / 220) : 0;
+    ghost.setPosition(this.ghostHome.x + this.shove.x * shoveT, this.ghostHome.y + this.shove.y * shoveT);
+    if (this.ghostPulse > 0) this.ghostPulse = Math.max(0, this.ghostPulse - 0.05);
+    const scale = 1 + 0.34 * this.ghostPulse;
+    ghost.setScale(scale);
   }
 
   private willWalkCloser(kind: PieceKind, tile: Tile, edge: EdgeName, reason: string): boolean {
@@ -1512,6 +1568,7 @@ export class GameScene extends Phaser.Scene {
     this.ghostHome = { x: sprite.x, y: sprite.y };
     sprite.setDepth(20000);
     sprite.setVisible(true);
+    this.paintCurrentEdge();
     this.keepGhostInView(pose, pose.tall);
     this.placeValid = spot.ok || walk;
     this.placeHint = walk ? "He'll walk closer. Tap Confirm." : spot.reason;
@@ -1572,7 +1629,7 @@ export class GameScene extends Phaser.Scene {
   private collectUnderfoot(): void {
     if (!this.started || this.sheet !== 'none' || this.placing) return;
     for (const prop of PROPS) {
-      if (prop.gather !== 'sticks' && prop.gather !== 'stones' && prop.gather !== 'rocks') continue;
+      if (prop.gather !== 'sticks' && prop.gather !== 'stones' && prop.gather !== 'rocks' && prop.gather !== 'cobble') continue;
       if (this.state.picked[prop.id]) continue;
       if (this.reachDist(prop) > PICKUP_RADIUS) continue;
       const result = gather(this.state, prop.id, true);
@@ -1592,13 +1649,16 @@ export class GameScene extends Phaser.Scene {
       if (!this.textures.exists('world') || !this.textures.get('world').has(frame)) continue;
       const sprite = this.add.sprite(x, y, 'world', frame);
       this.applyAtlas(sprite, frame);
-      sprite.setDepth(32000);
-      sprite.setTint(0xfff6d2);
-      const pop = 40 + Math.random() * 18;
+      sprite.setScale(2);
+      sprite.setDepth(40000);
+      sprite.setTint(0xffffff);
+      const spread = i / (count - 1);
+      const angle = -Math.PI * 0.95 + spread * Math.PI * 0.9;
+      const pop = 90 + Math.random() * 40;
       this.chips.push({
         sprite,
-        vx: (Math.random() - 0.5) * 18,
-        vy: -pop,
+        vx: Math.cos(angle) * pop,
+        vy: Math.sin(angle) * pop * 0.55,
         life: 0,
       });
     }

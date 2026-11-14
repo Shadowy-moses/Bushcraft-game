@@ -68,6 +68,7 @@ export function parseSave(raw: string): GameState | null {
       tool?: unknown;
       inventory?: { wood?: unknown; stone?: unknown; flakes?: unknown; rocks?: unknown; hammerstone?: unknown };
       rocks?: unknown;
+      cores?: unknown;
       pieces?: unknown;
       trees?: unknown;
       picked?: unknown;
@@ -117,6 +118,7 @@ export function parseSave(raw: string): GameState | null {
         pieces: save.pieces.map((piece) => ({ ...piece, material: materialOf((piece as Piece).material) })),
         trees: save.trees,
         rocks: (save.rocks as Record<string, number> | undefined) ?? {},
+        cores: (save.cores as Record<string, number> | undefined) ?? {},
         picked: save.picked,
         outcome: 'playing',
         tip: save.tip,

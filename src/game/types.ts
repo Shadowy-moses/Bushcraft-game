@@ -24,7 +24,7 @@ export interface Inventory {
 
 export type Tool = 'hatchet' | 'hammerstone' | 'plan';
 export type Outcome = 'playing' | 'won' | 'lost';
-export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'fiber' | 'tinder' | 'leaves';
+export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 'tinder' | 'leaves';
 
 export interface GameState {
   version: 4;
@@ -45,6 +45,8 @@ export interface GameState {
   trees: Record<string, TreeMark>;
   /** Strikes landed on each rock node. Five leaves rubble. */
   rocks: Record<string, number>;
+  /** Knaps landed on each flint core. Two leaves it spent. */
+  cores: Record<string, number>;
   picked: Record<string, true>;
   outcome: Outcome;
   tip: string;
@@ -65,6 +67,8 @@ export type PropKind =
   | 'item_sticks'
   | 'item_stone'
   | 'item_rock'
+  | 'river_cobbles'
+  | 'flint_core'
   | 'rock_node'
   | 'leaf_pile';
 
