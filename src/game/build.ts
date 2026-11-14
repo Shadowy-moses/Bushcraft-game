@@ -3,7 +3,7 @@ import { tileToWorld } from './iso';
 import { groundAt, inBounds, propAt } from './map';
 import { BUILD_REACH, bodiesFor, canStand, inReachOf, segmentsFor } from './move';
 import { isFelled, type TreeMark } from './trees';
-import type { EdgeName, GameState, Piece, PieceKind, Tile } from './types';
+import type { EdgeName, GameState, Material, Piece, PieceKind, Tile } from './types';
 
 export type SocketEdge = 'se' | 'sw';
 
@@ -15,6 +15,18 @@ export const WOOD_COST: Record<PieceKind, number> = {
   doorway: WOOD_DOOR,
   floor: WOOD_FLOOR,
 };
+
+/** Same counts as twig. The extra effort is in the mining, not a longer shopping list. */
+export const STONE_COST: Record<PieceKind, number> = {
+  foundation: WOOD_FOUNDATION,
+  wall: WOOD_WALL,
+  doorway: WOOD_DOOR,
+  floor: WOOD_FLOOR,
+};
+
+export function materialCost(kind: PieceKind, material: Material = 'twig'): number {
+  return material === 'stone' ? STONE_COST[kind] : WOOD_COST[kind];
+}
 
 export interface Spot {
   ok: boolean;
@@ -237,13 +249,19 @@ export function edgeOffset(edge: EdgeName): { x: number; y: number } {
  * Atlas frame for a piece. Walls and doors share a drawing across parallel edges:
  * ne/sw use the ne face, nw/se use the nw face. Ghost frames are already tinted.
  */
-export function pieceFrame(kind: PieceKind, edge: EdgeName, ghost: 'ok' | 'bad' | null = null): string {
+export function pieceFrame(
+  kind: PieceKind,
+  edge: EdgeName,
+  ghost: 'ok' | 'bad' | null = null,
+  material: Material = 'twig',
+): string {
   const suffix = ghost === 'ok' ? '_ghost_ok' : ghost === 'bad' ? '_ghost_bad' : '';
-  if (kind === 'foundation') return `twig_foundation${suffix}`;
-  if (kind === 'floor') return `twig_floor${suffix}`;
+  const family = material === 'stone' ? 'stone' : 'twig';
+  if (kind === 'foundation') return `${family}_foundation${suffix}`;
+  if (kind === 'floor') return `${family}_floor${suffix}`;
   const face = edge === 'sw' || edge === 'ne' ? 'ne' : 'nw';
-  const base = kind === 'doorway' ? 'twig_door' : 'twig_wall';
-  return `${base}_${face}${suffix}`;
+  const part = kind === 'doorway' ? 'door' : 'wall';
+  return `${family}_${part}_${face}${suffix}`;
 }
 
 /** Screen art for an edge. The two diagonals use different drawings. */
@@ -322,8 +340,13 @@ export function woodShortfall(kind: PieceKind, wood: number): number {
 }
 
 export function woodShortMessage(kind: PieceKind, wood: number): string {
-  const n = woodShortfall(kind, wood);
-  return `Need ${n} more wood`;
+  return materialShortMessage(kind, wood, 'twig');
+}
+
+export function materialShortMessage(kind: PieceKind, have: number, material: Material = 'twig'): string {
+  const n = Math.max(0, materialCost(kind, material) - have);
+  const name = material === 'stone' ? 'stone' : 'wood';
+  return `Need ${n} more ${name}`;
 }
 
 /**
@@ -336,11 +359,13 @@ export function placementVerdict(
   edge: EdgeName,
   state: GameState,
   feet: { x: number; y: number },
+  material: Material = 'twig',
 ): Spot {
   const spot = pieceSpot(kind, tile, edge, state);
   if (!spot.ok) return spot;
-  if (woodShortfall(kind, state.inventory.wood) > 0) {
-    return { ok: false, reason: woodShortMessage(kind, state.inventory.wood) };
+  const have = material === 'stone' ? state.inventory.stone : state.inventory.wood;
+  if (materialCost(kind, material) > have) {
+    return { ok: false, reason: materialShortMessage(kind, have, material) };
   }
   if (!inReachOf(feet.x, feet.y, pieceAnchor(kind, tile, edge), BUILD_REACH)) {
     return { ok: false, reason: "Can't reach that spot" };
@@ -352,11 +377,12 @@ export function suggestPiece(
   state: GameState,
   kind: PieceKind,
   feet?: { x: number; y: number },
+  material: Material = 'twig',
 ): { tile: Tile; edge: EdgeName } {
   const acceptable = (tile: Tile, edge: EdgeName): boolean => {
     if (!pieceSpot(kind, tile, edge, state).ok) return false;
     if (!feet) return true;
-    return placementVerdict(kind, tile, edge, state, feet).ok;
+    return placementVerdict(kind, tile, edge, state, feet, material).ok;
   };
   if (kind === 'wall' || kind === 'doorway') {
     const bases = state.pieces.filter((piece) => piece.kind === 'foundation');
@@ -381,7 +407,7 @@ export function suggestPiece(
           const tile = { tx, ty };
           const edge: EdgeName = 'se';
           if (!pieceSpot(kind, tile, edge, state).ok) continue;
-          if (requireReach && feet && !placementVerdict(kind, tile, edge, state, feet).ok) continue;
+          if (requireReach && feet && !placementVerdict(kind, tile, edge, state, feet, material).ok) continue;
           return { tile, edge };
         }
       }
@@ -405,8 +431,9 @@ export function blocksStep(pieces: Piece[], from: Tile, to: Tile): boolean {
   return there?.kind === 'wall';
 }
 
-export function canAfford(state: GameState, kind: PieceKind): boolean {
-  return state.inventory.wood >= WOOD_COST[kind];
+export function canAfford(state: GameState, kind: PieceKind, material: Material = 'twig'): boolean {
+  const have = material === 'stone' ? state.inventory.stone : state.inventory.wood;
+  return have >= materialCost(kind, material);
 }
 
 export function woodNeed(kind: PieceKind): number {

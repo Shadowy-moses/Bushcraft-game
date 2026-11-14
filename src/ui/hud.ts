@@ -1,10 +1,17 @@
 import { CRAFT_CATEGORIES, placeButtonLabel, type CraftCategory, type Recipe } from '../game/craft';
 import type { HudModel } from '../game/model';
+import type { Tool } from '../game/types';
 import { ICONS } from './icons';
 
 export interface HudHandlers {
   onAction: (id: string) => void;
   onStick?: (x: number, y: number) => void;
+}
+
+function equippedIndex(tool: Tool): number {
+  if (tool === 'hammerstone') return 1;
+  if (tool === 'plan') return 2;
+  return 0;
 }
 
 function esc(value: string): string {
@@ -258,11 +265,11 @@ export class Hud {
     const craft = document.querySelector<HTMLButtonElement>('[data-action="craft-go"]');
     const recipe = this.currentRecipe();
     if (!craft || !recipe) return;
-    const wood = recipe.ingredients.find((item) => item.name === 'Wood');
+    const cost = recipe.ingredients[0];
     const placing = recipe.action.startsWith('place-');
-    if (placing && wood) {
-      craft.textContent = placeButtonLabel(wood.have, wood.need);
-      craft.disabled = wood.have < wood.need;
+    if (placing && cost) {
+      craft.textContent = placeButtonLabel(cost.have, cost.need, cost.name.toLowerCase());
+      craft.disabled = cost.have < cost.need;
       return;
     }
     craft.textContent = 'Craft';
@@ -317,7 +324,7 @@ export class Hud {
     const bar = document.getElementById('hotbar');
     if (!bar || !model) return;
     const signature = `${model.hotbar.map((slot) => slot.frame).join(',')}:${this.frames.size}`;
-    const equipped = model.tool === 'plan' ? 1 : 0;
+    const equipped = equippedIndex(model.tool);
     if (signature !== this.hotbarSig) {
       this.hotbarSig = signature;
       bar.innerHTML = model.hotbar
@@ -486,7 +493,7 @@ export class Hud {
         `,
       )
       .join('');
-    const equipped = model.tool === 'plan' ? 1 : 0;
+    const equipped = equippedIndex(model.tool);
     const slots = model.hotbar
       .map(
         (slot, index) => `

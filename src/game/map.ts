@@ -105,6 +105,21 @@ export const PROPS: Prop[] = [
   prop('item_stone', 5, 5, false, 'stones'),
   prop('item_stone', 7, 7, false, 'stones'),
 
+  // Rock nodes on the creek stones. Five strikes with a hammerstone empty one.
+  prop('rock_node', 1, 8, false),
+  prop('rock_node', 10, 8, false),
+  prop('rock_node', 2, 9, false),
+  prop('rock_node', 9, 9, false),
+  prop('rock_node', 4, 10, false),
+  prop('rock_node', 7, 10, false),
+  prop('rock_node', 8, 10, false),
+
+  // Loose rocks. Walk over them, the same as sticks. Two knap a hammerstone.
+  prop('item_rock', 3, 9, false, 'rocks'),
+  prop('item_rock', 5, 10, false, 'rocks'),
+  prop('item_rock', 9, 8, false, 'rocks'),
+  prop('item_rock', 6, 10, false, 'rocks'),
+
   prop('leaf_pile', 4, 6, false, 'leaves'),
   prop('leaf_pile', 6, 6, false, 'leaves'),
   prop('leaf_pile', 9, 4, false, 'leaves'),

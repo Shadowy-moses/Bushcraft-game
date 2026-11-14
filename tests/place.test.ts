@@ -66,7 +66,7 @@ describe('building on the block', () => {
       ...feet,
       tx: 7,
       ty: 5,
-      inventory: { wood: 20 },
+      inventory: { ...initialState().inventory, wood: 20 },
       pieces: [
         { kind: 'foundation', tx: 7, ty: 3, edge: 'se' },
         { kind: 'wall', tx: 7, ty: 3, edge: 'se' },
@@ -84,7 +84,7 @@ describe('building on the block', () => {
     const feet = tileToWorld(7, 5);
     const here = { ...initialState(), ...feet, tx: 7, ty: 5 };
     expect(placementVerdict('foundation', { tx: 8, ty: 3 }, 'se', here, feet).reason).toBe('Need 10 more wood');
-    const stocked = { ...here, inventory: { wood: 40 } };
+    const stocked = { ...here, inventory: { ...here.inventory, wood: 40 } };
     const far = placementVerdict('foundation', { tx: 1, ty: 8 }, 'se', stocked, feet);
     expect(far.ok).toBe(false);
     expect(far.reason).toBe("Can't reach that spot");

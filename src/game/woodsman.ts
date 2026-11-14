@@ -44,7 +44,7 @@ export function workFacing(facing: Facing): 'se' | 'sw' {
   return facing === 'sw' || facing === 'nw' ? 'sw' : 'se';
 }
 
-export type Pose = 'idle' | 'walk' | 'gather' | 'chop';
+export type Pose = 'idle' | 'walk' | 'gather' | 'chop' | 'strike';
 
 export function poseName(facing: Facing, pose: Pose): string {
   const dir = pose === 'gather' ? workFacing(facing) : facing;
@@ -74,10 +74,10 @@ export function poseClip(
     if (hasAnim('woodsman_walk')) return { kind: 'anim', key: 'woodsman_walk' };
   } else if (pose === 'idle') {
     if (hasAnim(preferred)) return { kind: 'anim', key: preferred };
-  } else if (pose === 'chop') {
+  } else if (pose === 'chop' || pose === 'strike') {
     if (hasAnim(preferred)) return { kind: 'anim', key: preferred };
     if (hasFrame(preferred)) return { kind: 'frame', key: preferred };
-    const borrowed = `woodsman_${workFacing(facing)}_chop`;
+    const borrowed = `woodsman_${workFacing(facing)}_${pose}`;
     if (hasAnim(borrowed)) return { kind: 'anim', key: borrowed };
     if (hasFrame(borrowed)) return { kind: 'frame', key: borrowed };
   } else if (hasAnim(preferred)) {

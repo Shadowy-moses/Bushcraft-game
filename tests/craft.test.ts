@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { hotbarSlots, placeButtonLabel, recipesFor, statusLine } from '../src/game/craft';
-import { initialState } from '../src/game/rules';
+import { emptyInventory, initialState } from '../src/game/rules';
 
 describe('the building plan', () => {
   it('starts with the hatchet equipped and wood in the pack line', () => {
     const slots = hotbarSlots(initialState());
     expect(slots[0]).toMatchObject({ id: 'hatchet', name: 'Hatchet' });
-    expect(slots[1]).toMatchObject({ id: 'plan', name: 'Building plan' });
-    expect(slots[2].count).toBe(0);
+    expect(slots[1]).toMatchObject({ id: 'hammerstone', name: 'Hammerstone' });
+    expect(slots[2]).toMatchObject({ id: 'plan', name: 'Building plan' });
+    expect(slots[3].count).toBe(0);
+    expect(slots[4].count).toBe(0);
   });
 
   it('offers four wood pieces and keeps the hatchet as a tool you already own', () => {
@@ -17,18 +19,29 @@ describe('the building plan', () => {
       action: 'place-foundation',
       enabled: false,
     });
-    expect(broke.map((recipe) => recipe.id)).toEqual(['hatchet', 'foundation', 'wall', 'doorway', 'floor']);
+    expect(broke.map((recipe) => recipe.id)).toEqual([
+      'hatchet',
+      'hammerstone',
+      'foundation',
+      'wall',
+      'doorway',
+      'floor',
+      'stone-foundation',
+      'stone-wall',
+      'stone-doorway',
+      'stone-floor',
+    ]);
 
-    const ready = recipesFor({ ...initialState(), inventory: { wood: 10 }, energy: 100 });
+    const ready = recipesFor({ ...initialState(), inventory: { ...emptyInventory(), wood: 10 }, energy: 100 });
     expect(ready.find((recipe) => recipe.id === 'foundation')?.enabled).toBe(true);
-    const tired = recipesFor({ ...initialState(), inventory: { wood: 10 }, energy: 0 });
+    const tired = recipesFor({ ...initialState(), inventory: { ...emptyInventory(), wood: 10 }, energy: 0 });
     expect(tired.find((recipe) => recipe.id === 'foundation')?.enabled).toBe(true);
     expect(ready.find((recipe) => recipe.id === 'wall')?.enabled).toBe(true);
-    const nine = recipesFor({ ...initialState(), inventory: { wood: 9 }, energy: 100 });
+    const nine = recipesFor({ ...initialState(), inventory: { ...emptyInventory(), wood: 9 }, energy: 100 });
     expect(nine.find((recipe) => recipe.id === 'foundation')?.enabled).toBe(false);
     expect(nine.find((recipe) => recipe.id === 'floor')?.enabled).toBe(true);
     expect(nine.find((recipe) => recipe.id === 'wall')?.enabled).toBe(true);
-    const short = recipesFor({ ...initialState(), inventory: { wood: 4 }, energy: 100 });
+    const short = recipesFor({ ...initialState(), inventory: { ...emptyInventory(), wood: 4 }, energy: 100 });
     expect(short.find((recipe) => recipe.id === 'wall')?.enabled).toBe(false);
   });
 
