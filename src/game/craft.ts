@@ -1,5 +1,6 @@
 import { materialCost } from './build';
 import { TRIPOD_CORDAGE, TRIPOD_WOOD } from './constants';
+import { UPGRADE_NOTE } from './copy';
 import { CORD_FIBER, CORD_SECONDS } from './fiber';
 import type { GameState, Material, PieceKind } from './types';
 
@@ -128,7 +129,7 @@ function pieceRecipe(state: GameState, spec: (typeof PIECES)[number], material: 
     id: material === 'stone' ? `stone-${spec.id}` : spec.id,
     category: 'construction',
     name: spec.name,
-    blurb: spec.blurb,
+    blurb: material === 'stone' ? `${spec.blurb} ${UPGRADE_NOTE}` : spec.blurb,
     frame:
       spec.id === 'foundation'
         ? `${family}_foundation`

@@ -28,7 +28,7 @@ import {
   TRIPOD_WOOD,
   ZOOM,
 } from '../constants';
-import { restingTip } from '../copy';
+import { HATCHET_IDLE, OPENING_TIP, restingTip } from '../copy';
 import { CORD_SECONDS, fiberFrame, isFiberCut } from '../fiber';
 import { clamp, depthFor, tileToWorld, worldToTile } from '../iso';
 import { SHADOW_TINT, lightTint, multiplyTint, skyColor } from '../light';
@@ -53,6 +53,7 @@ import {
 import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
+import { chooseUse, upgradePrompt } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { facingFromVector, mirrorFacing, poseClip, poseName } from '../woodsman';
 import { Hud } from '../../ui/hud';
@@ -496,6 +497,7 @@ export class GameScene extends Phaser.Scene {
         }
         if (this.state.plants !== beforePlants) this.syncRocks();
       }
+      if (!this.resting) this.stepUpgradeHint();
       if (this.resting && this.state.energy >= 100) {
         this.resting = false;
         this.rested = 0;
@@ -830,23 +832,6 @@ export class GameScene extends Phaser.Scene {
     this.afterChange();
   }
 
-  private nearestTwig(): Piece | null {
-    let best: Piece | null = null;
-    let bestD = Infinity;
-    for (const piece of this.state.pieces) {
-      if (piece.kind === 'tripod') continue;
-      if ((piece.material ?? 'twig') !== 'twig') continue;
-      const at = pieceAnchor(piece.kind, piece, piece.edge);
-      if (!inReachOf(this.px, this.py, at)) continue;
-      const dist = Math.hypot(at.x - this.px, at.y - this.py);
-      if (dist < bestD) {
-        best = piece;
-        bestD = dist;
-      }
-    }
-    return best;
-  }
-
   private upgradeAt(piece: Piece): void {
     const result = upgradePiece(this.state, piece);
     if (!result.ok) {
@@ -860,42 +845,41 @@ export class GameScene extends Phaser.Scene {
   }
 
   private useNearest(): void {
-    const nearest = this.nearestInReach(false);
-    if (nearest?.kind === 'bush_fiber') {
-      this.pickUp(nearest);
+    const choice = chooseUse(this.state, { x: this.px, y: this.py });
+    if (choice.action === 'gather') {
+      this.pickUp(choice.prop);
       return;
     }
-    if (this.state.tool === 'hammerstone') {
-      const node = this.nearestInReach(false);
-      const core = PROPS.filter((prop) => prop.kind === 'flint_core' && (this.state.cores[prop.id] ?? 0) < 2)
-        .filter((prop) => inReach(this.px, this.py, prop.tx, prop.ty))
-        .sort((a, b) => this.reachDist(a) - this.reachDist(b))[0];
-      if (core) {
-        this.knapAt(core);
-        return;
-      }
-      const rock = PROPS.filter((prop) => prop.kind === 'rock_node' && (this.state.rocks[prop.id] ?? 0) < 5)
-        .filter((prop) => inReach(this.px, this.py, prop.tx, prop.ty))
-        .sort((a, b) => this.reachDist(a) - this.reachDist(b))[0];
-      if (rock) {
-        this.strikeAt(rock);
-        return;
-      }
-      const piece = this.nearestTwig();
-      if (piece) {
-        this.upgradeAt(piece);
-        return;
-      }
-      this.setTip(node ? 'The hammerstone wants a rock.' : 'Nothing to strike.');
+    if (choice.action === 'knap') {
+      this.knapAt(choice.prop);
       return;
     }
-    const best = this.nearestInReach(false);
-    if (!best) {
-      const tree = this.nearestTree();
-      this.setTip(tree ? 'Walk up to the trunk.' : 'Nothing in reach.');
+    if (choice.action === 'chop') {
+      this.swingAt(choice.prop);
       return;
     }
-    this.useProp(best);
+    if (choice.action === 'strike') {
+      this.strikeAt(choice.prop);
+      return;
+    }
+    if (choice.action === 'upgrade') {
+      this.upgradeAt(choice.piece);
+      return;
+    }
+    if (choice.action === 'none') this.setTip(choice.message);
+  }
+
+  /** The build-menu sentence, repeated beside a twig piece he can actually pay for. */
+  private stepUpgradeHint(): void {
+    const hint = upgradePrompt(this.state, { x: this.px, y: this.py });
+    const tip = this.state.tip;
+    const ours =
+      tip === OPENING_TIP ||
+      tip === HATCHET_IDLE ||
+      tip.startsWith('Tap the piece, or tap Use') ||
+      tip.startsWith('Equip the hammerstone, then tap');
+    if (!hint || tip === hint || !ours) return;
+    this.setTip(hint);
   }
 
   private stepFree(dt: number): void {
