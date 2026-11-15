@@ -37,17 +37,28 @@ export interface Inventory {
   kindling: number;
   coal: number;
   bowdrill: boolean;
+  berries: number;
+  roots: number;
+  /** A vessel for creek water. The bark cup is today's container. */
+  cup: boolean;
 }
 
 export type Tool = 'hands' | 'hatchet' | 'hammerstone' | 'plan';
 export type Outcome = 'playing' | 'won' | 'lost';
-export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 'tinder' | 'leaves';
+export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 'tinder' | 'leaves' | 'berries' | 'cattail' | 'cup';
+export type CupWater = 'empty' | 'raw' | 'boiled';
 
 export interface GameState {
   version: 6;
   minutes: number;
   warmth: number;
   energy: number;
+  health: number;
+  hunger: number;
+  thirst: number;
+  /** Game minutes of sickness still to run. Raw water sets this. */
+  sick: number;
+  cupWater: CupWater;
   tx: number;
   ty: number;
   /** Feet, in world pixels. Free movement does not snap these to a tile. */
@@ -62,6 +73,8 @@ export interface GameState {
   trees: Record<string, TreeMark>;
   /** Strikes landed on each rock node. Five leaves rubble. */
   rocks: Record<string, number>;
+  /** Game minute a rock node was worked down to rubble. */
+  rockGone: Record<string, number>;
   /** Knaps landed on each flint core. Two leaves it spent. */
   cores: Record<string, number>;
   /** Game minute each fiber plant was cut. Missing means it is standing. */
@@ -85,6 +98,9 @@ export type PropKind =
   | 'birch_tree'
   | 'rock'
   | 'bush_fiber'
+  | 'berry_bush'
+  | 'cattails'
+  | 'bark_cup'
   | 'item_sticks'
   | 'item_stone'
   | 'item_rock'

@@ -28,6 +28,12 @@ export interface HudModel {
   health: number;
   warmth: number;
   energy: number;
+  hunger: number;
+  thirst: number;
+  hungerLabel: string;
+  thirstLabel: string;
+  lowHunger: boolean;
+  lowThirst: boolean;
   warmthLabel: string;
   energyLabel: string;
   weather: string;
@@ -67,9 +73,15 @@ export function buildModel(
   return {
     clock: face.clock,
     daypart: face.daypart,
-    health: 100,
+    health: state.health,
     warmth: state.warmth,
     energy: state.energy,
+    hunger: state.hunger,
+    thirst: state.thirst,
+    hungerLabel: `Hunger ${Math.round(state.hunger)}`,
+    thirstLabel: `Thirst ${Math.round(state.thirst)}`,
+    lowHunger: state.hunger < 30,
+    lowThirst: state.thirst < 30,
     warmthLabel: `${Math.round(state.warmth)} · ${warmthWord(perHour)}`,
     weather: weatherWord(weatherAt(state.minutes)),
     dampLabel: (state.damp ?? 0) >= 10 ? 'Damp' : '',

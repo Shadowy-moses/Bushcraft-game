@@ -188,7 +188,7 @@ html, body {
   position: absolute;
   left: calc(12px + env(safe-area-inset-left));
   bottom: calc(var(--dock, 72px) + 176px);
-  width: 176px;
+  width: 210px;
   padding: 6px;
 }
 
@@ -231,9 +231,20 @@ html, body {
   background: var(--danger);
 }
 
+.vlabel {
+  width: 72px;
+  flex: 0 0 auto;
+  color: var(--cream);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .bar.warmth > span { background: var(--fire); }
 .bar.energy > span { background: var(--moss); }
-.bar.warmth.low > span, .bar.low > span { background: var(--danger); }
+.bar.hunger > span { background: #c45a6a; }
+.bar.thirst > span { background: #6aa4c8; }
+.bar.warmth.low > span, .bar.hunger.low > span, .bar.thirst.low > span, .bar.low > span { background: var(--danger); }
 
 #status {
   margin: 4px 0 6px;

@@ -62,6 +62,8 @@ export class Hud {
       <div id="vitals" class="panel">
         <div class="vital"><span class="vicon">${ICONS.health}</span><div class="bar health"><span id="health-fill"></span></div></div>
         <div class="vital"><span class="vicon">${ICONS.warmth}</span><div class="bar warmth"><span id="warmth-fill"></span></div></div>
+        <div class="vital"><span class="vlabel" id="hunger-label">Hunger</span><div class="bar hunger"><span id="hunger-fill"></span></div></div>
+        <div class="vital"><span class="vlabel" id="thirst-label">Thirst</span><div class="bar thirst"><span id="thirst-fill"></span></div></div>
         <div class="vital"><span class="vicon">${ICONS.energy}</span><div class="bar energy"><span id="energy-fill"></span></div></div>
         <p id="warmth-read"></p>
         <p id="status"></p>
@@ -243,7 +245,13 @@ export class Hud {
     this.text('tip', model.tip);
     this.fill('health-fill', model.health);
     this.fill('warmth-fill', model.warmth);
+    this.fill('hunger-fill', model.hunger);
+    this.fill('thirst-fill', model.thirst);
     this.fill('energy-fill', model.energy);
+    this.text('hunger-label', model.hungerLabel);
+    this.text('thirst-label', model.thirstLabel);
+    document.getElementById('hunger-fill')?.parentElement?.classList.toggle('low', model.lowHunger);
+    document.getElementById('thirst-fill')?.parentElement?.classList.toggle('low', model.lowThirst);
     document.getElementById('warmth-fill')?.parentElement?.classList.toggle('low', model.lowWarmth);
     const rest = document.querySelector<HTMLButtonElement>('#rest-button');
     if (rest) {

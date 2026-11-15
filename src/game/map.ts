@@ -81,6 +81,14 @@ export const PROPS: Prop[] = [
   prop('pine_tree', 2, 7, true),
   prop('bush_fiber', 4, 7, true, 'fiber'),
   prop('bush_fiber', 8, 7, true, 'fiber'),
+  prop('berry_bush', 8, 2, true, 'berries'),
+  prop('berry_bush', 3, 4, true, 'berries'),
+  prop('berry_bush', 5, 6, true, 'berries'),
+  prop('cattails', 3, 8, false, 'cattail'),
+  prop('cattails', 9, 8, false, 'cattail'),
+  prop('cattails', 5, 9, false, 'cattail'),
+  prop('cattails', 7, 9, false, 'cattail'),
+  prop('bark_cup', 6, 7, false, 'cup'),
   prop('pine_tree', 11, 7, true),
   prop('pine_tree', 4, 8, true),
   prop('rock', 8, 8, true),
@@ -156,7 +164,12 @@ export function isBlocked(
   const propHere = propAt(tx, ty);
   if (!propHere?.blocks) return false;
   if (isFelled(state.trees, propHere.id)) return false;
-  if (propHere.kind === 'bush_fiber' && isFiberCut(state.plants ?? {}, propHere.id, state.minutes ?? 0)) return false;
+  if (
+    (propHere.kind === 'bush_fiber' || propHere.kind === 'berry_bush') &&
+    isFiberCut(state.plants ?? {}, propHere.id, state.minutes ?? 0)
+  ) {
+    return false;
+  }
   return true;
 }
 

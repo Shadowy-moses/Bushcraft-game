@@ -121,7 +121,7 @@ export function bodiesFor(
       });
       continue;
     }
-    if (prop.kind === 'bush_fiber') {
+    if (prop.kind === 'bush_fiber' || prop.kind === 'berry_bush') {
       if (isFiberCut(state.plants ?? {}, prop.id, state.minutes ?? 0)) continue;
       bodies.push({ x: at.x, y: at.y, r: ROCK_RADIUS, id: prop.id });
       continue;

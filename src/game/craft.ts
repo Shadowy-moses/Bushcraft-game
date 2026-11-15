@@ -108,10 +108,16 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
     { id: 'tinder', name: 'Tinder', count: state.inventory.tinder, frame: 'item_tinder' },
     { id: 'kindling', name: 'Kindling', count: state.inventory.kindling, frame: 'item_kindling' },
     { id: 'coal', name: 'Coal', count: state.inventory.coal, frame: 'item_coal' },
+    { id: 'berries', name: 'Berries', count: state.inventory.berries, frame: 'item_berries' },
+    { id: 'roots', name: 'Cattail root', count: state.inventory.roots, frame: 'item_cattail_root' },
+    { id: 'cup', name: 'Bark cup', count: state.inventory.cup ? 1 : 0, frame: state.cupWater === 'empty' ? 'item_bark_cup' : 'item_bark_cup_water' },
   ];
 }
 
 export function statusLine(state: GameState): string {
+  if ((state.sick ?? 0) > 0) return 'Queasy';
+  if (state.thirst < 30) return 'Thirsty';
+  if (state.hunger < 30) return 'Hungry';
   if (state.warmth < 30) return 'Cold';
   if (state.energy < 25) return 'Tired';
   if (state.pieces.some((piece) => piece.kind === 'floor')) return 'Under a roof';

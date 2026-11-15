@@ -18,6 +18,31 @@ export const DAWN_MINUTES = 30 * 60;
 
 export const START_WARMTH = 80;
 export const START_ENERGY = 100;
+export const START_HEALTH = 100;
+/** Both start comfortable. Thirst falls faster, so the cup matters before the berries do. */
+export const START_HUNGER = 80;
+export const START_THIRST = 80;
+/** Points lost each game hour. A game hour is about two and a half real minutes. */
+export const HUNGER_PER_HOUR = 4;
+export const THIRST_PER_HOUR = 8;
+/** Under this, resting brings stamina back more slowly. */
+export const NEED_LOW = 30;
+/** Under this, health starts to slip. */
+export const NEED_DIRE = 12;
+export const DIRE_HEALTH_PER_HOUR = 4;
+/** One berry. A bush gives two. */
+export const BERRY_HUNGER = 28;
+export const BERRIES_PER_BUSH = 2;
+/** One cattail root. */
+export const ROOT_HUNGER = 22;
+export const BOILED_THIRST = 40;
+export const RAW_THIRST = 24;
+/** How long raw water keeps him sick. Two game hours, about five real minutes. */
+export const SICK_MINUTES = 120;
+export const SICK_ENERGY_PER_HOUR = 8;
+export const SICK_HEALTH_PER_HOUR = 4;
+/** One mined-out rock node returns this often. Three game hours, about seven real minutes. */
+export const ROCK_RETURN_MINUTES = 180;
 
 export const GATHER_ENERGY = 5;
 /**

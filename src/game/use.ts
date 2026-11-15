@@ -1,10 +1,11 @@
 import { materialCost, pieceAnchor } from './build';
-import { COBBLE_REACH } from './constants';
+import { COBBLE_REACH, NEED_DIRE } from './constants';
 import { HATCHET_IDLE } from './copy';
 import { isFiberCut } from './fiber';
 import { tileToWorld } from './iso';
 import { PROPS } from './map';
 import { REACH } from './move';
+import { canBoil, besideCreek } from './food';
 import { pieceHealth } from './weather';
 import { CORE_KNAPS, ROCK_HITS } from './stone';
 import type { GameState, Piece, Prop } from './types';
@@ -12,6 +13,7 @@ import type { GameState, Piece, Prop } from './types';
 export type UseChoice =
   | { action: 'gather' | 'knap' | 'chop' | 'strike'; prop: Prop }
   | { action: 'upgrade' | 'repair'; piece: Piece }
+  | { action: 'scoop' | 'boil' | 'drink' | 'eat' }
   | { action: 'none'; message: string };
 
 interface Feet {
@@ -62,6 +64,14 @@ function liveFiber(state: GameState): Prop[] {
   );
 }
 
+function liveForage(state: GameState): Prop[] {
+  return PROPS.filter(
+    (prop) =>
+      (prop.kind === 'berry_bush' || prop.kind === 'cattails' || prop.kind === 'bark_cup') &&
+      (prop.kind === 'bark_cup' ? !state.picked[prop.id] : !isFiberCut(state.plants, prop.id, state.minutes)),
+  );
+}
+
 function liveCores(state: GameState): Prop[] {
   return PROPS.filter((prop) => prop.kind === 'flint_core' && (state.cores[prop.id] ?? 0) < CORE_KNAPS);
 }
@@ -105,9 +115,14 @@ function nearestUpgrade(state: GameState, feet: Feet): { piece: Piece; d: number
  * that, so they can't swallow the cobble and then blame the hatchet.
  */
 export function chooseUse(state: GameState, feet: Feet): UseChoice {
+  const forage = state.tool === 'hands' ? nearestProp(feet, liveForage(state)) : null;
+  if (forage && forage.d <= 16) return { action: 'gather', prop: forage.prop };
+  const filling = state.tool === 'hands' && state.inventory.cup && state.cupWater === 'empty' && besideCreek(feet.x, feet.y);
+  if (filling) return { action: 'scoop' };
   if (!state.inventory.hammerstone) {
     const cobble = nearestProp(feet, liveCobbles(state), COBBLE_REACH);
-    if (cobble) return { action: 'gather', prop: cobble.prop };
+    const filling = state.tool === 'hands' && state.inventory.cup && state.cupWater === 'empty' && besideCreek(feet.x, feet.y);
+    if (cobble && !(filling && cobble.d > REACH)) return { action: 'gather', prop: cobble.prop };
   }
 
   const specials = nearestProp(feet, [...liveFiber(state), ...liveCores(state), ...liveCobbles(state)]);
@@ -138,7 +153,16 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
   if (piles && (!tree || piles.d <= tree.d)) return { action: 'gather', prop: piles.prop };
   if (tree) return { action: 'chop', prop: tree.prop };
   if (state.tool === 'hammerstone') return { action: 'none', message: 'Nothing to strike.' };
-  if (state.tool === 'hands') return { action: 'none', message: 'Nothing in these hands.' };
+  if (state.tool === 'hands') {
+    if (canBoil({ ...state, x: feet.x, y: feet.y })) return { action: 'boil' };
+    if (state.inventory.cup && state.cupWater === 'empty' && besideCreek(feet.x, feet.y)) return { action: 'scoop' };
+    if (state.inventory.cup && state.cupWater === 'boiled') return { action: 'drink' };
+    if (state.inventory.cup && state.cupWater === 'raw' && state.thirst < NEED_DIRE) return { action: 'drink' };
+    if (state.inventory.cup && state.cupWater === 'raw') return { action: 'none', message: 'Boil that at the fire before you drink it.' };
+    if (state.inventory.berries > 0) return { action: 'eat' };
+    if (state.inventory.roots > 0) return { action: 'eat' };
+    return { action: 'none', message: 'Nothing in these hands.' };
+  }
   return { action: 'none', message: HATCHET_IDLE };
 }
 
