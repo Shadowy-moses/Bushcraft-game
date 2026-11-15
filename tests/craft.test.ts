@@ -29,7 +29,14 @@ describe('the building plan', () => {
       'stone-wall',
       'stone-doorway',
       'stone-floor',
+      'cordage',
+      'tripod',
     ]);
+    expect(broke.find((recipe) => recipe.id === 'cordage')).toMatchObject({
+      category: 'resources',
+      enabled: false,
+    });
+    expect(broke.find((recipe) => recipe.id === 'tripod')?.enabled).toBe(false);
     expect(broke.some((recipe) => recipe.id === 'hammerstone')).toBe(false);
 
     const ready = recipesFor({ ...initialState(), inventory: { ...emptyInventory(), wood: 10 }, energy: 100 });

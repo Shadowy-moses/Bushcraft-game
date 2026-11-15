@@ -1,4 +1,4 @@
-import { CRAFT_CATEGORIES, placeButtonLabel, type CraftCategory, type Recipe } from '../game/craft';
+import { CRAFT_CATEGORIES, type CraftCategory, type Recipe } from '../game/craft';
 import type { HudModel } from '../game/model';
 import type { Tool } from '../game/types';
 import { ICONS } from './icons';
@@ -265,11 +265,13 @@ export class Hud {
     const craft = document.querySelector<HTMLButtonElement>('[data-action="craft-go"]');
     const recipe = this.currentRecipe();
     if (!craft || !recipe) return;
-    const cost = recipe.ingredients[0];
     const placing = recipe.action.startsWith('place-');
-    if (placing && cost) {
-      craft.textContent = placeButtonLabel(cost.have, cost.need, cost.name.toLowerCase());
-      craft.disabled = cost.have < cost.need;
+    if (placing) {
+      const short = recipe.ingredients.find((item) => item.have < item.need);
+      craft.textContent = short
+        ? `Need ${short.need - short.have} more ${short.name.toLowerCase()}`
+        : 'Place';
+      craft.disabled = Boolean(short);
       return;
     }
     craft.textContent = 'Craft';
@@ -358,7 +360,8 @@ export class Hud {
     const bar = document.getElementById('hotbar');
     const place = document.getElementById('place-actions');
     if (!bag || !bar || !place) return;
-    const showPlace = placing === 'foundation' || placing === 'wall' || placing === 'doorway' || placing === 'floor';
+    const showPlace =
+      placing === 'foundation' || placing === 'wall' || placing === 'doorway' || placing === 'floor' || placing === 'tripod';
     bag.hidden = showPlace;
     bar.hidden = showPlace;
     place.hidden = !showPlace;
@@ -558,9 +561,11 @@ export class Hud {
         `,
       )
       .join('');
-    const wood = recipe.ingredients.find((item) => item.name === 'Wood');
+    const short = recipe.ingredients.find((item) => item.have < item.need);
     const craftLabel = recipe.action.startsWith('place-')
-      ? placeButtonLabel(wood?.have ?? 0, wood?.need ?? 0)
+      ? short
+        ? `Need ${short.need - short.have} more ${short.name.toLowerCase()}`
+        : 'Place'
       : 'Craft';
     return `
       ${this.iconHtml(recipe.frame, true)}

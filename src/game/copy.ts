@@ -4,8 +4,9 @@ export const OPENING_TIP =
 export const REST_TIP = 'Sit a minute. The work can wait. Warmth is only a reading now.';
 
 /** Short line while the clock runs ahead. `minutes` is game time spent resting. */
-export function restingTip(minutes: number): string {
+export function restingTip(minutes: number, againstTripod = false): string {
   const n = Math.max(0, Math.round(minutes));
+  if (againstTripod) return `Resting against the tripod… +${n} min`;
   return `Resting… +${n} min`;
 }
 

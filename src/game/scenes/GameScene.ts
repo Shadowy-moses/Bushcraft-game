@@ -22,18 +22,34 @@ import {
   FOLLOW_MAX_H,
   FOLLOW_MAX_W,
   PLAY_MINUTES_PER_SECOND,
-  REST_ENERGY_PER_SECOND,
   REST_MINUTES_PER_SECOND,
   ROWS,
+  TRIPOD_CORDAGE,
+  TRIPOD_WOOD,
   ZOOM,
 } from '../constants';
 import { restingTip } from '../copy';
+import { CORD_SECONDS, fiberFrame, isFiberCut } from '../fiber';
 import { clamp, depthFor, tileToWorld, worldToTile } from '../iso';
 import { SHADOW_TINT, lightTint, multiplyTint, skyColor } from '../light';
 import { PROPS, groundAt, inBounds, propAt } from '../map';
 import { buildModel, type PlaceModel, type SheetId } from '../model';
 import { BUILD_REACH, bodiesFor, inReach, inReachOf, PICKUP_RADIUS, resolveMove, segmentsFor, travelSpeed } from '../move';
-import { chopTree, gainEnergy, gather, initialState, knapFlint, placePiece, strikeRock, tick, upgradePiece } from '../rules';
+import {
+  beginCordage,
+  besideTripod,
+  chopTree,
+  finishCordage,
+  gainEnergy,
+  gather,
+  initialState,
+  knapFlint,
+  placePiece,
+  restEnergyPerSecond,
+  strikeRock,
+  tick,
+  upgradePiece,
+} from '../rules';
 import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
@@ -177,6 +193,7 @@ export class GameScene extends Phaser.Scene {
   private stickY = 0;
   private keys = new Set<string>();
   private rested = 0;
+  private craftJob: { label: string; started: number; seconds: number } | null = null;
   private chips: Chip[] = [];
   private reachMark?: Phaser.GameObjects.Graphics;
   private minuteBank = 0;
@@ -220,6 +237,7 @@ export class GameScene extends Phaser.Scene {
     this.floaters = [];
     this.chips = [];
     this.rested = 0;
+    this.craftJob = null;
     this.pose = 'idle';
     this.poseUntil = 0;
     const saved = loadGame();
@@ -240,6 +258,7 @@ export class GameScene extends Phaser.Scene {
     this.buildPlayer();
     this.refreshShadows();
     this.syncProps();
+    this.syncRocks();
     this.syncStumps();
     this.syncBuildings();
 
@@ -452,26 +471,30 @@ export class GameScene extends Phaser.Scene {
     this.expireLogs();
     this.stepFloaters(dt);
     this.stepChips(dt);
+    this.stepCraft();
     this.fadeOccluders();
     if (this.started && !this.hidden && this.sheet === 'none' && !this.placing && this.state.outcome === 'playing') {
       let rate: number = PLAY_MINUTES_PER_SECOND;
       if (this.resting) {
         rate = REST_MINUTES_PER_SECOND;
-        this.state = gainEnergy(this.state, dt * REST_ENERGY_PER_SECOND);
+        const sheltered = besideTripod(this.state);
+        this.state = gainEnergy(this.state, dt * restEnergyPerSecond(this.state));
         this.rested += dt * REST_MINUTES_PER_SECOND;
-        const tip = restingTip(this.rested);
+        const tip = restingTip(this.rested, sheltered);
         if (this.state.tip !== tip) this.state = { ...this.state, tip };
       }
       this.minuteBank += dt * rate;
       if (this.minuteBank >= 0.2) {
         const minutes = this.minuteBank;
         this.minuteBank = 0;
-        const before = this.state.trees;
+        const beforeTrees = this.state.trees;
+        const beforePlants = this.state.plants;
         this.state = tick(this.state, minutes);
-        if (this.state.trees !== before) {
+        if (this.state.trees !== beforeTrees) {
           this.syncProps();
           this.syncStumps();
         }
+        if (this.state.plants !== beforePlants) this.syncRocks();
       }
       if (this.resting && this.state.energy >= 100) {
         this.resting = false;
@@ -700,6 +723,7 @@ export class GameScene extends Phaser.Scene {
 
   private actionable(prop: Prop): boolean {
     if (this.isTree(prop)) return !isFelled(this.state.trees, prop.id);
+    if (prop.kind === 'bush_fiber') return !isFiberCut(this.state.plants, prop.id, this.state.minutes);
     return Boolean(prop.gather) && !this.state.picked[prop.id];
   }
 
@@ -765,9 +789,9 @@ export class GameScene extends Phaser.Scene {
     this.state = result.state;
     this.faceTile(prop.tx, prop.ty);
     this.playPose('gather');
-    if (prop.gather === 'stones') {
+    if (prop.gather === 'stones' || prop.gather === 'fiber') {
       const at = tileToWorld(prop.tx, prop.ty);
-      this.sprayChips(at.x, at.y, 'stone');
+      this.sprayChips(at.x, at.y, prop.gather === 'stones' ? 'stone' : 'wood');
     }
     if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
     this.afterChange();
@@ -810,6 +834,7 @@ export class GameScene extends Phaser.Scene {
     let best: Piece | null = null;
     let bestD = Infinity;
     for (const piece of this.state.pieces) {
+      if (piece.kind === 'tripod') continue;
       if ((piece.material ?? 'twig') !== 'twig') continue;
       const at = pieceAnchor(piece.kind, piece, piece.edge);
       if (!inReachOf(this.px, this.py, at)) continue;
@@ -835,6 +860,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private useNearest(): void {
+    const nearest = this.nearestInReach(false);
+    if (nearest?.kind === 'bush_fiber') {
+      this.pickUp(nearest);
+      return;
+    }
     if (this.state.tool === 'hammerstone') {
       const node = this.nearestInReach(false);
       const core = PROPS.filter((prop) => prop.kind === 'flint_core' && (this.state.cores[prop.id] ?? 0) < 2)
@@ -1103,6 +1133,23 @@ export class GameScene extends Phaser.Scene {
       this.openCraft();
       return;
     }
+    if (id === 'craft-cordage') {
+      if (this.craftJob) {
+        this.setTip('Still twisting.');
+        return;
+      }
+      const result = beginCordage(this.state);
+      if (!result.ok) {
+        this.setTip(result.message);
+        return;
+      }
+      this.state = result.state;
+      this.craftJob = { label: 'Reverse-wrapping the fibers…', started: this.time.now, seconds: CORD_SECONDS };
+      this.playPose('gather');
+      this.poseUntil = this.time.now + CORD_SECONDS * 1000;
+      this.afterChange();
+      return;
+    }
     if (id.startsWith('place-')) {
       const stone = id.startsWith('place-stone-');
       const kind = (stone ? id.slice('place-stone-'.length) : id.slice('place-'.length)) as PieceKind;
@@ -1206,6 +1253,10 @@ export class GameScene extends Phaser.Scene {
       }
       if (view.prop.kind === 'flint_core') {
         const frame = flintFrame(this.state.cores[view.prop.id] ?? 0);
+        if (view.sprite.frame.name !== frame) this.applyAtlas(view.sprite, frame);
+      }
+      if (view.prop.kind === 'bush_fiber') {
+        const frame = fiberFrame(this.state.plants, view.prop.id, this.state.minutes);
         if (view.sprite.frame.name !== frame) this.applyAtlas(view.sprite, frame);
       }
     }
@@ -1316,7 +1367,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private paintHud(rebuild: boolean): void {
-    this.hud.render(buildModel(this.state, this.sheet, this.resting, this.placeModel()), rebuild);
+    const job = this.craftJob;
+    const queue = job
+      ? {
+          label: job.label,
+          progress: Math.min(1, (this.time.now - job.started) / (job.seconds * 1000)),
+        }
+      : null;
+    this.hud.render(buildModel(this.state, this.sheet, this.resting, this.placeModel(), queue), rebuild);
+  }
+
+  private stepCraft(): void {
+    const job = this.craftJob;
+    if (!job) return;
+    if (this.time.now - job.started < job.seconds * 1000) return;
+    this.craftJob = null;
+    this.state = finishCordage(this.state);
+    this.afterChange();
   }
 
   private placeModel(): PlaceModel | null {
@@ -1327,6 +1394,12 @@ export class GameScene extends Phaser.Scene {
   private tryBeginPlace(kind: PieceKind, material: Material = 'twig'): void {
     if (!this.started || this.state.outcome !== 'playing') return;
     if (!canAfford(this.state, kind, material)) {
+      if (kind === 'tripod') {
+        const woodShort = Math.max(0, TRIPOD_WOOD - this.state.inventory.wood);
+        const cordShort = Math.max(0, TRIPOD_CORDAGE - this.state.inventory.cordage);
+        this.setTip(woodShort > 0 ? `Need ${woodShort} more wood` : `Need ${cordShort} more cordage`);
+        return;
+      }
       const have = material === 'stone' ? this.state.inventory.stone : this.state.inventory.wood;
       this.setTip(material === 'stone' ? materialShortMessage(kind, have, 'stone') : woodShortMessage(kind, have));
       return;
@@ -1553,6 +1626,7 @@ export class GameScene extends Phaser.Scene {
       return { x: pos.x + off.x, y: pos.y + off.y, key, ox: origin.x, oy: origin.y, tall: true, bias: 5 };
     }
     if (kind === 'floor') return { x: pos.x, y: pos.y, key, ox: origin.x, oy: origin.y, tall: false, bias: 12 };
+    if (kind === 'tripod') return { x: pos.x, y: pos.y, key, ox: origin.x, oy: origin.y, tall: true, bias: 8 };
     return { x: pos.x, y: pos.y, key, ox: origin.x, oy: origin.y, tall: false, bias: 1 };
   }
 
@@ -1580,6 +1654,10 @@ export class GameScene extends Phaser.Scene {
     this.ghostHome = { x: sprite.x, y: sprite.y };
     sprite.setDepth(20000);
     sprite.setVisible(true);
+    if (this.placing === 'tripod') {
+      sprite.setAlpha(0.72);
+      sprite.setTint(spot.ok || walk ? 0xb6d98a : 0xc45a4a);
+    }
     this.paintCurrentEdge();
     this.keepGhostInView(pose, pose.tall);
     this.placeValid = spot.ok || walk;
@@ -1634,7 +1712,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.state = result.state;
     this.faceTile(job.tile.tx, job.tile.ty);
-    this.playPose('chop');
+    this.playPose(job.kind === 'tripod' ? 'gather' : 'chop');
     this.afterChange();
   }
 

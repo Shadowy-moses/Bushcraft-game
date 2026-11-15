@@ -1,4 +1,5 @@
 import { COLS, ROWS } from './constants';
+import { isFiberCut } from './fiber';
 import { isFelled } from './trees';
 import type { GameState, GroundId, Prop, PropKind, GatherKind } from './types';
 
@@ -64,7 +65,9 @@ export const PROPS: Prop[] = [
   prop('rock', 2, 2, true),
   prop('rock', 10, 2, true),
   prop('pine_tree', 11, 2, true),
+  prop('bush_fiber', 9, 2, true, 'fiber'),
   prop('bush_fiber', 1, 3, true, 'fiber'),
+  prop('bush_fiber', 10, 3, true, 'fiber'),
   prop('pine_tree', 0, 4, true),
   prop('pine_tree', 2, 4, true),
   prop('pine_tree', 11, 4, true),
@@ -76,6 +79,7 @@ export const PROPS: Prop[] = [
   prop('rock', 3, 6, true),
   prop('pine_tree', 11, 6, true),
   prop('pine_tree', 2, 7, true),
+  prop('bush_fiber', 4, 7, true, 'fiber'),
   prop('bush_fiber', 8, 7, true, 'fiber'),
   prop('pine_tree', 11, 7, true),
   prop('pine_tree', 4, 8, true),
@@ -142,12 +146,17 @@ export function propAt(tx: number, ty: number): Prop | undefined {
   return BY_TILE.get(`${tx},${ty}`);
 }
 
-export function isBlocked(tx: number, ty: number, state: Pick<GameState, 'trees'>): boolean {
+export function isBlocked(
+  tx: number,
+  ty: number,
+  state: Pick<GameState, 'trees'> & { plants?: Record<string, number>; minutes?: number },
+): boolean {
   if (!inBounds(tx, ty)) return true;
   if (groundAt(tx, ty) === 'creek_water') return true;
   const propHere = propAt(tx, ty);
   if (!propHere?.blocks) return false;
   if (isFelled(state.trees, propHere.id)) return false;
+  if (propHere.kind === 'bush_fiber' && isFiberCut(state.plants ?? {}, propHere.id, state.minutes ?? 0)) return false;
   return true;
 }
 

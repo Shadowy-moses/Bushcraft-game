@@ -1,5 +1,6 @@
 import type { EdgeName, GameState, Piece } from './types';
 import { COLS, TILE_H, TILE_W } from './constants';
+import { isFiberCut } from './fiber';
 import { tileToWorld, worldToTile } from './iso';
 import { groundAt, inBounds, PROPS } from './map';
 import { isFelled } from './trees';
@@ -10,6 +11,8 @@ export const PLAYER_RADIUS = 3.5;
 export const TRUNK_RADIUS = 6;
 export const STUMP_RADIUS = 3.5;
 export const ROCK_RADIUS = 7;
+/** The lashed legs. Wide enough to stop a walk-through, narrow enough to rest beside. */
+export const TRIPOD_RADIUS = 9;
 /** World pixels per second while the stick is only part way out. */
 export const WALK_SPEED = 52;
 /** Full deflection. About twice a walk, so a hard push reads as a run. */
@@ -91,7 +94,10 @@ export function travelSpeed(magnitude: number): { speed: number; running: boolea
   return { speed: WALK_SPEED * (0.72 + 0.28 * t), running: false };
 }
 
-export function bodiesFor(state: Pick<GameState, 'trees'>, skipId?: string): Body[] {
+export function bodiesFor(
+  state: Pick<GameState, 'trees'> & { pieces?: Piece[]; plants?: Record<string, number>; minutes?: number },
+  skipId?: string,
+): Body[] {
   const bodies: Body[] = [];
   for (const prop of PROPS) {
     if (prop.id === skipId) continue;
@@ -105,9 +111,19 @@ export function bodiesFor(state: Pick<GameState, 'trees'>, skipId?: string): Bod
       });
       continue;
     }
-    if (prop.kind === 'rock' || prop.kind === 'bush_fiber') {
+    if (prop.kind === 'bush_fiber') {
+      if (isFiberCut(state.plants ?? {}, prop.id, state.minutes ?? 0)) continue;
+      bodies.push({ x: at.x, y: at.y, r: ROCK_RADIUS, id: prop.id });
+      continue;
+    }
+    if (prop.kind === 'rock') {
       bodies.push({ x: at.x, y: at.y, r: ROCK_RADIUS, id: prop.id });
     }
+  }
+  for (const piece of state.pieces ?? []) {
+    if (piece.kind !== 'tripod') continue;
+    const at = tileToWorld(piece.tx, piece.ty);
+    bodies.push({ x: at.x, y: at.y, r: TRIPOD_RADIUS, id: `tripod-${piece.tx}-${piece.ty}` });
   }
   return bodies;
 }

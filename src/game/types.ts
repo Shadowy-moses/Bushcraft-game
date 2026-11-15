@@ -1,7 +1,7 @@
 import type { TreeMark } from './trees';
 import type { Facing } from './woodsman';
 
-export type PieceKind = 'foundation' | 'wall' | 'doorway' | 'floor';
+export type PieceKind = 'foundation' | 'wall' | 'doorway' | 'floor' | 'tripod';
 export type EdgeName = 'se' | 'sw' | 'ne' | 'nw';
 export type Material = 'twig' | 'stone';
 
@@ -20,6 +20,8 @@ export interface Inventory {
   flakes: number;
   rocks: number;
   hammerstone: boolean;
+  fiber: number;
+  cordage: number;
 }
 
 export type Tool = 'hatchet' | 'hammerstone' | 'plan';
@@ -27,7 +29,7 @@ export type Outcome = 'playing' | 'won' | 'lost';
 export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 'tinder' | 'leaves';
 
 export interface GameState {
-  version: 4;
+  version: 5;
   minutes: number;
   warmth: number;
   energy: number;
@@ -47,6 +49,8 @@ export interface GameState {
   rocks: Record<string, number>;
   /** Knaps landed on each flint core. Two leaves it spent. */
   cores: Record<string, number>;
+  /** Game minute each fiber plant was cut. Missing means it is standing. */
+  plants: Record<string, number>;
   picked: Record<string, true>;
   outcome: Outcome;
   tip: string;

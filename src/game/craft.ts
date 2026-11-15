@@ -1,10 +1,13 @@
 import { materialCost } from './build';
+import { TRIPOD_CORDAGE, TRIPOD_WOOD } from './constants';
+import { CORD_FIBER, CORD_SECONDS } from './fiber';
 import type { GameState, Material, PieceKind } from './types';
 
-export type CraftCategory = 'tools' | 'construction';
+export type CraftCategory = 'tools' | 'resources' | 'construction';
 
 export const CRAFT_CATEGORIES: { id: CraftCategory; label: string }[] = [
   { id: 'tools', label: 'Tools' },
+  { id: 'resources', label: 'Resources' },
   { id: 'construction', label: 'Construction' },
 ];
 
@@ -78,6 +81,8 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
     { id: 'wood', name: 'Wood', count: state.inventory.wood, frame: 'wood' },
     { id: 'stone', name: 'Stone', count: state.inventory.stone, frame: 'item_rock' },
     { id: 'flakes', name: 'Flakes', count: state.inventory.flakes, frame: 'item_flake' },
+    { id: 'fiber', name: 'Fiber', count: state.inventory.fiber, frame: 'item_fiber' },
+    { id: 'cordage', name: 'Cordage', count: state.inventory.cordage, frame: 'item_cordage' },
   ];
 }
 
@@ -158,5 +163,34 @@ export function recipesFor(state: GameState): Recipe[] {
     },
     ...PIECES.map((spec) => pieceRecipe(state, spec, 'twig')),
     ...STONE_PIECES.map((spec) => pieceRecipe(state, spec, 'stone')),
+    {
+      id: 'cordage',
+      category: 'resources',
+      name: 'Cordage',
+      blurb: 'Three fibers, reverse-wrapped until they lock. Two lengths lash a tripod.',
+      frame: 'item_cordage',
+      ingredients: [{ name: 'Fiber', have: state.inventory.fiber, need: CORD_FIBER }],
+      seconds: CORD_SECONDS,
+      timeLabel: 'A short twist',
+      action: 'craft-cordage',
+      enabled: state.inventory.fiber >= CORD_FIBER,
+      done: false,
+    },
+    {
+      id: 'tripod',
+      category: 'construction',
+      name: 'Lashed tripod',
+      blurb: 'Three poles lashed at the top. A sturdy frame. Rest against it, and later it can hold a bow drill or the start of a shelter.',
+      frame: 'lashed_tripod',
+      ingredients: [
+        { name: 'Wood', have: state.inventory.wood, need: TRIPOD_WOOD },
+        { name: 'Cordage', have: state.inventory.cordage, need: TRIPOD_CORDAGE },
+      ],
+      seconds: 0,
+      timeLabel: 'On clear ground',
+      action: 'place-tripod',
+      enabled: state.inventory.wood >= TRIPOD_WOOD && state.inventory.cordage >= TRIPOD_CORDAGE,
+      done: false,
+    },
   ];
 }

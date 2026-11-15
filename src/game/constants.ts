@@ -37,6 +37,14 @@ export const WOOD_WALL = 5;
 export const WOOD_DOOR = 5;
 export const WOOD_FLOOR = 8;
 
+/** Three poles and two cords. The cords are the slow part: 6 fiber, twisted in two passes. */
+export const TRIPOD_WOOD = 3;
+export const TRIPOD_CORDAGE = 2;
+/** How close his feet have to be before the frame takes some of his weight. */
+export const TRIPOD_REST_REACH = 36;
+/** Extra stamina return while resting against a tripod. 0.4 is forty percent. */
+export const TRIPOD_REST_BONUS = 0.4;
+
 /**
  * Game minutes that pass each real second while you are up and working.
  * 4:30 to 6:00 is 810 game minutes, so that night lasts about 34 real minutes.
