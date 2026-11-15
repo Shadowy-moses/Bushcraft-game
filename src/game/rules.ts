@@ -11,6 +11,7 @@ import {
   HUNGER_PER_HOUR,
   NEED_DIRE,
   NEED_LOW,
+  BARK_STRIPS,
   LOG_STRIPS,
   POT_BOILS,
   SICK_ENERGY_PER_HOUR,
@@ -45,11 +46,11 @@ import { nearEmberFire, nearLitFire, placeFire, tendFires } from './fire';
 import { OPENING_TIP } from './copy';
 import { clamp, tileToWorld } from './iso';
 import { CHOP_REACH, escapeEnclosure, inReach, reachFor } from './move';
-import { propAt, propById } from './map';
+import { cobbleIsWet, propAt, propById } from './map';
 import { CORE_KNAPS, flakesFromKnap, ROCK_HITS, stoneFromStrike } from './stone';
 import { TREE_HITS, isFelled, regrowTrees, woodFromTree } from './trees';
 import type { ActionResult, EdgeName, GameState, Inventory, Material, Piece, PieceKind } from './types';
-import { regrowRocks, washCobbles } from './food';
+import { regrowCobbles, regrowRocks } from './food';
 import { decayPerHour, exposurePerHour, nextDamp, pieceHealth } from './weather';
 
 export function emptyInventory(): Inventory {
@@ -71,7 +72,25 @@ export function emptyInventory(): Inventory {
     pot: 0,
     axe: false,
     bowl: false,
+    dryCobble: 0,
     wetCobble: 0,
+  };
+}
+
+/** The ?debug=1 pack. Stone from a node is not a cobble, so the cobbles are listed on their own. */
+export function debugInventory(): Inventory {
+  return {
+    ...emptyInventory(),
+    wood: 40,
+    fiber: 20,
+    stone: 20,
+    cordage: 4,
+    bark: 2,
+    flakes: 3,
+    axe: true,
+    bowl: true,
+    dryCobble: 2,
+    wetCobble: 1,
   };
 }
 
@@ -104,9 +123,11 @@ export function initialState(): GameState {
     cores: {},
     plants: {},
     picked: {},
+    cobbleGone: {},
     outcome: 'playing',
     tip: OPENING_TIP,
     damp: 0,
+    potSeat: null,
   };
 }
 
@@ -182,7 +203,8 @@ export function tick(state: GameState, gameMinutes: number): GameState {
   });
   const plants = regrowFiber(state.plants, minutes);
   const rocksBack = regrowRocks(state.rocks, state.rockGone ?? {}, state.minutes, minutes);
-  const picked = washCobbles(state.picked, state.minutes, minutes);
+  const cobblesBack = regrowCobbles(state.picked, state.cobbleGone ?? {}, state.minutes, minutes);
+  const picked = cobblesBack.picked;
   const tended = tendFires(
     {
       ...state,
@@ -199,6 +221,7 @@ export function tick(state: GameState, gameMinutes: number): GameState {
       rocks: rocksBack.rocks,
       rockGone: rocksBack.gone,
       picked,
+      cobbleGone: cobblesBack.gone,
       tip: turned ? 'Your stomach turns.' : state.tip,
       outcome: 'playing',
     },
@@ -346,18 +369,20 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     );
   }
   if (node.gather === 'bark') {
-    const taken = (state.logStrips[id] ?? 0) + 1;
+    const have = state.logStrips[id] ?? 0;
+    const take = Math.min(BARK_STRIPS, LOG_STRIPS - have);
+    const taken = have + take;
     const done = taken >= LOG_STRIPS;
     return ok(
       {
         ...state,
         energy,
-        inventory: { ...state.inventory, bark: state.inventory.bark + 1 },
+        inventory: { ...state.inventory, bark: state.inventory.bark + take },
         logStrips: { ...state.logStrips, [id]: taken },
         picked: done ? picked : state.picked,
       },
-      done ? 'The last strip. The log is spent.' : 'A strip of birch bark.',
-      '+1 Bark',
+      done ? 'The last strips. The log is spent.' : 'Two strips of birch bark.',
+      `+${take} Bark`,
     );
   }
   if (node.gather === 'berries' || node.gather === 'cattail') {
@@ -366,12 +391,13 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     }
     const berries = node.gather === 'berries';
     const gained = berries ? BERRIES_PER_BUSH : 1;
+    const fiber = berries ? 0 : fiberFromPlant(id);
     const inventory = berries
       ? { ...state.inventory, berries: state.inventory.berries + gained }
-      : { ...state.inventory, roots: state.inventory.roots + gained };
+      : { ...state.inventory, roots: state.inventory.roots + gained, fiber: state.inventory.fiber + fiber };
     return ok(
       { ...state, energy, inventory, plants: { ...state.plants, [id]: state.minutes } },
-      berries ? 'A handful of berries.' : 'A cattail root, pulled from the bank.',
+      berries ? 'A handful of berries.' : 'A cattail root, and fiber from the stems.',
       berries ? `+${gained} berries` : '+1 root',
     );
   }
@@ -390,14 +416,28 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     );
   }
   if (node.gather === 'cobble') {
-    if (state.inventory.hammerstone) {
-      if ((state.inventory.wetCobble ?? 0) >= 1) return { state, ok: false, message: '' };
+    const cobbleGone = { ...(state.cobbleGone ?? {}), [id]: state.minutes };
+    if (!state.inventory.hammerstone) {
       return ok(
         {
           ...state,
-          inventory: { ...state.inventory, wetCobble: 1 },
+          inventory: { ...state.inventory, hammerstone: true },
           energy,
           picked,
+          cobbleGone,
+        },
+        'A hard, round cobble. Good hammerstone.',
+      );
+    }
+    const wet = cobbleIsWet(node.tx, node.ty);
+    if (wet) {
+      return ok(
+        {
+          ...state,
+          inventory: { ...state.inventory, wetCobble: (state.inventory.wetCobble ?? 0) + 1 },
+          energy,
+          picked,
+          cobbleGone,
         },
         'A wet creek cobble. It can heat water, but it may crack in a fire.',
       );
@@ -405,11 +445,12 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     return ok(
       {
         ...state,
-        inventory: { ...state.inventory, hammerstone: true },
+        inventory: { ...state.inventory, dryCobble: (state.inventory.dryCobble ?? 0) + 1 },
         energy,
         picked,
+        cobbleGone,
       },
-      'A hard, round cobble. Good hammerstone.',
+      'A dry cobble from the bank. It will take the fire.',
     );
   }
   return ok(
@@ -419,7 +460,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
   );
 }
 
-/** One strip from a living birch. It stays peeled for a day. */
+/** Two strips from a living birch. It stays peeled for a day. */
 export function peelBirch(state: GameState, id: string): ActionResult {
   const node = propById(id);
   if (!node || node.kind !== 'birch_tree') return fail(state, 'That is not a birch.');
@@ -432,11 +473,11 @@ export function peelBirch(state: GameState, id: string): ActionResult {
     {
       ...state,
       energy: state.energy - GATHER_ENERGY,
-      inventory: { ...state.inventory, bark: state.inventory.bark + 1 },
+      inventory: { ...state.inventory, bark: state.inventory.bark + BARK_STRIPS },
       plants: { ...state.plants, [id]: state.minutes },
     },
-    'A strip of birch bark.',
-    '+1 Bark',
+    'Two strips of birch bark.',
+    `+${BARK_STRIPS} Bark`,
   );
 }
 
@@ -462,7 +503,9 @@ export function craftPot(state: GameState): ActionResult {
 /** One cobble, two wood, one cord. The axe stays in the pack until he taps it. */
 export function craftAxe(state: GameState): ActionResult {
   if (state.inventory.axe) return fail(state, 'You already have a stone axe.');
-  if ((state.inventory.wetCobble ?? 0) < 1) return fail(state, 'Need 1 more cobble.');
+  const dry = state.inventory.dryCobble ?? 0;
+  const wet = state.inventory.wetCobble ?? 0;
+  if (dry < 1 && wet < 1) return fail(state, 'Need 1 more cobble.');
   if (state.inventory.wood < AXE_WOOD) return fail(state, 'Need 2 more wood.');
   if (state.inventory.cordage < AXE_CORDAGE) return fail(state, 'Need 1 more cordage.');
   return ok(
@@ -470,7 +513,8 @@ export function craftAxe(state: GameState): ActionResult {
       ...state,
       inventory: {
         ...state.inventory,
-        wetCobble: state.inventory.wetCobble - 1,
+        dryCobble: dry > 0 ? dry - 1 : dry,
+        wetCobble: dry > 0 ? wet : wet - 1,
         wood: state.inventory.wood - AXE_WOOD,
         cordage: state.inventory.cordage - AXE_CORDAGE,
         axe: true,

@@ -29,7 +29,7 @@ import {
 } from '../constants';
 import { AXE_IDLE, HATCHET_IDLE, OPENING_TIP, restingTip } from '../copy';
 import { CORD_SECONDS, fiberFrame, isFiberCut } from '../fiber';
-import { addFirewood, blowCoal, craftBowdrill, craftKindling, craftTinder, fireShort, giveCoal, nearestFire, nearEmberFire, nearLitFire, stepDrill } from '../fire';
+import { addFirewood, blowCoal, craftBowdrill, craftKindling, craftTinder, DRILL_FIZZLE, fireShort, giveCoal, nearestFire, nearEmberFire, nearLitFire, stepDrill } from '../fire';
 import { clamp, depthFor, tileToWorld, worldToTile } from '../iso';
 import { SHADOW_TINT, lightTint, multiplyTint, skyColor } from '../light';
 import { PROPS, groundAt, inBounds, propAt } from '../map';
@@ -60,6 +60,7 @@ import {
   gainEnergy,
   gather,
   coverTripod,
+  debugInventory,
   initialState,
   knapFlint,
   minutesThisFrame,
@@ -75,10 +76,10 @@ import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
 import { hotbarSlots } from '../craft';
-import { chooseUse, upgradePrompt, waterChoice } from '../use';
+import { chooseTarget, upgradePrompt, waterChoice, type UseChoice } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { BOIL_METHOD } from '../boil';
-import { drinkBowl, drinkCreek, drinkCup, eat, finishBoil, plantFrame, scoopBowl, scoopCreek } from '../food';
+import { drinkBowl, drinkCreek, drinkCup, eat, finishBoil, liftPot, plantFrame, scoopBowl, scoopCreek } from '../food';
 import { dropHotStone, heatStone, HEAT_SECONDS, markStoneHot, refundStone, STONE_BOIL_SECONDS } from '../stoneboil';
 import { weatherAt } from '../weather';
 import { facingFromVector, mirrorFacing, poseClip, poseName } from '../woodsman';
@@ -235,7 +236,7 @@ export class GameScene extends Phaser.Scene {
   private boilJob: { started: number; tx: number; ty: number } | null = null;
   private steam: Phaser.GameObjects.Sprite | null = null;
   private potSprite: Phaser.GameObjects.Sprite | null = null;
-  private heatJob: { started: number; tx: number; ty: number; spent: 'dry' | 'wet' } | null = null;
+  private heatJob: { started: number; tx: number; ty: number; spent: 'stone' | 'cobble' | 'wet' } | null = null;
   private stoneAt: { tx: number; ty: number } | null = null;
   private stoneSprite: Phaser.GameObjects.Sprite | null = null;
   private bowlSprite: Phaser.GameObjects.Sprite | null = null;
@@ -307,18 +308,7 @@ export class GameScene extends Phaser.Scene {
       this.state = this.debugMode
         ? {
             ...fresh,
-            inventory: {
-              ...fresh.inventory,
-              wood: 40,
-              fiber: 20,
-              stone: 20,
-              cordage: 4,
-              bark: 2,
-              flakes: 1,
-              axe: true,
-              bowl: true,
-              wetCobble: 1,
-            },
+            inventory: debugInventory(),
           }
         : fresh;
       this.started = this.debugMode || this.skipTitle;
@@ -716,6 +706,18 @@ export class GameScene extends Phaser.Scene {
       this.rested = 0;
     }
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    if (this.potHit(world.x, world.y)) {
+      this.takePot();
+      return;
+    }
+    const hits = this.propsAtPoint(world.x, world.y);
+    const front = hits[0];
+    const pointed = front && inReach(this.px, this.py, front.tx, front.ty, reachFor(front)) ? front : undefined;
+    const choice = chooseTarget(this.state, { x: this.px, y: this.py }, pointed);
+    if (choice.action !== 'none') {
+      this.performChoice(choice);
+      return;
+    }
     const tile = this.tileAt(world.x, world.y);
     if (this.state.tool === 'hands' && tile && groundAt(tile.tx, tile.ty) === 'creek_water') {
       const water = waterChoice(this.state, { x: this.px, y: this.py });
@@ -726,7 +728,6 @@ export class GameScene extends Phaser.Scene {
       this.setTip('Walk up to the water.');
       return;
     }
-    const hits = this.propsAtPoint(world.x, world.y);
     if (this.state.tool === 'hatchet' || this.state.tool === 'axe') {
       const tree = hits.find((prop) => this.isTree(prop) && !isFelled(this.state.trees, prop.id));
       if (tree && inReach(this.px, this.py, tree.tx, tree.ty, CHOP_REACH)) {
@@ -989,44 +990,27 @@ export class GameScene extends Phaser.Scene {
     this.afterChange();
   }
 
-  private useFire(piece: Piece): boolean {
-    const hot = piece.lit || (piece.coalsUntil != null && this.state.minutes < piece.coalsUntil);
-    if (hot && this.state.inventory.wood > 0) {
-      const result = addFirewood(this.state, piece);
-      if (!result.ok) this.setTip(result.message);
-      else {
-        this.state = result.state;
-        this.afterChange();
-      }
-      return true;
-    }
-    if (hot) {
-      this.setTip(piece.lit ? 'Need 1 more wood.' : 'The coals are fading. A length of wood would catch.');
-      return true;
-    }
-    if (piece.ember === 'smoke' || (this.state.inventory.coal > 0 && !piece.lit)) {
-      const result = blowCoal(this.state, piece);
-      if (!result.ok) {
-        this.setTip(result.message);
-        return true;
-      }
+  private feedFire(piece: Piece): void {
+    const result = addFirewood(this.state, piece);
+    if (!result.ok) this.setTip(result.message);
+    else {
       this.state = result.state;
-      const at = tileToWorld(piece.tx, piece.ty);
-      const frame = piece.ember === 'smoke' ? 'item_tinder_lit_1' : 'item_tinder_lit_0';
-      this.showFx(at.x, at.y - 10, frame);
-      this.fxUntil = this.time.now + (piece.ember === 'smoke' ? 700 : 900);
       this.afterChange();
-      return true;
     }
-    if (this.state.inventory.bowdrill && !piece.lit) {
-      this.tryStartDrill();
-      return true;
+  }
+
+  private blowAt(piece: Piece): void {
+    const result = blowCoal(this.state, piece);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
     }
-    if (!piece.lit) {
-      this.setTip('The lay is cold. A bow drill could wake a coal.');
-      return true;
-    }
-    return false;
+    this.state = result.state;
+    const at = tileToWorld(piece.tx, piece.ty);
+    const frame = piece.ember === 'smoke' ? 'item_tinder_lit_1' : 'item_tinder_lit_0';
+    this.showFx(at.x, at.y - 10, frame);
+    this.fxUntil = this.time.now + (piece.ember === 'smoke' ? 700 : 900);
+    this.afterChange();
   }
 
   private tryStartDrill(): boolean {
@@ -1045,13 +1029,9 @@ export class GameScene extends Phaser.Scene {
 
   private releaseDrill(): void {
     if (!this.drill || this.drill.progress >= 1) return;
-    if (this.drill.progress <= 0) {
-      this.drill = null;
-      return;
-    }
     this.drill = null;
     this.hideFx();
-    this.setTip('Too soon. The coal dusts out.');
+    this.setTip(DRILL_FIZZLE);
   }
 
   private stepDrillFrame(dt: number): void {
@@ -1075,7 +1055,7 @@ export class GameScene extends Phaser.Scene {
       } else if (step.result === 'fail') {
         this.drill = null;
         this.hideFx();
-        this.setTip(step.energy <= 0 ? 'You’re worn out. Rest a moment.' : 'Too soon. The coal dusts out.');
+        this.setTip(step.energy <= 0 ? 'You’re worn out. Rest a moment.' : DRILL_FIZZLE);
       }
       return;
     }
@@ -1127,41 +1107,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private useNearest(): void {
+    this.performChoice(chooseTarget(this.state, { x: this.px, y: this.py }));
+  }
+
+  private performChoice(choice: UseChoice): void {
     if (this.drill) return;
-    const feet = { x: this.px, y: this.py };
-    if (
-      this.state.tool === 'hands' &&
-      this.state.hotStone === 'hot' &&
-      this.state.inventory.bowl &&
-      this.state.bowlWater === 'raw'
-    ) {
-      this.dropInBowl();
-      return;
-    }
-    if (
-      this.state.tool === 'hands' &&
-      this.state.inventory.bowl &&
-      this.state.bowlWater === 'raw' &&
-      this.state.hotStone !== 'hot' &&
-      !this.heatJob &&
-      nearLitFire(this.state) &&
-      (this.state.inventory.stone > 0 || (this.state.inventory.wetCobble ?? 0) > 0)
-    ) {
-      this.startHeat();
-      return;
-    }
-    if (
-      this.state.tool === 'hands' &&
-      this.state.inventory.pot > 0 &&
-      this.state.cupWater === 'raw' &&
-      (nearLitFire(this.state) || nearEmberFire(this.state))
-    ) {
-      this.beginBoil();
-      return;
-    }
-    const fire = nearestFire(this.state, feet);
-    if (fire && this.useFire(fire)) return;
-    const choice = chooseUse(this.state, { x: this.px, y: this.py });
     if (choice.action === 'gather') {
       this.pickUp(choice.prop);
       return;
@@ -1208,6 +1158,18 @@ export class GameScene extends Phaser.Scene {
       this.beginBoil();
       return;
     }
+    if (choice.action === 'feed') {
+      this.feedFire(choice.piece);
+      return;
+    }
+    if (choice.action === 'blow') {
+      this.blowAt(choice.piece);
+      return;
+    }
+    if (choice.action === 'drill') {
+      if (this.holdingDrill) this.tryStartDrill();
+      return;
+    }
     if (choice.action === 'repair') {
       const result = repairPiece(this.state, choice.piece);
       if (!result.ok) this.setTip(result.message);
@@ -1241,10 +1203,13 @@ export class GameScene extends Phaser.Scene {
     }
     let dx = 0;
     let dy = 0;
+    const stickMag = Math.hypot(this.stickX, this.stickY);
     const held = stickDirection(this.stickX, this.stickY);
+    let pace = 1;
     if (held.x !== 0 || held.y !== 0) {
       dx = held.x;
       dy = held.y;
+      pace = stickMag;
     } else {
       if (this.keys.has('arrowright') || this.keys.has('d')) dx += 1;
       if (this.keys.has('arrowleft') || this.keys.has('a')) dx -= 1;
@@ -1252,7 +1217,7 @@ export class GameScene extends Phaser.Scene {
       if (this.keys.has('arrowup') || this.keys.has('w')) dy -= 1;
     }
     const mag = Math.hypot(dx, dy);
-    const travel = travelSpeed(Math.min(1, mag));
+    const travel = travelSpeed(pace);
     if (travel.speed <= 0) {
       if (this.placing) this.nudgeGhost(dt);
       this.parkWalk();
@@ -1496,6 +1461,14 @@ export class GameScene extends Phaser.Scene {
     if (id.startsWith('slot-')) {
       const index = Number(id.slice(5));
       const slot = hotbarSlots(this.state)[index];
+      if (slot?.id === 'pot') {
+        if (this.state.cupWater === 'boiled') {
+          this.handsFood('drink');
+          return;
+        }
+        if (this.state.cupWater === 'raw') this.setTip(this.state.potSeat ? 'It is on the coals.' : 'Set it on the coals.');
+        return;
+      }
       if (slot?.id === 'berries' || slot?.id === 'roots') {
         const result = eat(this.state, slot.id === 'berries' ? 'berries' : 'roots');
         if (!result.ok) this.setTip(result.message);
@@ -1891,10 +1864,30 @@ export class GameScene extends Phaser.Scene {
       if (!result.ok) this.setTip(result.message);
       else {
         this.state = result.state;
+        this.boilJob = null;
         this.afterChange();
       }
       return;
     }
+  }
+
+  private potHit(x: number, y: number): boolean {
+    const pot = this.potSprite;
+    const seat = this.state.potSeat;
+    if (!pot?.visible || !seat) return false;
+    if (!this.opaqueHit(pot, x, y)) return false;
+    return inReach(this.px, this.py, seat.tx, seat.ty, 72);
+  }
+
+  private takePot(): void {
+    const result = liftPot(this.state);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.boilJob = null;
+    this.state = result.state;
+    this.afterChange();
   }
 
   private fireSpot(): { tx: number; ty: number } | null {
@@ -2003,29 +1996,39 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.boilJob = { started: this.time.now, tx: fire.tx, ty: fire.ty };
-    this.setTip('The bark pot sits on the coals.');
+    this.state = { ...this.state, potSeat: { tx: fire.tx, ty: fire.ty }, tip: 'The bark pot sits on the coals.' };
+    this.afterChange();
   }
 
   private stepBoil(): void {
     const job = this.boilJob;
+    const seat = this.state.potSeat;
     const hide = () => {
       this.steam?.setVisible(false);
       this.potSprite?.setVisible(false);
     };
-    if (!job) {
-      hide();
-      return;
-    }
-    if (!(nearLitFire(this.state) || nearEmberFire(this.state)) || this.state.cupWater !== 'raw') {
+    if (job && (!(nearLitFire(this.state) || nearEmberFire(this.state)) || this.state.cupWater !== 'raw')) {
       this.boilJob = null;
+      this.state = { ...this.state, potSeat: null };
       hide();
       this.setTip('The boil stops.');
       return;
     }
-    const at = tileToWorld(job.tx, job.ty);
-    const elapsed = (this.time.now - job.started) / 1000;
-    const boiling = elapsed >= BOIL_METHOD.seconds / 2;
-    const potFrame = boiling ? BOIL_METHOD.boilingFrame : BOIL_METHOD.coalsFrame;
+    if (!job && !(seat && this.state.cupWater !== 'empty')) {
+      hide();
+      return;
+    }
+    const spot = job ? { tx: job.tx, ty: job.ty } : seat!;
+    const at = tileToWorld(spot.tx, spot.ty);
+    const elapsed = job ? (this.time.now - job.started) / 1000 : BOIL_METHOD.seconds;
+    const boiling = Boolean(job) && elapsed >= BOIL_METHOD.seconds / 2;
+    const potFrame = job
+      ? boiling
+        ? BOIL_METHOD.boilingFrame
+        : BOIL_METHOD.coalsFrame
+      : this.state.inventory.pot === 1
+        ? BOIL_METHOD.wornFrame
+        : BOIL_METHOD.fullFrame;
     if (!this.potSprite) this.potSprite = this.add.sprite(at.x + 14, at.y + 2, 'world', potFrame);
     this.applyAtlas(this.potSprite, potFrame);
     this.potSprite.setPosition(Math.round(at.x + 14), Math.round(at.y + 2));
@@ -2037,11 +2040,10 @@ export class GameScene extends Phaser.Scene {
     this.steam.setPosition(Math.round(at.x + 14), Math.round(at.y - 10));
     this.steam.setDepth(depthFor(at.y, 30));
     this.steam.setVisible(boiling);
-    if (elapsed < BOIL_METHOD.seconds) return;
+    if (!job || elapsed < BOIL_METHOD.seconds) return;
     this.boilJob = null;
     this.steam.setVisible(false);
-    this.potSprite?.setVisible(false);
-    this.state = finishBoil(this.state);
+    this.state = { ...finishBoil(this.state), potSeat: { tx: spot.tx, ty: spot.ty } };
     this.afterChange();
   }
 

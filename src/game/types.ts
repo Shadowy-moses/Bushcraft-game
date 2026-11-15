@@ -47,7 +47,9 @@ export interface Inventory {
   axe: boolean;
   /** A carved wood bowl. It does not wear out. */
   bowl: boolean;
-  /** Wet creek cobbles carried for stone boiling. Not a second hammerstone. */
+  /** Dry bank cobbles. Safe in a fire, and a cobble for the axe. */
+  dryCobble: number;
+  /** Wet creek cobbles from the water's edge. They can crack in a fire. */
   wetCobble: number;
 }
 
@@ -98,10 +100,14 @@ export interface GameState {
   /** Game minute each fiber plant was cut. Missing means it is standing. */
   plants: Record<string, number>;
   picked: Record<string, true>;
+  /** Game minute a river cobble was picked up. It returns on the same daily cadence as a rock node. */
+  cobbleGone: Record<string, number>;
   outcome: Outcome;
   tip: string;
   /** 0 to 100. Rain soaks him, and he stays wet after it stops. */
   damp: number;
+  /** Tile where the bark pot is sitting. Null while it is in the pack. */
+  potSeat: { tx: number; ty: number } | null;
 }
 
 export interface Tile {

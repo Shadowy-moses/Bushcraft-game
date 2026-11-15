@@ -116,6 +116,7 @@ export function drinkCup(
       state: {
         ...state,
         cupWater: 'empty',
+        potSeat: null,
         thirst: clampNeed(state.thirst + BOILED_THIRST),
         tip: 'Cool enough. The thirst eases.',
       },
@@ -129,11 +130,22 @@ export function drinkCup(
     state: {
       ...state,
       cupWater: 'empty',
+      potSeat: null,
       sips,
       thirst: clampNeed(state.thirst + RAW_THIRST),
       sickAt: sickens ? state.minutes + SICK_DELAY : state.sickAt,
       tip: sickens ? 'You drink it raw.' : 'You drink it raw. It sits all right.',
     },
+  };
+}
+
+/** Take the pot off the coals. The water and the remaining boils stay with it. */
+export function liftPot(state: GameState): { state: GameState; ok: boolean; message: string } {
+  if (!state.potSeat) return { state, ok: false, message: 'The pot is already in the pack.' };
+  return {
+    ok: true,
+    message: 'The bark pot comes off the coals.',
+    state: { ...state, potSeat: null, tip: 'The bark pot comes off the coals.' },
   };
 }
 
@@ -238,6 +250,33 @@ function sameGone(a: Record<string, number>, b: Record<string, number>): boolean
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
   for (const key of keys) if (a[key] !== b[key]) return false;
   return true;
+}
+
+/** One picked cobble comes back each day, oldest first, the same cadence as a rock node. */
+export function regrowCobbles(
+  picked: Record<string, true>,
+  gone: Record<string, number>,
+  from: number,
+  to: number,
+): { picked: Record<string, true>; gone: Record<string, number> } {
+  const taken = Object.keys(picked).filter((id) => PROPS.some((prop) => prop.id === id && prop.kind === 'river_cobbles'));
+  if (taken.length === 0) return { picked, gone };
+  const known = { ...gone };
+  for (const id of taken) if (known[id] == null) known[id] = from;
+  const order = taken.slice().sort((a, b) => known[a] - known[b] || (a < b ? -1 : 1));
+  const next = { ...picked };
+  let gate = from;
+  let changed = false;
+  for (const id of order) {
+    const back = Math.max(known[id] + ROCK_RETURN_MINUTES, gate === from ? known[id] + ROCK_RETURN_MINUTES : gate + ROCK_RETURN_MINUTES);
+    if (back > to) break;
+    delete next[id];
+    delete known[id];
+    gate = back;
+    changed = true;
+  }
+  if (!changed && sameGone(gone, known)) return { picked, gone };
+  return { picked: changed ? next : picked, gone: known };
 }
 
 /** When the evening rain ends, one gathered cobble is back on the bank. */

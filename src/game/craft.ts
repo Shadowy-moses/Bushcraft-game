@@ -103,9 +103,9 @@ export function placeButtonLabel(have: number, need: number, material = 'wood'):
 export function hotbarSlots(state: GameState): HotbarSlot[] {
   const hammer = state.inventory.hammerstone;
   return [
-    { id: 'hands', name: 'Hands', count: -1, frame: 'hands' },
-    { id: 'hatchet', name: 'Hatchet', count: -1, frame: 'hatchet' },
-    { id: 'axe', name: 'Axe', count: -1, frame: state.inventory.axe ? 'item_stone_axe' : 'hatchet' },
+    { id: 'hands', name: 'Hands', count: -1, frame: 'item_hands' },
+    { id: 'hatchet', name: 'Hatchet', count: -1, frame: 'item_hatchet' },
+    { id: 'axe', name: 'Axe', count: -1, frame: state.inventory.axe ? 'item_stone_axe' : 'item_hatchet' },
     { id: 'hammerstone', name: 'Hammerstone', count: -1, frame: hammer ? 'item_hammerstone' : 'hands' },
     { id: 'plan', name: 'Building plan', count: -1, frame: 'plan' },
     { id: 'wood', name: 'Wood', count: state.inventory.wood, frame: 'wood' },
@@ -133,6 +133,9 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
                   : 'item_wood_bowl',
           },
         ]
+      : []),
+    ...((state.inventory.dryCobble ?? 0) > 0
+      ? [{ id: 'dry-cobble', name: 'Dry cobble', count: state.inventory.dryCobble, frame: 'item_rock' }]
       : []),
     ...((state.inventory.wetCobble ?? 0) > 0
       ? [{ id: 'wet-cobble', name: 'Wet cobble', count: state.inventory.wetCobble, frame: 'river_cobbles' }]
@@ -229,7 +232,7 @@ export function recipesFor(state: GameState): Recipe[] {
       category: 'tools',
       name: 'Crude hatchet',
       blurb: 'A crude head jammed on a short haft. It bites slowly: three swings fell a tree, and the wood goes in the pack. It is already in your hand.',
-      frame: 'hatchet',
+      frame: 'item_hatchet',
       ingredients: [],
       seconds: 0,
       timeLabel: 'In your hand',
@@ -244,7 +247,7 @@ export function recipesFor(state: GameState): Recipe[] {
       blurb: 'A creek cobble, knapped and pecked into a thick wedge head, then hafted with cord. It bites about 1.6 times as deep as the crude hatchet, so two swings drop a tree.',
       frame: 'item_stone_axe',
       ingredients: [
-        { name: 'Cobble', have: state.inventory.wetCobble ?? 0, need: 1 },
+        { name: 'Cobble', have: (state.inventory.dryCobble ?? 0) + (state.inventory.wetCobble ?? 0), need: 1 },
         { name: 'Wood', have: state.inventory.wood, need: AXE_WOOD },
         { name: 'Cordage', have: state.inventory.cordage, need: AXE_CORDAGE },
       ],
@@ -253,7 +256,7 @@ export function recipesFor(state: GameState): Recipe[] {
       action: 'craft-axe',
       enabled:
         !state.inventory.axe &&
-        (state.inventory.wetCobble ?? 0) >= 1 &&
+        ((state.inventory.dryCobble ?? 0) >= 1 || (state.inventory.wetCobble ?? 0) >= 1) &&
         state.inventory.wood >= AXE_WOOD &&
         state.inventory.cordage >= AXE_CORDAGE,
       done: state.inventory.axe,

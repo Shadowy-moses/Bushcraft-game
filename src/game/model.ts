@@ -1,11 +1,11 @@
 import { hotbarSlots, recipesFor, statusLine, type HotbarSlot, type Recipe } from './craft';
 import { clockParts, energyWord, warmthWord } from './copy';
-import { nearestFire, nearLitFire } from './fire';
+import { nearLitFire } from './fire';
 import { PROPS } from './map';
 import { warmthPerGameHour } from './rules';
 import { isFelled } from './trees';
 import type { PieceKind, GameState, Tool } from './types';
-import { drinkPrompt, repairPrompt, upgradePrompt } from './use';
+import { chooseUse, usePrompt } from './use';
 import { weatherAt, weatherWord } from './weather';
 
 export type SheetId = 'none' | 'title' | 'end' | 'pack' | 'craft';
@@ -71,10 +71,9 @@ export function buildModel(
   const perHour = warmthPerGameHour(state);
   const face = clockParts(state.minutes);
   const feet = { x: state.x, y: state.y };
-  const fire = nearestFire(state, feet, 56);
   const warming = nearLitFire(state);
-  const drink = drinkPrompt(state, feet);
-  const hold = Boolean(state.inventory.bowdrill && fire && !fire.lit && !(fire.coalsUntil != null && state.minutes < fire.coalsUntil));
+  const choice = chooseUse(state, feet);
+  const prompt = usePrompt(state, feet);
   return {
     clock: face.clock,
     daypart: face.daypart,
@@ -94,8 +93,9 @@ export function buildModel(
     debug,
     weather: weatherWord(weatherAt(state.minutes)),
     dampLabel: (state.damp ?? 0) >= 10 ? 'Damp' : '',
-    prompt: drink ?? repairPrompt(state, feet) ?? upgradePrompt(state, feet) ?? '',
-    useLabel: hold ? 'Hold' : drink === 'Drink' ? 'Drink' : 'Use',
+    prompt,
+    useLabel:
+      choice.action === 'drill' ? 'Hold' : choice.action === 'blow' ? 'Blow' : prompt === 'Drink' ? 'Drink' : 'Use',
     energyLabel: `${Math.round(state.energy)} · ${energyWord(state.energy)}`,
     lowWarmth: state.warmth < 30,
     status: statusLine(state),

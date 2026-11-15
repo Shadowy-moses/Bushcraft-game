@@ -9,9 +9,9 @@ import {
   PLAY_MINUTES_PER_SECOND,
   START_MINUTES,
 } from '../src/game/constants';
-import { addFirewood, stepDrill, tendFires } from '../src/game/fire';
+import { abandonDrill, addFirewood, DRILL_FIZZLE, stepDrill, tendFires } from '../src/game/fire';
 import { tileToWorld } from '../src/game/iso';
-import { RUN_SPEED, stickDirection, travelSpeed } from '../src/game/move';
+import { RUN_SPEED, WALK_SPEED, stickDirection, travelSpeed } from '../src/game/move';
 import { coverTripod, decayBuildings, initialState, minutesThisFrame, repairPiece, tick, warmthPerGameHour } from '../src/game/rules';
 import { upgradePrompt } from '../src/game/use';
 import { weatherAt, weatherWord } from '../src/game/weather';
@@ -130,6 +130,9 @@ describe('round 8 weather, cover, wear, and coals', () => {
   it('fails an early drill release, and warmth rises beside the fire', () => {
     expect(stepDrill(0.4, 0.1, false, 50).result).toBe('fail');
     expect(stepDrill(0, 0.1, false, 50).result).toBe('going');
+    expect(abandonDrill(0)).toBe(DRILL_FIZZLE);
+    expect(abandonDrill(0.2)).toMatch(/fizzles/);
+    expect(abandonDrill(1)).toBeNull();
     const feet = tileToWorld(8, 4);
     const near = {
       ...initialState(),
@@ -165,7 +168,11 @@ describe('round 8 weather, cover, wear, and coals', () => {
   it('keeps stick pace with the keys, and the clock at the working rate', () => {
     const held = stickDirection(0.4, 0);
     expect(Math.hypot(held.x, held.y)).toBeCloseTo(1);
-    expect(travelSpeed(Math.hypot(held.x, held.y)).speed).toBe(RUN_SPEED);
+    const creep = travelSpeed(0.4);
+    expect(creep.running).toBe(false);
+    expect(creep.speed).toBeGreaterThan(0);
+    expect(creep.speed).toBeLessThan(WALK_SPEED);
+    expect(travelSpeed(0.05).speed).toBe(0);
     expect(travelSpeed(1).speed).toBe(RUN_SPEED);
     expect(minutesThisFrame(1)).toBe(PLAY_MINUTES_PER_SECOND);
     expect(minutesThisFrame(5)).toBeCloseTo(2);

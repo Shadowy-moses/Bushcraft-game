@@ -52,6 +52,13 @@ function countOf(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+function seatOf(value: unknown): { tx: number; ty: number } | null {
+  if (!value || typeof value !== 'object') return null;
+  const seat = value as { tx?: unknown; ty?: unknown };
+  if (typeof seat.tx !== 'number' || typeof seat.ty !== 'number') return null;
+  return { tx: seat.tx, ty: seat.ty };
+}
+
 function keepNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -120,6 +127,7 @@ export function parseSave(raw: string): GameState | null {
         cup?: unknown;
         axe?: unknown;
         bowl?: unknown;
+        dryCobble?: unknown;
         wetCobble?: unknown;
       };
       health?: unknown;
@@ -132,7 +140,9 @@ export function parseSave(raw: string): GameState | null {
       cupWater?: unknown;
       bowlWater?: unknown;
       hotStone?: unknown;
+      potSeat?: unknown;
       rockGone?: unknown;
+      cobbleGone?: unknown;
       rocks?: unknown;
       cores?: unknown;
       plants?: unknown;
@@ -183,6 +193,7 @@ export function parseSave(raw: string): GameState | null {
         cupWater: save.cupWater === 'raw' || save.cupWater === 'boiled' ? save.cupWater : 'empty',
         bowlWater: save.bowlWater === 'raw' || save.bowlWater === 'boiled' ? save.bowlWater : 'empty',
         hotStone: save.hotStone === 'hot' ? 'hot' : 'none',
+        potSeat: seatOf(save.potSeat),
         tx: save.tx,
         ty: save.ty,
         x,
@@ -207,12 +218,14 @@ export function parseSave(raw: string): GameState | null {
         pot: typeof save.inventory.pot === 'number' ? save.inventory.pot : save.inventory.cup === true ? 3 : 0,
         axe: save.inventory.axe === true,
         bowl: save.inventory.bowl === true,
+        dryCobble: countOf(save.inventory.dryCobble),
         wetCobble: countOf(save.inventory.wetCobble),
       },
       pieces: save.pieces.map((piece) => restorePiece(piece as Piece)),
       trees: save.trees,
       rocks: (save.rocks as Record<string, number> | undefined) ?? {},
       rockGone: (save.rockGone as Record<string, number> | undefined) ?? {},
+      cobbleGone: (save.cobbleGone as Record<string, number> | undefined) ?? {},
       logStrips: (save.logStrips as Record<string, number> | undefined) ?? {},
       cores: (save.cores as Record<string, number> | undefined) ?? {},
       plants: save.version === 6 ? ((save.plants as Record<string, number> | undefined) ?? {}) : {},

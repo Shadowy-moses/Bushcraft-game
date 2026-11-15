@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BOIL_METHOD } from '../src/game/boil';
-import { HUNGER_PER_HOUR, LOG_STRIPS, NEED_DIRE, NEED_LOW, POT_BOILS, SICK_DELAY, SICK_MINUTES, START_MINUTES, THIRST_PER_HOUR } from '../src/game/constants';
+import { BARK_STRIPS, HUNGER_PER_HOUR, LOG_STRIPS, NEED_DIRE, NEED_LOW, POT_BOILS, SICK_DELAY, SICK_MINUTES, START_MINUTES, THIRST_PER_HOUR } from '../src/game/constants';
 import { besideCreek, drinkCup, finishBoil, plantFrame, rainEndsBetween, regrowRocks, scoopCreek } from '../src/game/food';
+import { fiberFromPlant } from '../src/game/fiber';
 import { tileToWorld } from '../src/game/iso';
 import { PROPS } from '../src/game/map';
 import { craftPot, gather, initialState, needRegen, peelBirch, restEnergyPerSecond, tick } from '../src/game/rules';
@@ -44,6 +45,8 @@ describe('food and water', () => {
     const root = gather(stand(reed!.tx, reed!.ty), reed!.id);
     expect(root.ok).toBe(true);
     expect(root.state.inventory.roots).toBe(1);
+    expect(root.state.inventory.fiber).toBe(fiberFromPlant(reed!.id));
+    expect(root.message).toMatch(/root/);
     const later = tick(picked.state, 1440);
     expect(gather({ ...later, ...tileToWorld(berry!.tx, berry!.ty), tx: berry!.tx, ty: berry!.ty, tool: 'hands' }, berry!.id).ok).toBe(true);
   });
@@ -98,7 +101,8 @@ describe('food and water', () => {
     const here = stand(birch!.tx, birch!.ty);
     const strip = peelBirch(here, birch!.id);
     expect(strip.ok).toBe(true);
-    expect(strip.popup).toBe('+1 Bark');
+    expect(strip.popup).toBe(`+${BARK_STRIPS} Bark`);
+    expect(strip.state.inventory.bark).toBe(BARK_STRIPS);
     expect(plantFrame('birch_tree', {}, birch!.id, here.minutes)).toBe('birch_tree');
     expect(plantFrame('birch_tree', strip.state.plants, birch!.id, strip.state.minutes)).toBe('birch_tree_peeled');
     expect(plantFrame('birch_tree', strip.state.plants, birch!.id, strip.state.minutes + 1440)).toBe('birch_tree');
@@ -126,10 +130,14 @@ describe('food and water', () => {
     const two = regrowRocks(rocks, gone, from, from + 2880);
     expect(two.rocks['rock_node-10-8']).toBe(0);
     expect(rainEndsBetween(20 * 60, 23 * 60)).toBe(1);
+    const start = 20 * 60;
     const picked = { 'river_cobbles-2-8': true as const, 'river_cobbles-3-9': true as const };
-    const washed = tick({ ...initialState(), minutes: 20 * 60, picked }, 23 * 60 - 20 * 60);
-    expect(washed.picked['river_cobbles-2-8']).toBeUndefined();
-    expect(washed.picked['river_cobbles-3-9']).toBe(true);
+    const cobbleGone = { 'river_cobbles-2-8': start, 'river_cobbles-3-9': start };
+    const rained = tick({ ...initialState(), minutes: start, picked, cobbleGone }, 23 * 60 - start);
+    expect(rained.picked['river_cobbles-2-8']).toBe(true);
+    const nextDay = tick({ ...initialState(), minutes: start, picked, cobbleGone }, 1440);
+    expect(nextDay.picked['river_cobbles-2-8']).toBeUndefined();
+    expect(nextDay.picked['river_cobbles-3-9']).toBe(true);
     const atReed = stand(1, 1);
     const reed = chooseUse(atReed, { x: atReed.x, y: atReed.y });
     expect(reed.action).toBe('gather');

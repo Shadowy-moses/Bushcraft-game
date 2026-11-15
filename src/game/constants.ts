@@ -45,6 +45,8 @@ export const SICK_HEALTH_PER_HOUR = 4;
 export const ROCK_RETURN_MINUTES = 1440;
 /** A fallen birch log gives this many strips, then it is spent. */
 export const LOG_STRIPS = 4;
+/** Strips one Use takes from a birch, live or fallen. A live birch still peels only once a day. */
+export const BARK_STRIPS = 2;
 /** A bark pot survives this many boils. */
 export const POT_BOILS = 3;
 /** Hafted stone axe: one creek cobble, two wood, one cord. */
@@ -74,6 +76,8 @@ export const STRIKE_ENERGY = 2;
 export const BUILD_ENERGY = 6;
 /** Cobbles sit in the creek fringe. The bank is close enough. */
 export const COBBLE_REACH = 88;
+/** About one tile. A fire this close wins Use and taps over the creek and the plants. */
+export const BESIDE_FIRE = 36;
 
 export const WOOD_FOUNDATION = 10;
 export const WOOD_WALL = 5;
