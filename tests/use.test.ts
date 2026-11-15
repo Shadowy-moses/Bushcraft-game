@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { UPGRADE_NOTE } from '../src/game/copy';
 import { recipesFor } from '../src/game/craft';
 import { tileToWorld } from '../src/game/iso';
+import { CHOP_REACH, REACH } from '../src/game/move';
 import { PROPS } from '../src/game/map';
 import { emptyInventory, gather, initialState, knapFlint } from '../src/game/rules';
 import { chooseUse, upgradePrompt } from '../src/game/use';
@@ -44,6 +45,29 @@ describe('what Use reaches for', () => {
     expect(withStone.ok).toBe(true);
     expect(withStone.popup).toMatch(/flake/);
     expect(chooseUse(stand(10, 7, 'hands'), { x: core.x, y: core.y }).action).not.toBe('knap');
+  });
+
+  it('chops a nearby trunk with the hatchet and ignores a second hammerstone', () => {
+    const byCobble = stand(2, 8, 'hatchet');
+    const chop = chooseUse(byCobble, { x: byCobble.x, y: byCobble.y });
+    expect(chop.action).toBe('chop');
+    const owned = {
+      ...stand(3, 9, 'hands'),
+      inventory: { ...initialState().inventory, hammerstone: true },
+    };
+    const choice = chooseUse(owned, { x: owned.x, y: owned.y });
+    if (choice.action === 'gather') expect(choice.prop.kind).not.toBe('river_cobbles');
+  });
+
+  it('chops a trunk from beside it, past the pickup reach', () => {
+    const feet = stand(6, 5, 'hatchet');
+    const choice = chooseUse(feet, { x: feet.x, y: feet.y });
+    expect(choice.action).toBe('chop');
+    if (choice.action !== 'chop') return;
+    const at = tileToWorld(choice.prop.tx, choice.prop.ty);
+    const dist = Math.hypot(at.x - feet.x, at.y - feet.y);
+    expect(dist).toBeGreaterThan(REACH);
+    expect(dist).toBeLessThanOrEqual(CHOP_REACH);
   });
 
   it('saves the hatchet line for when nothing usable is in reach', () => {

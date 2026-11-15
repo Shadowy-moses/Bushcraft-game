@@ -60,11 +60,11 @@ export class Hud {
         <div id="pouch" class="pouch"></div>
       </header>
       <div id="vitals" class="panel">
-        <div class="vital"><span class="vicon">${ICONS.health}</span><div class="bar health"><span id="health-fill"></span></div></div>
-        <div class="vital"><span class="vicon">${ICONS.warmth}</span><div class="bar warmth"><span id="warmth-fill"></span></div></div>
+        <div class="vital"><span class="vlabel">Health</span><div class="bar health"><span id="health-fill"></span></div></div>
+        <div class="vital"><span class="vlabel">Warmth</span><div class="bar warmth"><span id="warmth-fill"></span></div></div>
         <div class="vital"><span class="vlabel" id="hunger-label">Hunger</span><div class="bar hunger"><span id="hunger-fill"></span></div></div>
         <div class="vital"><span class="vlabel" id="thirst-label">Thirst</span><div class="bar thirst"><span id="thirst-fill"></span></div></div>
-        <div class="vital"><span class="vicon">${ICONS.energy}</span><div class="bar energy"><span id="energy-fill"></span></div></div>
+        <div class="vital"><span class="vlabel">Energy</span><div class="bar energy"><span id="energy-fill"></span></div></div>
         <p id="warmth-read"></p>
         <p id="status"></p>
         <button type="button" id="rest-button" data-action="rest">Rest</button>
@@ -79,6 +79,11 @@ export class Hud {
         <button type="button" id="bag" data-action="craft" aria-label="Inventory">${ICONS.bag}</button>
         <div class="hotbar" id="hotbar"></div>
         <button type="button" id="act" data-action="use" aria-label="Use" hidden><span class="act-icon">${ICONS.hatchet}</span><span class="act-label">Use</span></button>
+      </div>
+      <div id="debug-panel" hidden>
+        <button type="button" data-action="debug-eight">8:00 rain</button>
+        <button type="button" data-action="debug-hour">+1 hour</button>
+        <button type="button" data-action="debug-rain">Make it rain</button>
       </div>
       <div id="overlay" hidden></div>
     `;
@@ -253,6 +258,8 @@ export class Hud {
     document.getElementById('hunger-fill')?.parentElement?.classList.toggle('low', model.lowHunger);
     document.getElementById('thirst-fill')?.parentElement?.classList.toggle('low', model.lowThirst);
     document.getElementById('warmth-fill')?.parentElement?.classList.toggle('low', model.lowWarmth);
+    document.getElementById('warmth-read')?.classList.toggle('warming', model.warming);
+    document.getElementById('debug-panel')?.toggleAttribute('hidden', !model.debug);
     const rest = document.querySelector<HTMLButtonElement>('#rest-button');
     if (rest) {
       rest.textContent = model.place ? 'Rest' : model.restLabel;
@@ -365,6 +372,7 @@ export class Hud {
           ({ slot, index }) => `
             <button type="button" class="slot${index === equipped ? ' on' : ''}" data-action="slot-${index}" aria-label="${esc(slot.name)}">
               ${this.iconHtml(slot.frame, false)}
+              <span class="slot-caption">${esc(slot.name.split(' ')[0])}</span>
             </button>
           `,
         )

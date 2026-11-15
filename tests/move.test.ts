@@ -148,6 +148,17 @@ describe('free movement', () => {
     expect(upgraded.state.pieces[1].material).toBe('stone');
   });
 
+  it('slides out of a gap between two trunks', () => {
+    const origin = tileToWorld(7, 5);
+    const bodies = [
+      { x: origin.x - 10, y: origin.y, r: 6, id: 'left' },
+      { x: origin.x + 10, y: origin.y, r: 6, id: 'right' },
+    ];
+    expect(canStand(origin.x, origin.y, bodies, [])).toBe(true);
+    const out = resolveMove(origin.x, origin.y, 0, 16, bodies, []);
+    expect(out.y).toBeGreaterThan(origin.y);
+  });
+
   it('walks on a short stick and runs when it is pushed out', () => {
     const walk = travelSpeed(0.4);
     const run = travelSpeed(1);

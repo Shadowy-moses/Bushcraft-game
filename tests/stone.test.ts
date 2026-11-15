@@ -48,8 +48,10 @@ describe('stone', () => {
     expect(taken.state.inventory.hammerstone).toBe(true);
     expect(taken.state.tool).toBe('hatchet');
     const again = gather({ ...taken.state, picked: {} }, 'river_cobbles-3-9', true);
-    expect(again.message).toBe('You already carry a hammerstone.');
+    expect(again.ok).toBe(false);
+    expect(again.message).toBe('');
     expect(again.state.inventory.hammerstone).toBe(true);
+    expect(again.state.tool).toBe(taken.state.tool);
   });
 
   it('knaps a flint core in place for two or three flakes, and stone nodes stay flake-free', () => {

@@ -115,6 +115,34 @@ html, body {
   letter-spacing: 0.04em;
 }
 
+#warmth-read.warming { color: #f0c14a; }
+
+#debug-panel {
+  position: absolute;
+  z-index: 6;
+  top: calc(108px + env(safe-area-inset-top));
+  left: calc(8px + env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#debug-panel[hidden] { display: none; }
+
+#debug-panel button {
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
+.slot-caption {
+  display: block;
+  margin-top: 1px;
+  font-size: 8px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--cream);
+}
+
 #nudge {
   margin: -4px auto 8px;
   max-width: min(360px, 100%);

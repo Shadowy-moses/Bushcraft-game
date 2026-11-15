@@ -36,6 +36,7 @@ import { PROPS, groundAt, inBounds, propAt } from '../map';
 import { buildModel, type PlaceModel, type SheetId } from '../model';
 import {
   BUILD_REACH,
+  CHOP_REACH,
   bodiesFor,
   gatherStand,
   inReach,
@@ -168,6 +169,7 @@ declare global {
 
 export class GameScene extends Phaser.Scene {
   private skipTitle = false;
+  private debugMode = false;
   private state!: GameState;
   private started = false;
   private sheet: SheetId = 'none';
@@ -282,16 +284,24 @@ export class GameScene extends Phaser.Scene {
     this.craftJob = null;
     this.pose = 'idle';
     this.poseUntil = 0;
-    const saved = loadGame();
+    this.debugMode = new URLSearchParams(window.location.search).get('debug') === '1';
+    if (this.debugMode) clearGame();
+    const saved = this.debugMode ? null : loadGame();
     if (saved) {
       this.state = saved;
       this.started = true;
       this.sheet = 'none';
     } else {
-      this.state = initialState();
-      this.started = this.skipTitle;
-      this.sheet = this.skipTitle ? 'none' : 'title';
-      if (this.skipTitle) saveGame(this.state);
+      const fresh = initialState();
+      this.state = this.debugMode
+        ? {
+            ...fresh,
+            inventory: { ...fresh.inventory, wood: 40, fiber: 20, stone: 20, cordage: 4, bark: 2 },
+          }
+        : fresh;
+      this.started = this.debugMode || this.skipTitle;
+      this.sheet = this.started ? 'none' : 'title';
+      if (this.started) saveGame(this.state);
     }
 
     this.buildGround();
@@ -686,7 +696,7 @@ export class GameScene extends Phaser.Scene {
     const hits = this.propsAtPoint(world.x, world.y);
     if (this.state.tool === 'hatchet') {
       const tree = hits.find((prop) => this.isTree(prop) && !isFelled(this.state.trees, prop.id));
-      if (tree && inReach(this.px, this.py, tree.tx, tree.ty)) {
+      if (tree && inReach(this.px, this.py, tree.tx, tree.ty, CHOP_REACH)) {
         this.swingAt(tree);
         return;
       }
@@ -859,7 +869,7 @@ export class GameScene extends Phaser.Scene {
 
   private swingAt(prop: Prop): void {
     if ((this.pose === 'chop' || this.pose === 'strike') && this.time.now < this.poseUntil) return;
-    if (!inReach(this.px, this.py, prop.tx, prop.ty)) {
+    if (!inReach(this.px, this.py, prop.tx, prop.ty, CHOP_REACH)) {
       this.setTip('Walk up to the trunk.');
       return;
     }
@@ -886,7 +896,7 @@ export class GameScene extends Phaser.Scene {
     }
     const result = gather(this.state, prop.id);
     if (!result.ok) {
-      this.setTip(result.message);
+      if (result.message) this.setTip(result.message);
       return;
     }
     this.state = result.state;
@@ -1350,6 +1360,18 @@ export class GameScene extends Phaser.Scene {
 
 
   private handleAction(id: string): void {
+    if (id === 'debug-eight' || id === 'debug-rain') {
+      if (!this.debugMode) return;
+      this.state = { ...this.state, minutes: 20 * 60 };
+      this.afterChange();
+      return;
+    }
+    if (id === 'debug-hour') {
+      if (!this.debugMode) return;
+      this.state = tick(this.state, 60);
+      this.afterChange();
+      return;
+    }
     if (id === 'start') {
       this.started = true;
       this.sheet = 'none';
@@ -1621,10 +1643,8 @@ export class GameScene extends Phaser.Scene {
       const embers = piece.kind === 'fire' && !piece.lit && piece.coalsUntil != null && this.state.minutes < piece.coalsUntil;
       if (piece.kind === 'fire' && piece.lit) {
         if (sprite.anims.currentAnim?.key !== 'fire_tipi_lit') sprite.play('fire_tipi_lit');
-        sprite.setDepth(Math.max(sprite.depth, depthFor(pose.y, 24)));
       } else if (embers) {
         if (sprite.anims.currentAnim?.key !== 'fire_tipi_embers') sprite.play('fire_tipi_embers');
-        sprite.setDepth(Math.max(sprite.depth, depthFor(pose.y, 24)));
       } else {
         if (sprite.anims.isPlaying) sprite.anims.stop();
         if (sprite.frame.name !== pose.key) sprite.setTexture('world', pose.key);
@@ -1695,7 +1715,7 @@ export class GameScene extends Phaser.Scene {
           progress: Math.min(1, (this.time.now - job.started) / (job.seconds * 1000)),
         }
       : null;
-    this.hud.render(buildModel(this.state, this.sheet, this.resting, this.placeModel(), queue), rebuild);
+    this.hud.render(buildModel(this.state, this.sheet, this.resting, this.placeModel(), queue, this.debugMode), rebuild);
   }
 
   private stepCraft(): void {
@@ -2196,53 +2216,66 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Rain streaks, puddles, the fire's ground glow, and the warmth ring. */
+  /**
+   * Rain is drawn inside the camera's visible world rectangle.
+   * Screen-pixel coordinates put the streaks off to the side, and a depth
+   * under the ground tiles hid the puddles. Either one looks like "no rain".
+   */
   private stepAtmosphere(): void {
     const raining = weatherAt(this.state.minutes) === 'rain';
-    if (this.rain.length === 0 && this.textures.exists('world')) {
+    const cam = this.cameras.main;
+    const topLeft = cam.getWorldPoint(0, 0);
+    const bottomRight = cam.getWorldPoint(cam.width, cam.height);
+    const viewW = Math.max(8, bottomRight.x - topLeft.x);
+    const viewH = Math.max(8, bottomRight.y - topLeft.y);
+    if (this.rain.length === 0 && this.textures.exists('world') && this.textures.get('world').has('rain_drop')) {
       for (let i = 0; i < 22; i++) {
         const drop = this.add.sprite(0, 0, 'world', 'rain_drop');
-        drop.setScrollFactor(0);
-        drop.setDepth(45000);
-        drop.setData('fall', 80 + (i % 5) * 18);
-        drop.setData('drift', (i % 4) - 1.5);
+        drop.setDepth(60000);
+        drop.setData('lx', (i * 17) % 100);
+        drop.setData('ly', (i * 29) % 100);
+        drop.setData('fall', 40 + (i % 5) * 10);
+        drop.setData('drift', ((i % 5) - 2) * 4);
         this.rain.push(drop);
       }
       for (let i = 0; i < 5; i++) {
         const puddle = this.add.sprite(0, 0, 'world', 'puddle');
-        puddle.setAlpha(0.72);
-        puddle.setDepth(2);
+        puddle.setAlpha(0.8);
         this.puddles.push(puddle);
         const splash = this.add.sprite(0, 0, 'world', 'rain_splash_0');
-        splash.setDepth(3);
         this.splashes.push(splash);
       }
     }
-    const view = this.cameras.main;
     this.rain.forEach((drop, i) => {
       drop.setVisible(raining);
       if (!raining) return;
-      let y = drop.y + Number(drop.getData('fall')) * 0.016;
-      let x = drop.x + Number(drop.getData('drift'));
-      if (y > view.height + 8 || drop.x === 0) {
-        x = (i * 47) % Math.max(view.width, 1);
-        y = -((i * 13) % 40);
+      let ly = Number(drop.getData('ly')) + Number(drop.getData('fall')) * 0.012;
+      let lx = Number(drop.getData('lx')) + Number(drop.getData('drift')) * 0.004;
+      if (ly > 100) {
+        ly = -4;
+        lx = (i * 37) % 100;
       }
-      if (x > view.width) x = 0;
+      lx = ((lx % 100) + 100) % 100;
+      drop.setData('lx', lx);
+      drop.setData('ly', ly);
+      const x = topLeft.x + (lx / 100) * viewW;
+      const y = topLeft.y + (ly / 100) * viewH;
       drop.setPosition(x, y);
+      drop.setDepth(60000);
     });
-    const origin = view.getWorldPoint(view.width / 2, view.height / 2);
     this.puddles.forEach((puddle, i) => {
       puddle.setVisible(raining);
       this.splashes[i]?.setVisible(raining);
       if (!raining) return;
       const angle = (i / this.puddles.length) * Math.PI * 2;
-      puddle.setPosition(origin.x + Math.cos(angle) * 28, origin.y + Math.sin(angle) * 14);
-      puddle.setDepth(depthFor(puddle.y, 0));
+      const x = topLeft.x + viewW * 0.5 + Math.cos(angle) * Math.min(28, viewW * 0.2);
+      const y = topLeft.y + viewH * 0.55 + Math.sin(angle) * Math.min(14, viewH * 0.12);
+      puddle.setPosition(x, y);
+      puddle.setDepth(depthFor(y, 1));
       const splash = this.splashes[i];
       if (!splash) return;
-      splash.setPosition(puddle.x, puddle.y + 2);
-      splash.setDepth(depthFor(puddle.y, 1));
+      splash.setPosition(x, y + 2);
+      splash.setDepth(depthFor(y, 2));
       splash.setTexture('world', Math.floor(this.time.now / 220 + i) % 2 === 0 ? 'rain_splash_0' : 'rain_splash_1');
     });
 
@@ -2293,7 +2326,7 @@ export class GameScene extends Phaser.Scene {
     let covered = false;
     let top = home;
     for (const piece of this.state.pieces) {
-      if (piece.kind === 'foundation') continue;
+      if (piece.kind === 'foundation' || piece.kind === 'fire') continue;
       const sprite = this.buildings.get(pieceKey(piece));
       if (!sprite) continue;
       const covers =
@@ -2311,15 +2344,13 @@ export class GameScene extends Phaser.Scene {
       if (piece.kind !== 'fire' || (!piece.lit && !(piece.coalsUntil != null && this.state.minutes < piece.coalsUntil))) continue;
       const flame = this.buildings.get(pieceKey(piece));
       if (!flame) continue;
-      const flameBox = flame.getBounds();
-      if (Phaser.Geom.Intersects.RectangleToRectangle(flameBox, body)) {
-        flame.setDepth(Math.max(flame.depth, player.depth + 2));
-      }
-      for (const view of this.propViews) {
-        if (view.prop.kind !== 'pine_tree' && view.prop.kind !== 'birch_tree') continue;
-        const over = view.sprite.visible && Phaser.Geom.Intersects.RectangleToRectangle(view.sprite.getBounds(), flameBox) && view.sprite.depth > flame.depth;
-        view.sprite.setAlpha(over ? 0.35 : 1);
-      }
+      const at = tileToWorld(piece.tx, piece.ty);
+      const beside = Math.hypot(at.x - this.px, at.y - this.py) <= 56;
+      const baseY = beside ? Math.max(at.y, this.py) : at.y;
+      flame.setDepth(depthFor(baseY, 8));
+      const glow = this.fireGlows.get(`${piece.tx},${piece.ty}`);
+      glow?.setDepth(depthFor(baseY, 7));
+      if (this.warmthRing?.visible) this.warmthRing.setDepth(depthFor(baseY, 9));
     }
   }
 

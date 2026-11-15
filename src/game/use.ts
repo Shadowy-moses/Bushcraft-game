@@ -5,7 +5,7 @@ import { isFiberCut } from './fiber';
 import { isFelled } from './trees';
 import { tileToWorld } from './iso';
 import { PROPS } from './map';
-import { REACH } from './move';
+import { CHOP_REACH, REACH } from './move';
 import { canBoil, besideCreek } from './food';
 import { pieceHealth } from './weather';
 import { CORE_KNAPS, ROCK_HITS } from './stone';
@@ -58,6 +58,7 @@ function nearestProp(feet: Feet, props: Prop[], reach = REACH): { prop: Prop; d:
 function handsPickups(state: GameState): Prop[] {
   return PROPS.filter((prop) => {
     if (state.picked[prop.id]) return false;
+    if (prop.gather === 'cobble' && state.inventory.hammerstone) return false;
     if (prop.gather === 'sticks' || prop.gather === 'stones' || prop.gather === 'leaves' || prop.gather === 'rocks' || prop.gather === 'cobble') {
       return true;
     }
@@ -113,7 +114,7 @@ function nearestUpgrade(state: GameState, feet: Feet): { piece: Piece; d: number
  */
 export function chooseUse(state: GameState, feet: Feet): UseChoice {
   if (state.tool === 'hatchet') {
-    const tree = nearestProp(feet, standingTrees(state));
+    const tree = nearestProp(feet, standingTrees(state), CHOP_REACH);
     if (tree) return { action: 'chop', prop: tree.prop };
     return { action: 'none', message: HATCHET_IDLE };
   }

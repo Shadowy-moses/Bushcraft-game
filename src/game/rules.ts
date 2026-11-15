@@ -379,9 +379,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     );
   }
   if (node.gather === 'cobble') {
-    if (state.inventory.hammerstone) {
-      return ok({ ...state, energy, picked }, 'You already carry a hammerstone.');
-    }
+    if (state.inventory.hammerstone) return { state, ok: false, message: '' };
     return ok(
       {
         ...state,
