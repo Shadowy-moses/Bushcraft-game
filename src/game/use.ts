@@ -1,5 +1,5 @@
 import { materialCost, pieceAnchor } from './build';
-import { BESIDE_FIRE, LOG_STRIPS, NEED_DIRE } from './constants';
+import { BESIDE_FIRE, FIRE_RADIUS, LOG_STRIPS, NEED_DIRE } from './constants';
 import { AXE_IDLE, HATCHET_IDLE } from './copy';
 import { isFiberCut } from './fiber';
 import { isFelled } from './trees';
@@ -8,9 +8,10 @@ import { PROPS } from './map';
 import { CHOP_REACH, REACH, inReach, reachFor } from './move';
 import { canBoil, besideCreek } from './food';
 import { nearestFire, nearLitFire } from './fire';
+import { heldIcon } from './hold';
 import { pieceHealth } from './weather';
 import { CORE_KNAPS, ROCK_HITS } from './stone';
-import type { GameState, Piece, Prop } from './types';
+import type { GameState, Piece, Prop, Tool } from './types';
 
 export type UseChoice =
   | { action: 'gather' | 'knap' | 'chop' | 'strike' | 'peel'; prop: Prop }
@@ -264,9 +265,80 @@ export function actionLabel(choice: UseChoice): string {
   return '';
 }
 
-/** Hint and Use both read chooseTarget. */
+/** Hint and Use both read chooseTarget, after a tool swap when the one in hand does not fit. */
 export function usePrompt(state: GameState, feet: Feet): string {
-  return actionLabel(chooseTarget(state, feet));
+  return actionLabel(resolveUse(state, feet).choice);
+}
+
+export interface ResolvedUse {
+  state: GameState;
+  choice: UseChoice;
+  swapped: boolean;
+  name: string;
+}
+
+/**
+ * Use equips the tool the nearest target needs, then follows chooseTarget.
+ * A stone axe beats the hatchet for a tree. A hammerstone is for knapping, striking, and upgrading.
+ * Empty hands pick up, drink, peel, and forage. The tool already in hand stays when it can do that target.
+ */
+export function resolveUse(state: GameState, feet: Feet): ResolvedUse {
+  const tool = toolForTarget(state, feet);
+  const next = tool === state.tool ? state : { ...state, tool };
+  return {
+    state: next,
+    choice: chooseTarget(next, feet),
+    swapped: tool !== state.tool,
+    name: heldIcon(tool, next.inventory.axe, next.inventory.hammerstone).name,
+  };
+}
+
+function toolForTarget(state: GameState, feet: Feet): Tool {
+  const asHands = chooseTarget({ ...state, tool: 'hands' }, feet);
+  if (handsWork(asHands)) return 'hands';
+  const options: { d: number; tool: Tool }[] = [];
+  const tree = nearestProp(feet, standingTrees(state), CHOP_REACH);
+  if (tree) options.push({ d: tree.d, tool: state.inventory.axe ? 'axe' : 'hatchet' });
+  if (state.inventory.hammerstone) {
+    const struck = chooseTarget({ ...state, tool: 'hammerstone' }, feet);
+    if (struck.action === 'knap' || struck.action === 'strike' || struck.action === 'upgrade') {
+      options.push({ d: choiceDistance(state, feet, struck), tool: 'hammerstone' });
+    }
+  }
+  if (options.length === 0) return state.tool;
+  options.sort((a, b) => a.d - b.d);
+  return options[0].tool;
+}
+
+/** Drink, the fire, the creek, and forage outrank a chop. Those stay in his hands. */
+function handsWork(choice: UseChoice): boolean {
+  if (choice.action === 'none') {
+    return choice.message !== 'Nothing in these hands.';
+  }
+  return choice.action !== 'chop' && choice.action !== 'knap' && choice.action !== 'strike' && choice.action !== 'upgrade';
+}
+
+function choiceDistance(state: GameState, feet: Feet, choice: UseChoice): number {
+  if (choice.action === 'gather' || choice.action === 'knap' || choice.action === 'chop' || choice.action === 'strike' || choice.action === 'peel') {
+    return propDist(feet, choice.prop);
+  }
+  if (choice.action === 'upgrade' || choice.action === 'repair' || choice.action === 'feed' || choice.action === 'blow' || choice.action === 'drill') {
+    const at = tileToWorld(choice.piece.tx, choice.piece.ty);
+    return distTo(feet, at.x, at.y);
+  }
+  if (choice.action === 'drink' && state.potSeat) {
+    const at = tileToWorld(state.potSeat.tx, state.potSeat.ty);
+    return distTo(feet, at.x, at.y);
+  }
+  if (choice.action === 'boil' || choice.action === 'heat' || choice.action === 'quench') {
+    const fire = nearestFire(state, feet, FIRE_RADIUS);
+    if (!fire) return FIRE_RADIUS;
+    const at = tileToWorld(fire.tx, fire.ty);
+    return distTo(feet, at.x, at.y);
+  }
+  if (choice.action === 'scoop' || choice.action === 'scoop-bowl' || choice.action === 'drink-creek') return 0;
+  if (choice.action === 'drink' || choice.action === 'drink-bowl') return 120;
+  return REACH;
 }
 
 /** Creek water at a landing: fill an empty pot or bowl, otherwise drink. */

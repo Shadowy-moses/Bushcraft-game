@@ -155,6 +155,10 @@ export const REST_MINUTES_PER_SECOND = 1.8;
 export const REST_ENERGY_PER_SECOND = 28;
 
 export const SAVE_KEY = 'bushcraft-first-night-v1';
+/** Last good copy. A corrupt main slot falls back here instead of wiping. */
+export const SAVE_BACKUP_KEY = 'bushcraft-first-night-v1-backup';
+/** Envelope version. Older nights are the raw state with version 1–6. */
+export const SAVE_FORMAT = 7;
 
 /** Clear tiles in the starting view, kept so the first foundation has room. */
 export const FIRE_TILE = { tx: 7, ty: 4 };

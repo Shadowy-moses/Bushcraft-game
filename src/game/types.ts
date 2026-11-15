@@ -59,7 +59,7 @@ export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 't
 export type CupWater = 'empty' | 'raw' | 'boiled';
 
 export interface GameState {
-  version: 6;
+  version: 7;
   minutes: number;
   warmth: number;
   energy: number;

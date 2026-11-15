@@ -76,7 +76,8 @@ import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
 import { hotbarSlots } from '../craft';
-import { chooseTarget, upgradePrompt, waterChoice, type UseChoice } from '../use';
+import { CANT_HOLD, heldIcon, holdSlot } from '../hold';
+import { chooseTarget, resolveUse, upgradePrompt, waterChoice, type UseChoice } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { BOIL_METHOD } from '../boil';
 import { drinkBowl, drinkCreek, drinkCup, eat, finishBoil, liftPot, plantFrame, scoopBowl, scoopCreek } from '../food';
@@ -182,6 +183,7 @@ export class GameScene extends Phaser.Scene {
   private hidden = false;
   private hud!: Hud;
   private player!: Phaser.GameObjects.Sprite;
+  private heldItem: Phaser.GameObjects.Sprite | null = null;
   private ground = new Map<string, Phaser.GameObjects.Sprite>();
   private propViews: PropView[] = [];
   private shaded = new Set<string>();
@@ -250,6 +252,7 @@ export class GameScene extends Phaser.Scene {
   private hudBank = 0;
   private floaters: Floater[] = [];
   private onVis = (): void => undefined;
+  private onPageHide = (): void => undefined;
   private onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') this.handleAction('close');
     if (event.key === ' ' || event.key.startsWith('Arrow')) event.preventDefault();
@@ -400,9 +403,12 @@ export class GameScene extends Phaser.Scene {
 
     this.onVis = () => {
       this.hidden = document.hidden;
-      if (this.hidden && this.started) saveGame(this.state);
+      if (this.hidden) this.persist(false);
     };
+    this.onPageHide = () => this.persist(false);
     document.addEventListener('visibilitychange', this.onVis);
+    window.addEventListener('pagehide', this.onPageHide);
+    window.addEventListener('beforeunload', this.onPageHide);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
 
@@ -529,6 +535,8 @@ export class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.resizeObs?.disconnect();
       document.removeEventListener('visibilitychange', this.onVis);
+      window.removeEventListener('pagehide', this.onPageHide);
+      window.removeEventListener('beforeunload', this.onPageHide);
       window.removeEventListener('keydown', this.onKeyDown);
       window.removeEventListener('keyup', this.onKeyUp);
       this.hud.destroy();
@@ -595,6 +603,7 @@ export class GameScene extends Phaser.Scene {
         this.state = { ...this.state, tip: 'Rested. On your feet.' };
       }
     }
+    this.syncHeld();
     this.applyTints();
     this.markReach();
     this.hudBank += dt;
@@ -603,10 +612,17 @@ export class GameScene extends Phaser.Scene {
       this.paintHud(false);
     }
     this.saveBank += dt;
-    if (this.started && this.saveBank > 5) {
+    if (this.started && this.saveBank > 4) {
       this.saveBank = 0;
-      saveGame(this.state);
+      this.persist(true);
     }
+  }
+
+  /** Writes the whole state. A corrupt slot is left in place; the last good copy is the backup. */
+  private persist(tick: boolean): void {
+    if (!this.started) return;
+    saveGame(this.state);
+    if (tick) this.hud.flashSaved();
   }
 
   private buildGround(): void {
@@ -1107,7 +1123,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private useNearest(): void {
-    this.performChoice(chooseTarget(this.state, { x: this.px, y: this.py }));
+    const resolved = resolveUse(this.state, { x: this.px, y: this.py });
+    if (resolved.swapped) {
+      this.state = resolved.state;
+      this.hud.announceTool(resolved.name);
+      this.syncHeld();
+    }
+    this.performChoice(resolved.choice);
   }
 
   private performChoice(choice: UseChoice): void {
@@ -1353,6 +1375,26 @@ export class GameScene extends Phaser.Scene {
     if (this.textures.get('world').has(clip.key)) this.applyAtlas(this.player, clip.key);
   }
 
+  private syncHeld(): void {
+    if (!this.player) return;
+    const icon = heldIcon(this.state.tool, this.state.inventory.axe, this.state.inventory.hammerstone);
+    const working = this.pose === 'chop' || this.pose === 'strike' || this.pose === 'gather';
+    if (!icon.frame || working) {
+      this.heldItem?.setVisible(false);
+      return;
+    }
+    if (!this.textures.get('world').has(icon.frame)) {
+      this.heldItem?.setVisible(false);
+      return;
+    }
+    if (!this.heldItem) this.heldItem = this.add.sprite(this.px, this.py, 'world', icon.frame);
+    this.applyAtlas(this.heldItem, icon.frame);
+    const side = this.state.facing === 'sw' || this.state.facing === 'nw' ? -1 : 1;
+    this.heldItem.setPosition(Math.round(this.px + side * 11), Math.round(this.py - 12));
+    this.heldItem.setDepth(this.player.depth + 1);
+    this.heldItem.setVisible(true);
+  }
+
   private showIdle(): void {
     this.showPose('idle');
   }
@@ -1479,32 +1521,13 @@ export class GameScene extends Phaser.Scene {
         }
         return;
       }
-      if (index === 0) this.state = { ...this.state, tool: 'hands' };
-      if (index === 1) this.state = { ...this.state, tool: 'hatchet' };
-      if (index === 2) {
-        if (!this.state.inventory.axe) {
-          this.setTip('Haft a stone axe first.');
-          return;
-        }
-        this.state = { ...this.state, tool: 'axe' };
-        this.paintHud(false);
-        return;
-      }
-      if (index === 3) {
-        if (!this.state.inventory.hammerstone) {
-          this.setTip('Knap a hammerstone first.');
-          return;
-        }
-        this.state = { ...this.state, tool: 'hammerstone' };
-        this.paintHud(false);
-        return;
-      }
-      if (index === 4) {
-        this.state = { ...this.state, tool: 'plan' };
-        this.openCraft();
-        return;
-      }
+      const held = holdSlot(this.state, index);
+      this.state = held.state;
+      if (held.message === CANT_HOLD) this.setTip(CANT_HOLD);
+      else if (held.changed) this.hud.announceTool(held.message);
       this.paintHud(false);
+      this.syncHeld();
+      if (held.openCraft) this.openCraft();
       return;
     }
     if (id === 'pack' || id === 'craft') {
