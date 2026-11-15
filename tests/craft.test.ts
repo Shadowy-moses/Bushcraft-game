@@ -7,10 +7,11 @@ describe('the building plan', () => {
     const slots = hotbarSlots(initialState());
     expect(slots[0]).toMatchObject({ id: 'hands', name: 'Hands' });
     expect(slots[1]).toMatchObject({ id: 'hatchet', name: 'Hatchet' });
-    expect(slots[2]).toMatchObject({ id: 'hammerstone', name: 'Hammerstone' });
-    expect(slots[3]).toMatchObject({ id: 'plan', name: 'Building plan' });
-    expect(slots[4].count).toBe(0);
+    expect(slots[2]).toMatchObject({ id: 'axe', name: 'Axe' });
+    expect(slots[3]).toMatchObject({ id: 'hammerstone', name: 'Hammerstone' });
+    expect(slots[4]).toMatchObject({ id: 'plan', name: 'Building plan' });
     expect(slots[5].count).toBe(0);
+    expect(slots[6].count).toBe(0);
   });
 
   it('offers four wood pieces and keeps the hatchet as a tool you already own', () => {
@@ -20,8 +21,11 @@ describe('the building plan', () => {
       action: 'place-foundation',
       enabled: false,
     });
+    expect(broke.find((recipe) => recipe.id === 'hatchet')?.blurb).toMatch(/crude/i);
     expect(broke.map((recipe) => recipe.id)).toEqual([
       'hatchet',
+      'stone-axe',
+      'wood-bowl',
       'foundation',
       'wall',
       'doorway',

@@ -20,8 +20,13 @@ import {
   START_HUNGER,
   START_THIRST,
   THIRST_PER_HOUR,
+  AXE_BITE,
+  AXE_CORDAGE,
+  AXE_WOOD,
+  BOWL_WOOD,
   CHOP_ENERGY,
   GATHER_ENERGY,
+  HATCHET_BITE,
   PLAY_MINUTES_PER_SECOND,
   PLAYER_START,
   REPAIR_HEALTH,
@@ -39,7 +44,7 @@ import { CORD_FIBER, fiberFromPlant, isFiberCut, regrowFiber } from './fiber';
 import { nearEmberFire, nearLitFire, placeFire, tendFires } from './fire';
 import { OPENING_TIP } from './copy';
 import { clamp, tileToWorld } from './iso';
-import { escapeEnclosure, inReach, reachFor } from './move';
+import { CHOP_REACH, escapeEnclosure, inReach, reachFor } from './move';
 import { propAt, propById } from './map';
 import { CORE_KNAPS, flakesFromKnap, ROCK_HITS, stoneFromStrike } from './stone';
 import { TREE_HITS, isFelled, regrowTrees, woodFromTree } from './trees';
@@ -64,6 +69,9 @@ export function emptyInventory(): Inventory {
     roots: 0,
     bark: 0,
     pot: 0,
+    axe: false,
+    bowl: false,
+    wetCobble: 0,
   };
 }
 
@@ -80,6 +88,8 @@ export function initialState(): GameState {
     sickAt: 0,
     sips: 0,
     cupWater: 'empty',
+    bowlWater: 'empty',
+    hotStone: 'none',
     tx: PLAYER_START.tx,
     ty: PLAYER_START.ty,
     ...tileToWorld(PLAYER_START.tx, PLAYER_START.ty),
@@ -380,7 +390,18 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     );
   }
   if (node.gather === 'cobble') {
-    if (state.inventory.hammerstone) return { state, ok: false, message: '' };
+    if (state.inventory.hammerstone) {
+      if ((state.inventory.wetCobble ?? 0) >= 1) return { state, ok: false, message: '' };
+      return ok(
+        {
+          ...state,
+          inventory: { ...state.inventory, wetCobble: 1 },
+          energy,
+          picked,
+        },
+        'A wet creek cobble. It can heat water, but it may crack in a fire.',
+      );
+    }
     return ok(
       {
         ...state,
@@ -438,17 +459,53 @@ export function craftPot(state: GameState): ActionResult {
   );
 }
 
+/** One cobble, two wood, one cord. The axe stays in the pack until he taps it. */
+export function craftAxe(state: GameState): ActionResult {
+  if (state.inventory.axe) return fail(state, 'You already have a stone axe.');
+  if ((state.inventory.wetCobble ?? 0) < 1) return fail(state, 'Need 1 more cobble.');
+  if (state.inventory.wood < AXE_WOOD) return fail(state, 'Need 2 more wood.');
+  if (state.inventory.cordage < AXE_CORDAGE) return fail(state, 'Need 1 more cordage.');
+  return ok(
+    {
+      ...state,
+      inventory: {
+        ...state.inventory,
+        wetCobble: state.inventory.wetCobble - 1,
+        wood: state.inventory.wood - AXE_WOOD,
+        cordage: state.inventory.cordage - AXE_CORDAGE,
+        axe: true,
+      },
+    },
+    'A hafted stone axe. The cobble is knapped and pecked into a thick wedge.',
+  );
+}
+
+/** Burn and scrape: a lit fire, a flake that is not used up, and two wood. */
+export function craftBowl(state: GameState): ActionResult {
+  if (state.inventory.bowl) return fail(state, 'You already have a wood bowl.');
+  if (state.inventory.wood < BOWL_WOOD) return fail(state, 'Need 2 more wood.');
+  if (state.inventory.flakes < 1) return fail(state, 'A flint flake scrapes out the hollow.');
+  if (!nearLitFire(state)) return fail(state, 'The bowl needs a lit fire nearby. A coal chars the hollow.');
+  return ok(
+    {
+      ...state,
+      inventory: { ...state.inventory, wood: state.inventory.wood - BOWL_WOOD, bowl: true },
+    },
+    'A wood bowl. The coal charred the hollow, and the flake scraped it clean.',
+  );
+}
+
 export function chopTree(state: GameState, id: string): ActionResult {
   const node = propById(id);
   if (!node || (node.kind !== 'pine_tree' && node.kind !== 'birch_tree')) {
-    return fail(state, 'That will not take a hatchet.');
+    return fail(state, 'That will not take an axe.');
   }
-  if (state.tool !== 'hatchet') return fail(state, 'Put the hatchet in your hand.');
+  if (state.tool !== 'hatchet' && state.tool !== 'axe') return fail(state, 'Put a hatchet or a stone axe in your hand.');
   if (isFelled(state.trees, id)) return fail(state, 'Only a stump left.');
-  if (!inReach(state.x, state.y, node.tx, node.ty)) return fail(state, 'Walk up to the trunk.');
+  if (!inReach(state.x, state.y, node.tx, node.ty, CHOP_REACH)) return fail(state, 'Walk up to the trunk.');
   if (state.energy < CHOP_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
   const prev = state.trees[id]?.hits ?? 0;
-  const hits = prev + 1;
+  const hits = prev + (state.tool === 'axe' ? AXE_BITE : HATCHET_BITE);
   const energy = state.energy - CHOP_ENERGY;
   if (hits < TREE_HITS) {
     const left = TREE_HITS - hits;

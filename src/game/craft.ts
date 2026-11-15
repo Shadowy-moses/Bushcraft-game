@@ -1,8 +1,11 @@
 import { materialCost } from './build';
 import {
+  AXE_CORDAGE,
+  AXE_WOOD,
   BARK_CORDAGE,
   BARK_WOOD,
   BOUGH_FIBER,
+  BOWL_WOOD,
   BOWDRILL_CORD,
   BOWDRILL_WOOD,
   CRAFT_TAP_GAP_MS,
@@ -15,6 +18,7 @@ import {
   TRIPOD_WOOD,
 } from './constants';
 import { UPGRADE_NOTE } from './copy';
+import { nearLitFire } from './fire';
 import { CORD_FIBER, CORD_SECONDS } from './fiber';
 import type { GameState, Material, PieceKind } from './types';
 
@@ -101,6 +105,7 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
   return [
     { id: 'hands', name: 'Hands', count: -1, frame: 'hands' },
     { id: 'hatchet', name: 'Hatchet', count: -1, frame: 'hatchet' },
+    { id: 'axe', name: 'Axe', count: -1, frame: state.inventory.axe ? 'item_stone_axe' : 'hatchet' },
     { id: 'hammerstone', name: 'Hammerstone', count: -1, frame: hammer ? 'item_hammerstone' : 'hands' },
     { id: 'plan', name: 'Building plan', count: -1, frame: 'plan' },
     { id: 'wood', name: 'Wood', count: state.inventory.wood, frame: 'wood' },
@@ -114,6 +119,27 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
     { id: 'berries', name: 'Berries', count: state.inventory.berries, frame: 'item_berries' },
     { id: 'roots', name: 'Cattail root', count: state.inventory.roots, frame: 'item_cattail_root' },
     { id: 'bark', name: 'Bark', count: state.inventory.bark, frame: 'item_birch_bark' },
+    ...(state.inventory.bowl || state.bowlWater !== 'empty'
+      ? [
+          {
+            id: 'bowl',
+            name: 'Wood bowl',
+            count: 1,
+            frame:
+              state.bowlWater === 'boiled'
+                ? 'item_wood_bowl_boil'
+                : state.bowlWater === 'raw'
+                  ? 'item_wood_bowl_water'
+                  : 'item_wood_bowl',
+          },
+        ]
+      : []),
+    ...((state.inventory.wetCobble ?? 0) > 0
+      ? [{ id: 'wet-cobble', name: 'Wet cobble', count: state.inventory.wetCobble, frame: 'river_cobbles' }]
+      : []),
+    ...(state.hotStone === 'hot'
+      ? [{ id: 'hot-stone', name: 'Hot stone', count: 1, frame: 'item_hot_stone_0' }]
+      : []),
     ...(state.inventory.pot > 0 || state.cupWater !== 'empty'
       ? [
           {
@@ -201,8 +227,8 @@ export function recipesFor(state: GameState): Recipe[] {
     {
       id: 'hatchet',
       category: 'tools',
-      name: 'Primitive hatchet',
-      blurb: 'A stone head on a short haft. It is already in your hand. Three swings fell a tree, and the wood goes in the pack.',
+      name: 'Crude hatchet',
+      blurb: 'A crude head jammed on a short haft. It bites slowly: three swings fell a tree, and the wood goes in the pack. It is already in your hand.',
       frame: 'hatchet',
       ingredients: [],
       seconds: 0,
@@ -210,6 +236,43 @@ export function recipesFor(state: GameState): Recipe[] {
       action: '',
       enabled: false,
       done: true,
+    },
+    {
+      id: 'stone-axe',
+      category: 'tools',
+      name: 'Hafted stone axe',
+      blurb: 'A creek cobble, knapped and pecked into a thick wedge head, then hafted with cord. It bites about 1.6 times as deep as the crude hatchet, so two swings drop a tree.',
+      frame: 'item_stone_axe',
+      ingredients: [
+        { name: 'Cobble', have: state.inventory.wetCobble ?? 0, need: 1 },
+        { name: 'Wood', have: state.inventory.wood, need: AXE_WOOD },
+        { name: 'Cordage', have: state.inventory.cordage, need: AXE_CORDAGE },
+      ],
+      seconds: 0,
+      timeLabel: 'In the hands',
+      action: 'craft-axe',
+      enabled:
+        !state.inventory.axe &&
+        (state.inventory.wetCobble ?? 0) >= 1 &&
+        state.inventory.wood >= AXE_WOOD &&
+        state.inventory.cordage >= AXE_CORDAGE,
+      done: state.inventory.axe,
+    },
+    {
+      id: 'wood-bowl',
+      category: 'tools',
+      name: 'Wood bowl',
+      blurb: 'Burn and scrape. Two wood, a flint flake to scrape with (it is not used up), and a lit fire nearby. A coal chars the hollow. The bowl does not wear out.',
+      frame: 'item_wood_bowl',
+      ingredients: [
+        { name: 'Wood', have: state.inventory.wood, need: BOWL_WOOD },
+        { name: 'Flake', have: state.inventory.flakes, need: 1 },
+      ],
+      seconds: 0,
+      timeLabel: nearLitFire(state) ? 'Beside a lit fire' : 'Needs a lit fire nearby',
+      action: 'craft-bowl',
+      enabled: !state.inventory.bowl && state.inventory.wood >= BOWL_WOOD && state.inventory.flakes >= 1 && nearLitFire(state),
+      done: state.inventory.bowl,
     },
     ...PIECES.map((spec) => pieceRecipe(state, spec, 'twig')),
     ...STONE_PIECES.map((spec) => pieceRecipe(state, spec, 'stone')),

@@ -11,7 +11,7 @@ const KINDS: PieceKind[] = ['foundation', 'wall', 'doorway', 'floor', 'tripod', 
 const EDGES: EdgeName[] = ['se', 'sw', 'ne', 'nw'];
 
 function isTool(value: unknown): value is Tool {
-  return value === 'hands' || value === 'hatchet' || value === 'hammerstone' || value === 'plan';
+  return value === 'hands' || value === 'hatchet' || value === 'axe' || value === 'hammerstone' || value === 'plan';
 }
 
 function freshPicked(picked: Record<string, true>): Record<string, true> {
@@ -118,6 +118,9 @@ export function parseSave(raw: string): GameState | null {
         bark?: unknown;
         pot?: unknown;
         cup?: unknown;
+        axe?: unknown;
+        bowl?: unknown;
+        wetCobble?: unknown;
       };
       health?: unknown;
       hunger?: unknown;
@@ -127,6 +130,8 @@ export function parseSave(raw: string): GameState | null {
       sips?: unknown;
       logStrips?: unknown;
       cupWater?: unknown;
+      bowlWater?: unknown;
+      hotStone?: unknown;
       rockGone?: unknown;
       rocks?: unknown;
       cores?: unknown;
@@ -176,6 +181,8 @@ export function parseSave(raw: string): GameState | null {
         sickAt: keepNumber(save.sickAt, 0),
         sips: keepNumber(save.sips, 0),
         cupWater: save.cupWater === 'raw' || save.cupWater === 'boiled' ? save.cupWater : 'empty',
+        bowlWater: save.bowlWater === 'raw' || save.bowlWater === 'boiled' ? save.bowlWater : 'empty',
+        hotStone: save.hotStone === 'hot' ? 'hot' : 'none',
         tx: save.tx,
         ty: save.ty,
         x,
@@ -198,6 +205,9 @@ export function parseSave(raw: string): GameState | null {
         roots: countOf(save.inventory.roots),
         bark: countOf(save.inventory.bark),
         pot: typeof save.inventory.pot === 'number' ? save.inventory.pot : save.inventory.cup === true ? 3 : 0,
+        axe: save.inventory.axe === true,
+        bowl: save.inventory.bowl === true,
+        wetCobble: countOf(save.inventory.wetCobble),
       },
       pieces: save.pieces.map((piece) => restorePiece(piece as Piece)),
       trees: save.trees,

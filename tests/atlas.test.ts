@@ -144,6 +144,20 @@ describe('artist atlas', () => {
     expect(atlas.frames.creek_gravel.anchorPx).toEqual({ x: 16, y: 8 });
     expect(atlas.frames.warmth_ring.anchorPx).toEqual({ x: 58, y: 30 });
     expect(atlas.frames.fire_tipi_lit_0.anchorPx).toEqual({ x: 16, y: 32 });
+    expect(atlas.frames.item_stone_axe.frame).toMatchObject({ w: 16, h: 16 });
+    expect(atlas.frames.item_stone_axe.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_wood_bowl.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_wood_bowl_water.frame).toMatchObject({ w: 16, h: 16 });
+    expect(atlas.frames.item_wood_bowl_boil.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_hot_stone_0.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_hot_stone_1.frame).toMatchObject({ w: 16, h: 16 });
+    expect(atlas.frames.item_cobble_cracked.frame).toMatchObject({ w: 16, h: 16 });
+    expect(atlas.frames.item_cobble_cracked.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.woodsman_se_axe_0.frame).toMatchObject({ w: 32, h: 32 });
+    expect(atlas.frames.woodsman_se_axe_0.anchorPx).toEqual({ x: 16, y: 31 });
+    expect(atlas.frames.woodsman_nw_axe_1.anchorPx).toEqual({ x: 16, y: 31 });
+    expect(atlas.animations.woodsman_se_axe).toEqual(['woodsman_se_axe_0', 'woodsman_se_axe_1']);
+    expect(atlas.animations.woodsman_nw_axe).toEqual(['woodsman_nw_axe_0', 'woodsman_nw_axe_1']);
   });
 
   it('reads the woodsman feet from the atlas instead of a fixed offset', () => {

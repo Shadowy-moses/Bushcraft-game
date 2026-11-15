@@ -7,7 +7,7 @@ import { PROPS } from '../src/game/map';
 import { emptyInventory, gather, initialState, knapFlint } from '../src/game/rules';
 import { chooseUse, upgradePrompt } from '../src/game/use';
 
-function stand(tx: number, ty: number, tool: 'hands' | 'hatchet' | 'hammerstone' = 'hands') {
+function stand(tx: number, ty: number, tool: 'hands' | 'hatchet' | 'axe' | 'hammerstone' = 'hands') {
   return { ...initialState(), ...tileToWorld(tx, ty), tx, ty, tool, energy: 100 };
 }
 
@@ -56,7 +56,16 @@ describe('what Use reaches for', () => {
       inventory: { ...initialState().inventory, hammerstone: true },
     };
     const choice = chooseUse(owned, { x: owned.x, y: owned.y });
-    if (choice.action === 'gather') expect(choice.prop.kind).not.toBe('river_cobbles');
+    expect(choice.action).toBe('gather');
+    if (choice.action === 'gather') expect(choice.prop.kind).toBe('river_cobbles');
+    const full = {
+      ...owned,
+      inventory: { ...owned.inventory, wetCobble: 1 },
+    };
+    const skipped = chooseUse(full, { x: full.x, y: full.y });
+    if (skipped.action === 'gather') expect(skipped.prop.kind).not.toBe('river_cobbles');
+    const axe = chooseUse(stand(2, 8, 'axe'), { x: byCobble.x, y: byCobble.y });
+    expect(axe.action).toBe('chop');
   });
 
   it('chops a trunk from beside it, past the pickup reach', () => {
