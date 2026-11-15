@@ -264,6 +264,7 @@ export class Hud {
     document.getElementById('warmth-fill')?.parentElement?.classList.toggle('low', model.lowWarmth);
     document.getElementById('warmth-read')?.classList.toggle('warming', model.warming);
     document.getElementById('debug-panel')?.toggleAttribute('hidden', !model.debug);
+    this.root.classList.toggle('debug-on', model.debug);
     const rest = document.querySelector<HTMLButtonElement>('#rest-button');
     if (rest) {
       rest.textContent = model.place ? 'Rest' : model.restLabel;

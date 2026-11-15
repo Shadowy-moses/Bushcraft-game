@@ -41,6 +41,28 @@ export function besideCreek(x: number, y: number): boolean {
   return false;
 }
 
+/** A mouthful from the creek. Same thirst as raw pot water, and the same chance it turns. */
+export function drinkCreek(
+  state: GameState,
+  random: () => number = Math.random,
+): { state: GameState; ok: boolean; message: string } {
+  if (!besideCreek(state.x, state.y)) return { state, ok: false, message: 'Walk up to the water.' };
+  const sips = (state.sips ?? 0) + 1;
+  const sickens = random() < RAW_SICK_CHANCE;
+  const tip = sickens ? 'You drink from the creek.' : 'You drink from the creek. It sits all right.';
+  return {
+    ok: true,
+    message: tip,
+    state: {
+      ...state,
+      thirst: clampNeed(state.thirst + RAW_THIRST),
+      sips,
+      sickAt: sickens ? state.minutes + SICK_DELAY : state.sickAt,
+      tip,
+    },
+  };
+}
+
 export function scoopCreek(state: GameState): { state: GameState; ok: boolean; message: string } {
   if (state.inventory.pot <= 0 && state.cupWater === 'empty') return { state, ok: false, message: 'You need a bark pot for that.' };
   if (state.cupWater !== 'empty') return { state, ok: false, message: 'The pot is already full.' };

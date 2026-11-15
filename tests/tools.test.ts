@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AXE_BITE, BOILED_THIRST, BOWL_WOOD, WET_BURST_CHANCE } from '../src/game/constants';
-import { recipesFor } from '../src/game/craft';
+import { hotbarSlots, recipesFor } from '../src/game/craft';
 import { drinkBowl, finishBoil, scoopBowl } from '../src/game/food';
 import { tileToWorld } from '../src/game/iso';
 import { craftAxe, craftBowl, chopTree, emptyInventory, initialState } from '../src/game/rules';
@@ -50,6 +50,38 @@ describe('hafted stone axe and wood bowl', () => {
     expect(second.state.trees['pine_tree-6-1']?.felledAt).not.toBeNull();
     expect(second.state.tool).toBe('axe');
     expect(AXE_BITE).toBeCloseTo(1.6);
+  });
+
+  it('fells in two swings through the equipped axe, and three with the hatchet', () => {
+    const feet = tileToWorld(6, 2);
+    const swings = (tool: 'hatchet' | 'axe') => {
+      let state: GameState = {
+        ...initialState(),
+        ...feet,
+        tx: 6,
+        ty: 2,
+        energy: 100,
+        tool,
+        inventory: { ...initialState().inventory, axe: tool === 'axe' },
+      };
+      const slot = hotbarSlots(state).findIndex((item) => item.id === tool);
+      expect(hotbarSlots(state)[slot]?.id).toBe(tool);
+      state = { ...state, tool: tool === 'axe' ? 'axe' : 'hatchet' };
+      let count = 0;
+      while (count < 6) {
+        const choice = chooseUse(state, { x: state.x, y: state.y });
+        expect(choice.action).toBe('chop');
+        if (choice.action !== 'chop') break;
+        const hit = chopTree(state, choice.prop.id);
+        expect(hit.ok).toBe(true);
+        state = hit.state;
+        count += 1;
+        if (state.trees[choice.prop.id]?.felledAt != null) break;
+      }
+      return count;
+    };
+    expect(swings('hatchet')).toBe(3);
+    expect(swings('axe')).toBe(2);
   });
 
   it('burn-scrapes a bowl beside a lit fire and does not use up the flake', () => {

@@ -505,7 +505,8 @@ export function chopTree(state: GameState, id: string): ActionResult {
   if (!inReach(state.x, state.y, node.tx, node.ty, CHOP_REACH)) return fail(state, 'Walk up to the trunk.');
   if (state.energy < CHOP_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
   const prev = state.trees[id]?.hits ?? 0;
-  const hits = prev + (state.tool === 'axe' ? AXE_BITE : HATCHET_BITE);
+  const bite = state.tool === 'axe' ? AXE_BITE : HATCHET_BITE;
+  const hits = Math.round((prev + bite) * 10) / 10;
   const energy = state.energy - CHOP_ENERGY;
   if (hits < TREE_HITS) {
     const left = TREE_HITS - hits;

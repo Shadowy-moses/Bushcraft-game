@@ -130,7 +130,9 @@ describe('food and water', () => {
     const washed = tick({ ...initialState(), minutes: 20 * 60, picked }, 23 * 60 - 20 * 60);
     expect(washed.picked['river_cobbles-2-8']).toBeUndefined();
     expect(washed.picked['river_cobbles-3-9']).toBe(true);
-    const atReed = stand(3, 8);
-    expect(chooseUse(atReed, { x: atReed.x, y: atReed.y }).action).toBe('gather');
+    const atReed = stand(1, 1);
+    const reed = chooseUse(atReed, { x: atReed.x, y: atReed.y });
+    expect(reed.action).toBe('gather');
+    if (reed.action === 'gather') expect(reed.prop.kind).toBe('cattails');
   });
 });

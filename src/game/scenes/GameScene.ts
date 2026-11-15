@@ -74,10 +74,11 @@ import {
 import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
-import { chooseUse, upgradePrompt } from '../use';
+import { hotbarSlots } from '../craft';
+import { chooseUse, upgradePrompt, waterChoice } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { BOIL_METHOD } from '../boil';
-import { drinkBowl, drinkCup, eat, finishBoil, plantFrame, scoopBowl, scoopCreek } from '../food';
+import { drinkBowl, drinkCreek, drinkCup, eat, finishBoil, plantFrame, scoopBowl, scoopCreek } from '../food';
 import { dropHotStone, heatStone, HEAT_SECONDS, markStoneHot, refundStone, STONE_BOIL_SECONDS } from '../stoneboil';
 import { weatherAt } from '../weather';
 import { facingFromVector, mirrorFacing, poseClip, poseName } from '../woodsman';
@@ -715,6 +716,16 @@ export class GameScene extends Phaser.Scene {
       this.rested = 0;
     }
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const tile = this.tileAt(world.x, world.y);
+    if (this.state.tool === 'hands' && tile && groundAt(tile.tx, tile.ty) === 'creek_water') {
+      const water = waterChoice(this.state, { x: this.px, y: this.py });
+      if (water?.action === 'drink-creek' || water?.action === 'scoop' || water?.action === 'scoop-bowl') {
+        this.handsFood(water.action);
+        return;
+      }
+      this.setTip('Walk up to the water.');
+      return;
+    }
     const hits = this.propsAtPoint(world.x, world.y);
     if (this.state.tool === 'hatchet' || this.state.tool === 'axe') {
       const tree = hits.find((prop) => this.isTree(prop) && !isFelled(this.state.trees, prop.id));
@@ -1180,7 +1191,7 @@ export class GameScene extends Phaser.Scene {
       choice.action === 'scoop-bowl' ||
       choice.action === 'drink' ||
       choice.action === 'drink-bowl' ||
-      choice.action === 'eat'
+      choice.action === 'drink-creek'
     ) {
       this.handsFood(choice.action);
       return;
@@ -1484,6 +1495,17 @@ export class GameScene extends Phaser.Scene {
     }
     if (id.startsWith('slot-')) {
       const index = Number(id.slice(5));
+      const slot = hotbarSlots(this.state)[index];
+      if (slot?.id === 'berries' || slot?.id === 'roots') {
+        const result = eat(this.state, slot.id === 'berries' ? 'berries' : 'roots');
+        if (!result.ok) this.setTip(result.message);
+        else {
+          this.state = result.state;
+          this.playPose('gather');
+          this.afterChange();
+        }
+        return;
+      }
       if (index === 0) this.state = { ...this.state, tool: 'hands' };
       if (index === 1) this.state = { ...this.state, tool: 'hatchet' };
       if (index === 2) {
@@ -1827,7 +1849,16 @@ export class GameScene extends Phaser.Scene {
     this.afterChange();
   }
 
-  private handsFood(action: 'scoop' | 'scoop-bowl' | 'drink' | 'drink-bowl' | 'eat'): void {
+  private handsFood(action: 'scoop' | 'scoop-bowl' | 'drink' | 'drink-bowl' | 'drink-creek'): void {
+    if (action === 'drink-creek') {
+      const result = drinkCreek(this.state);
+      if (!result.ok) this.setTip(result.message);
+      else {
+        this.state = result.state;
+        this.afterChange();
+      }
+      return;
+    }
     if (action === 'scoop-bowl') {
       const result = scoopBowl(this.state);
       if (!result.ok) this.setTip(result.message);
@@ -1863,14 +1894,6 @@ export class GameScene extends Phaser.Scene {
         this.afterChange();
       }
       return;
-    }
-    const which = this.state.inventory.berries > 0 ? 'berries' : 'roots';
-    const result = eat(this.state, which);
-    if (!result.ok) this.setTip(result.message);
-    else {
-      this.state = result.state;
-      this.playPose('gather');
-      this.afterChange();
     }
   }
 
