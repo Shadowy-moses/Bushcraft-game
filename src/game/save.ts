@@ -23,6 +23,27 @@ function freshPicked(picked: Record<string, true>): Record<string, true> {
   return next;
 }
 
+function restorePiece(item: Piece): Piece {
+  const health = typeof item.health === 'number' ? item.health : undefined;
+  if (item.kind === 'tripod') {
+    const cover = item.cover === 'boughs' || item.cover === 'bark' ? item.cover : undefined;
+    return { kind: item.kind, tx: item.tx, ty: item.ty, edge: item.edge, cover };
+  }
+  if (item.kind === 'fire') {
+    return {
+      kind: item.kind,
+      tx: item.tx,
+      ty: item.ty,
+      edge: item.edge,
+      fuel: countOf(item.fuel),
+      lit: item.lit === true,
+      ember: item.ember === 'smoke' ? 'smoke' : 'none',
+      coalsUntil: typeof item.coalsUntil === 'number' ? item.coalsUntil : undefined,
+    };
+  }
+  return { ...item, material: materialOf(item.material), health };
+}
+
 function materialOf(value: unknown): Material {
   return value === 'stone' ? 'stone' : 'twig';
 }
@@ -149,21 +170,7 @@ export function parseSave(raw: string): GameState | null {
         coal: countOf(save.inventory.coal),
         bowdrill: save.inventory.bowdrill === true,
       },
-      pieces: save.pieces.map((piece) => {
-        const item = piece as Piece;
-        if (item.kind === 'tripod' || item.kind === 'fire') {
-          return {
-            kind: item.kind,
-            tx: item.tx,
-            ty: item.ty,
-            edge: item.edge,
-            fuel: countOf(item.fuel),
-            lit: item.lit === true,
-            ember: item.ember === 'smoke' ? 'smoke' as const : 'none' as const,
-          };
-        }
-        return { ...item, material: materialOf(item.material) };
-      }),
+      pieces: save.pieces.map((piece) => restorePiece(piece as Piece)),
       trees: save.trees,
       rocks: (save.rocks as Record<string, number> | undefined) ?? {},
       cores: (save.cores as Record<string, number> | undefined) ?? {},
@@ -171,6 +178,7 @@ export function parseSave(raw: string): GameState | null {
       picked: freshPicked(save.picked),
         outcome: 'playing',
         tip: save.tip,
+        damp: countOf((save as { damp?: unknown }).damp),
       };
     }
     if (

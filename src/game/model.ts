@@ -1,9 +1,12 @@
 import { hotbarSlots, recipesFor, statusLine, type HotbarSlot, type Recipe } from './craft';
 import { clockParts, energyWord, warmthWord } from './copy';
+import { nearestFire } from './fire';
 import { PROPS } from './map';
 import { warmthPerGameHour } from './rules';
 import { isFelled } from './trees';
 import type { PieceKind, GameState, Tool } from './types';
+import { upgradePrompt } from './use';
+import { weatherAt, weatherWord } from './weather';
 
 export type SheetId = 'none' | 'title' | 'end' | 'pack' | 'craft';
 
@@ -27,6 +30,10 @@ export interface HudModel {
   energy: number;
   warmthLabel: string;
   energyLabel: string;
+  weather: string;
+  dampLabel: string;
+  prompt: string;
+  useLabel: string;
   lowWarmth: boolean;
   status: string;
   tip: string;
@@ -54,6 +61,9 @@ export function buildModel(
 ): HudModel {
   const perHour = warmthPerGameHour(state);
   const face = clockParts(state.minutes);
+  const feet = { x: state.x, y: state.y };
+  const fire = nearestFire(state, feet, 56);
+  const hold = Boolean(state.inventory.bowdrill && fire && !fire.lit && !(fire.coalsUntil != null && state.minutes < fire.coalsUntil));
   return {
     clock: face.clock,
     daypart: face.daypart,
@@ -61,6 +71,10 @@ export function buildModel(
     warmth: state.warmth,
     energy: state.energy,
     warmthLabel: `${Math.round(state.warmth)} · ${warmthWord(perHour)}`,
+    weather: weatherWord(weatherAt(state.minutes)),
+    dampLabel: (state.damp ?? 0) >= 10 ? 'Damp' : '',
+    prompt: upgradePrompt(state, feet) ?? '',
+    useLabel: hold ? 'Hold' : 'Use',
     energyLabel: `${Math.round(state.energy)} · ${energyWord(state.energy)}`,
     lowWarmth: state.warmth < 30,
     status: statusLine(state),

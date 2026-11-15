@@ -1,9 +1,16 @@
 import { blocksStep, hasFoundation, materialCost, materialShortMessage } from './build';
 import {
+  BARK_CORDAGE,
+  BARK_WOOD,
+  BOUGH_FIBER,
   BUILD_ENERGY,
+  EMBER_WARMTH_PER_HOUR,
+  FIRE_WARMTH_PER_HOUR,
   CHOP_ENERGY,
   GATHER_ENERGY,
+  PLAY_MINUTES_PER_SECOND,
   PLAYER_START,
+  REPAIR_HEALTH,
   REST_ENERGY_PER_SECOND,
   START_ENERGY,
   START_MINUTES,
@@ -15,7 +22,7 @@ import {
   TRIPOD_WOOD,
 } from './constants';
 import { CORD_FIBER, fiberFromPlant, isFiberCut, regrowFiber } from './fiber';
-import { placeFire, tendFires } from './fire';
+import { nearEmberFire, nearLitFire, placeFire, tendFires } from './fire';
 import { OPENING_TIP } from './copy';
 import { clamp, tileToWorld } from './iso';
 import { escapeEnclosure, inReach, reachFor } from './move';
@@ -23,6 +30,7 @@ import { propAt, propById } from './map';
 import { CORE_KNAPS, flakesFromKnap, ROCK_HITS, stoneFromStrike } from './stone';
 import { TREE_HITS, isFelled, regrowTrees, woodFromTree } from './trees';
 import type { ActionResult, EdgeName, GameState, Inventory, Material, Piece, PieceKind } from './types';
+import { decayPerHour, exposurePerHour, nextDamp, pieceHealth } from './weather';
 
 export function emptyInventory(): Inventory {
   return {
@@ -60,7 +68,13 @@ export function initialState(): GameState {
     picked: {},
     outcome: 'playing',
     tip: OPENING_TIP,
+    damp: 0,
   };
+}
+
+/** Game minutes that pass in this slice of real time. Held movement does not change it. */
+export function minutesThisFrame(dtSeconds: number): number {
+  return dtSeconds * PLAY_MINUTES_PER_SECOND;
 }
 
 export function ambientPerHour(minutes: number): number {
@@ -73,9 +87,12 @@ export function ambientPerHour(minutes: number): number {
   return 0;
 }
 
-/** Warmth still drifts with the hour. It is only a reading now. */
+/** The hour's drift, plus weather, wet clothes, and a fire when he is close. */
 export function warmthPerGameHour(state: GameState): number {
-  return ambientPerHour(state.minutes);
+  let rate = ambientPerHour(state.minutes) + exposurePerHour(state);
+  if (nearLitFire(state)) rate += FIRE_WARMTH_PER_HOUR;
+  else if (nearEmberFire(state)) rate += EMBER_WARMTH_PER_HOUR;
+  return rate;
 }
 
 export function tick(state: GameState, gameMinutes: number): GameState {
@@ -83,9 +100,11 @@ export function tick(state: GameState, gameMinutes: number): GameState {
   let warmth = state.warmth;
   let minutes = state.minutes;
   let left = gameMinutes;
+  let cursor = state;
   while (left > 0.0001) {
     const step = Math.min(left, 0.5);
-    warmth = clamp(warmth + ambientPerHour(minutes) * (step / 60), 0, 100);
+    cursor = { ...cursor, minutes };
+    warmth = clamp(warmth + (ambientPerHour(minutes) + exposurePerHour(cursor)) * (step / 60), 0, 100);
     minutes += step;
     left -= step;
   }
@@ -94,7 +113,95 @@ export function tick(state: GameState, gameMinutes: number): GameState {
     return Boolean(prop && hasFoundation(state.pieces, prop.tx, prop.ty));
   });
   const plants = regrowFiber(state.plants, minutes);
-  return tendFires({ ...state, warmth, minutes, trees, plants, outcome: 'playing' }, gameMinutes);
+  const tended = tendFires({ ...state, warmth, minutes, trees, plants, outcome: 'playing' }, gameMinutes);
+  const damp = nextDamp(tended, gameMinutes, nearLitFire(tended) || nearEmberFire(tended));
+  return decayBuildings({ ...tended, damp }, gameMinutes);
+}
+
+export function decayBuildings(state: GameState, gameMinutes: number): GameState {
+  if (gameMinutes <= 0) return state;
+  let fell = false;
+  const pieces: Piece[] = [];
+  for (const piece of state.pieces) {
+    const rate = decayPerHour(piece, state.minutes, state.pieces);
+    if (rate <= 0) {
+      pieces.push(piece);
+      continue;
+    }
+    const health = pieceHealth(piece) - rate * (gameMinutes / 60);
+    if (health <= 0) {
+      fell = true;
+      continue;
+    }
+    pieces.push({ ...piece, health });
+  }
+  if (!fell && pieces.every((piece, index) => piece === state.pieces[index])) return state;
+  return { ...state, pieces, tip: fell ? 'A twig piece gave way.' : state.tip };
+}
+
+export function repairPiece(state: GameState, piece: Piece): ActionResult {
+  if (piece.kind === 'tripod' || piece.kind === 'fire') return fail(state, 'That does not take a patch.');
+  if ((piece.material ?? 'twig') === 'stone') return fail(state, 'Stone does not need a patch.');
+  if (pieceHealth(piece) >= 100) return fail(state, 'It is sound.');
+  if (state.inventory.wood < 1) return fail(state, 'Need 1 more wood.');
+  const pieces = state.pieces.map((item) =>
+    samePiece(item, piece) ? { ...item, health: Math.min(100, pieceHealth(item) + REPAIR_HEALTH) } : item,
+  );
+  return ok(
+    { ...state, inventory: { ...state.inventory, wood: state.inventory.wood - 1 }, pieces },
+    'Patched with a length of wood.',
+  );
+}
+
+export function coverTripod(state: GameState, piece: Piece, cover: 'boughs' | 'bark'): ActionResult {
+  if (piece.kind !== 'tripod') return fail(state, 'Lash a tripod first.');
+  if (piece.cover) return fail(state, 'That frame is already covered.');
+  if (cover === 'boughs') {
+    if (state.inventory.fiber < BOUGH_FIBER) return fail(state, `Need ${BOUGH_FIBER - state.inventory.fiber} more fiber.`);
+    return ok(
+      {
+        ...state,
+        inventory: { ...state.inventory, fiber: state.inventory.fiber - BOUGH_FIBER },
+        pieces: state.pieces.map((item) => (samePiece(item, piece) ? { ...item, cover } : item)),
+      },
+      'Boughs across the frame. They leak a little.',
+    );
+  }
+  if (state.inventory.wood < BARK_WOOD) return fail(state, `Need ${BARK_WOOD - state.inventory.wood} more wood.`);
+  if (state.inventory.cordage < BARK_CORDAGE) {
+    return fail(state, `Need ${BARK_CORDAGE - state.inventory.cordage} more cordage.`);
+  }
+  return ok(
+    {
+      ...state,
+      inventory: {
+        ...state.inventory,
+        wood: state.inventory.wood - BARK_WOOD,
+        cordage: state.inventory.cordage - BARK_CORDAGE,
+      },
+      pieces: state.pieces.map((item) => (samePiece(item, piece) ? { ...item, cover } : item)),
+    },
+    'Bark strips, lashed tight. The rain stays out.',
+  );
+}
+
+export function nearestBareTripod(state: GameState): Piece | null {
+  let best: Piece | null = null;
+  let bestD = Infinity;
+  for (const piece of state.pieces) {
+    if (piece.kind !== 'tripod' || piece.cover) continue;
+    const at = tileToWorld(piece.tx, piece.ty);
+    const d = Math.hypot(at.x - state.x, at.y - state.y);
+    if (d < bestD) {
+      best = piece;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+function samePiece(item: Piece, piece: Piece): boolean {
+  return item.kind === piece.kind && item.tx === piece.tx && item.ty === piece.ty && item.edge === piece.edge;
 }
 
 /** Stamina coming back. A tripod under his shoulder adds a little. */

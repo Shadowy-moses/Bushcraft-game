@@ -5,17 +5,32 @@ import { isFiberCut } from './fiber';
 import { tileToWorld } from './iso';
 import { PROPS } from './map';
 import { REACH } from './move';
+import { pieceHealth } from './weather';
 import { CORE_KNAPS, ROCK_HITS } from './stone';
 import type { GameState, Piece, Prop } from './types';
 
 export type UseChoice =
   | { action: 'gather' | 'knap' | 'chop' | 'strike'; prop: Prop }
-  | { action: 'upgrade'; piece: Piece }
+  | { action: 'upgrade' | 'repair'; piece: Piece }
   | { action: 'none'; message: string };
 
 interface Feet {
   x: number;
   y: number;
+}
+
+function nearestWorn(state: GameState, feet: Feet): { piece: Piece; d: number } | null {
+  let best: { piece: Piece; d: number } | null = null;
+  for (const piece of state.pieces) {
+    if (piece.kind === 'tripod' || piece.kind === 'fire') continue;
+    if ((piece.material ?? 'twig') === 'stone') continue;
+    if (pieceHealth(piece) >= 100) continue;
+    const at = pieceAnchor(piece.kind, { tx: piece.tx, ty: piece.ty }, piece.edge);
+    const d = distTo(feet, at.x, at.y);
+    if (d > REACH) continue;
+    if (!best || d < best.d) best = { piece, d };
+  }
+  return best;
 }
 
 function distTo(feet: Feet, x: number, y: number): number {
@@ -108,6 +123,8 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
     work = { action: 'upgrade', piece: upgrade.piece };
     workD = upgrade.d;
   }
+  const worn = state.tool === 'hands' ? nearestWorn(state, feet) : null;
+  if (worn && (!specials || worn.d < specials.d)) return { action: 'repair', piece: worn.piece };
   if (specials && (state.tool !== 'hammerstone' || specials.d <= workD)) {
     const prop = specials.prop;
     if (prop.kind === 'flint_core') return { action: 'knap', prop };

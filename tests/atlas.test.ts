@@ -5,8 +5,8 @@ import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
-    expect(Object.keys(atlas.frames)).toHaveLength(133);
-    expect(atlas.meta.size).toEqual({ w: 512, h: 354 });
+    expect(Object.keys(atlas.frames)).toHaveLength(150);
+    expect(atlas.meta.size).toEqual({ w: 512, h: 444 });
     expect(atlas.meta.image).toBe('spritesheet.png');
     for (const name of ATLAS_FRAMES) {
       const frame = atlas.frames[name as keyof typeof atlas.frames];
@@ -102,6 +102,18 @@ describe('artist atlas', () => {
     expect(atlas.animations.fire_logcabin_lit).toEqual(['fire_logcabin_lit_0', 'fire_logcabin_lit_1']);
     expect(atlas.frames.leanto_frame.frame.w).toBe(64);
     expect(atlas.frames.grass.frame).toMatchObject({ w: 32, h: 16 });
+    expect(atlas.frames.fire_tipi_embers_0.frame).toMatchObject({ w: 32, h: 40 });
+    expect(atlas.frames.fire_tipi_embers_0.anchorPx).toEqual({ x: 16, y: 32 });
+    expect(atlas.frames.firelight_0.frame).toMatchObject({ w: 96, h: 48 });
+    expect(atlas.frames.firelight_0.anchorPx).toEqual({ x: 48, y: 24 });
+    expect(atlas.frames.warmth_ring.frame).toMatchObject({ w: 116, h: 60 });
+    expect(atlas.frames.warmth_ring.anchorPx).toEqual({ x: 58, y: 30 });
+    expect(atlas.frames.tripod_boughs.anchorPx).toEqual({ x: 18, y: 40 });
+    expect(atlas.frames.tripod_bark.frame).toMatchObject({ w: 36, h: 44 });
+    expect(atlas.frames.twig_foundation_worn.anchorPx).toEqual({ x: 19, y: 22 });
+    expect(atlas.frames.twig_wall_ne_worn.frame).toMatchObject({ w: 31, h: 39 });
+    expect(atlas.frames.rain_drop.frame).toMatchObject({ w: 4, h: 10 });
+    expect(atlas.frames.puddle.anchorPx).toEqual({ x: 14, y: 6 });
   });
 
   it('reads the woodsman feet from the atlas instead of a fixed offset', () => {

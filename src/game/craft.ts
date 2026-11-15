@@ -1,7 +1,11 @@
 import { materialCost } from './build';
 import {
+  BARK_CORDAGE,
+  BARK_WOOD,
+  BOUGH_FIBER,
   BOWDRILL_CORD,
   BOWDRILL_WOOD,
+  CRAFT_TAP_GAP_MS,
   FIRE_KINDLING,
   FIRE_TINDER,
   FIRE_WOOD,
@@ -13,6 +17,12 @@ import {
 import { UPGRADE_NOTE } from './copy';
 import { CORD_FIBER, CORD_SECONDS } from './fiber';
 import type { GameState, Material, PieceKind } from './types';
+
+/** One tap crafts once. A chosen quantity is the exception, and it still counts as one tap. */
+export function allowCraftTap(now: number, last: number, qty: number): boolean {
+  if (qty > 1) return true;
+  return now - last >= CRAFT_TAP_GAP_MS;
+}
 
 export type CraftCategory = 'tools' | 'resources' | 'construction';
 
@@ -208,8 +218,7 @@ export function recipesFor(state: GameState): Recipe[] {
       id: 'bowdrill',
       category: 'resources',
       name: 'Bow drill',
-      blurb:
-        'A bow, a spindle, a hearth board, and a bearing block, all dry softwood (cedar, willow, or basswood). Cordage is the bowstring.',
+      blurb: '4 wood (dry, from dead branches), plus a length of cordage for the bowstring.',
       frame: 'item_bowdrill_kit',
       ingredients: [
         { name: 'Wood', have: state.inventory.wood, need: BOWDRILL_WOOD },
@@ -248,6 +257,38 @@ export function recipesFor(state: GameState): Recipe[] {
       timeLabel: 'On clear ground',
       action: 'place-tripod',
       enabled: state.inventory.wood >= TRIPOD_WOOD && state.inventory.cordage >= TRIPOD_CORDAGE,
+      done: false,
+    },
+    {
+      id: 'boughs',
+      category: 'construction',
+      name: 'Bough cover',
+      blurb: 'Pine boughs over the lashed frame. Quick and cheap. Rain still drips through.',
+      frame: 'tripod_boughs',
+      ingredients: [{ name: 'Fiber', have: state.inventory.fiber, need: BOUGH_FIBER }],
+      seconds: 0,
+      timeLabel: 'On a lashed tripod',
+      action: 'cover-boughs',
+      enabled: state.inventory.fiber >= BOUGH_FIBER && state.pieces.some((piece) => piece.kind === 'tripod' && !piece.cover),
+      done: false,
+    },
+    {
+      id: 'bark',
+      category: 'construction',
+      name: 'Bark cover',
+      blurb: 'Bark strips lashed over the frame. Costs more than boughs, and it sheds the rain.',
+      frame: 'tripod_bark',
+      ingredients: [
+        { name: 'Wood', have: state.inventory.wood, need: BARK_WOOD },
+        { name: 'Cordage', have: state.inventory.cordage, need: BARK_CORDAGE },
+      ],
+      seconds: 0,
+      timeLabel: 'On a lashed tripod',
+      action: 'cover-bark',
+      enabled:
+        state.inventory.wood >= BARK_WOOD &&
+        state.inventory.cordage >= BARK_CORDAGE &&
+        state.pieces.some((piece) => piece.kind === 'tripod' && !piece.cover),
       done: false,
     },
     {
