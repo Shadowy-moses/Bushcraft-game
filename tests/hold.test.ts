@@ -30,9 +30,20 @@ describe('the tool in hand', () => {
     const state = { ...initialState(), inventory: { ...emptyInventory(), axe: true, hammerstone: true }, tool: 'axe' as const };
     const slot = hotbarSlots(state).find((item) => item.id === 'axe');
     expect(heldIcon('axe', true, true).frame).toBe(slot?.frame);
-    expect(heldIcon('hatchet', true, true).frame).toBe('hatchet');
+    const hatchet = hotbarSlots(state).find((item) => item.id === 'hatchet');
+    const hands = hotbarSlots(state).find((item) => item.id === 'hands');
+    expect(heldIcon('hatchet', true, true).frame).toBe('item_hatchet');
+    expect(heldIcon('hatchet', true, true).frame).toBe(hatchet?.frame);
+    expect(heldIcon('hands', true, true).frame).toBe('item_hands');
+    expect(heldIcon('hands', true, true).frame).toBe(hands?.frame);
     expect(heldIcon('hammerstone', true, true).frame).toBe('item_hammerstone');
-    expect(heldIcon('hands', true, true).frame).toBeNull();
+    for (const slot of hotbarSlots(state)) {
+      if (slot.id === 'hammerstone') continue;
+      expect(slot.frame).not.toBe('item_hammerstone');
+    }
+    const bare = hotbarSlots(initialState());
+    expect(bare.find((slot) => slot.id === 'hammerstone')?.frame).toBe('item_hands');
+    expect(bare.every((slot) => slot.frame !== 'item_hammerstone')).toBe(true);
   });
 });
 

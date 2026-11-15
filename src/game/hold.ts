@@ -13,11 +13,11 @@ export interface HoldResult {
 
 /** What the hotbar slot and the icon in his hand both use. Null means empty hands. */
 export function heldIcon(tool: Tool, ownsAxe: boolean, ownsHammer: boolean): { name: string; frame: string | null } {
-  if (tool === 'hatchet') return { name: 'Hatchet', frame: 'hatchet' };
+  if (tool === 'hatchet') return { name: 'Hatchet', frame: 'item_hatchet' };
   if (tool === 'axe' && ownsAxe) return { name: 'Stone axe', frame: 'item_stone_axe' };
   if (tool === 'hammerstone' && ownsHammer) return { name: 'Hammerstone', frame: 'item_hammerstone' };
   if (tool === 'plan') return { name: 'Building plan', frame: null };
-  return { name: 'Hands', frame: null };
+  return { name: 'Hands', frame: 'item_hands' };
 }
 
 /** Equip a hotbar slot. A refused tap keeps the old tool and says so. */

@@ -106,7 +106,7 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
     { id: 'hands', name: 'Hands', count: -1, frame: 'item_hands' },
     { id: 'hatchet', name: 'Hatchet', count: -1, frame: 'item_hatchet' },
     { id: 'axe', name: 'Axe', count: -1, frame: state.inventory.axe ? 'item_stone_axe' : 'item_hatchet' },
-    { id: 'hammerstone', name: 'Hammerstone', count: -1, frame: hammer ? 'item_hammerstone' : 'hands' },
+    { id: 'hammerstone', name: 'Hammerstone', count: -1, frame: hammer ? 'item_hammerstone' : 'item_hands' },
     { id: 'plan', name: 'Building plan', count: -1, frame: 'plan' },
     { id: 'wood', name: 'Wood', count: state.inventory.wood, frame: 'wood' },
     { id: 'stone', name: 'Stone', count: state.inventory.stone, frame: 'item_rock' },

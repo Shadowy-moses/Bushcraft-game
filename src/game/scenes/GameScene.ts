@@ -1383,34 +1383,16 @@ export class GameScene extends Phaser.Scene {
       this.heldItem?.setVisible(false);
       return;
     }
-    const key = icon.frame === 'hatchet' ? this.hatchetTexture() : icon.frame;
-    if (key !== 'held-hatchet' && !this.textures.get('world').has(key)) {
+    if (!this.textures.get('world').has(icon.frame)) {
       this.heldItem?.setVisible(false);
       return;
     }
-    if (!this.heldItem) {
-      this.heldItem = this.add.sprite(this.px, this.py, key === 'held-hatchet' ? 'held-hatchet' : 'world', key === 'held-hatchet' ? undefined : key);
-    }
-    if (key === 'held-hatchet') this.heldItem.setTexture('held-hatchet');
-    else this.applyAtlas(this.heldItem, key);
+    if (!this.heldItem) this.heldItem = this.add.sprite(this.px, this.py, 'world', icon.frame);
+    this.applyAtlas(this.heldItem, icon.frame);
     const side = this.state.facing === 'sw' || this.state.facing === 'nw' ? -1 : 1;
     this.heldItem.setPosition(Math.round(this.px + side * 11), Math.round(this.py - 12));
     this.heldItem.setDepth(this.player.depth + 1);
     this.heldItem.setVisible(true);
-  }
-
-  private hatchetTexture(): string {
-    if (this.textures.exists('held-hatchet')) return 'held-hatchet';
-    const canvas = this.textures.createCanvas('held-hatchet', 16, 16);
-    const ctx = canvas?.getContext();
-    if (!canvas || !ctx) return 'held-hatchet';
-    ctx.clearRect(0, 0, 16, 16);
-    ctx.fillStyle = '#c4b8a4';
-    ctx.fillRect(3, 2, 8, 3);
-    ctx.fillStyle = '#6b4428';
-    ctx.fillRect(7, 4, 2, 10);
-    canvas.refresh();
-    return 'held-hatchet';
   }
 
   private showIdle(): void {
