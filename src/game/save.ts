@@ -1,4 +1,4 @@
-import { SAVE_KEY } from './constants';
+import { SAVE_BACKUP_KEY, SAVE_FORMAT, SAVE_KEY } from './constants';
 import { tileToWorld } from './iso';
 import { escapeEnclosure } from './move';
 import { initialState } from './rules';
@@ -94,7 +94,19 @@ export function parseSave(raw: string): GameState | null {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
-    const save = parsed as {
+    const wrapped = parsed as { format?: unknown; state?: unknown };
+    const body =
+      typeof wrapped.format === 'number' && wrapped.state && typeof wrapped.state === 'object' ? wrapped.state : parsed;
+    return migrate(body);
+  } catch {
+    return null;
+  }
+}
+
+function migrate(body: unknown): GameState | null {
+  try {
+    if (!body || typeof body !== 'object') return null;
+    const save = body as {
       version?: unknown;
       minutes?: unknown;
       tx?: unknown;
@@ -168,7 +180,11 @@ export function parseSave(raw: string): GameState | null {
       (typeof save.plants === 'object' &&
         Object.values(save.plants as Record<string, unknown>).every((at) => typeof at === 'number'));
     if (
-      (save.version === 3 || save.version === 4 || save.version === 5 || save.version === 6) &&
+      (save.version === 3 ||
+        save.version === 4 ||
+        save.version === 5 ||
+        save.version === 6 ||
+        save.version === 7) &&
       save.inventory &&
       typeof save.inventory.wood === 'number' &&
       Array.isArray(save.pieces) &&
@@ -180,7 +196,7 @@ export function parseSave(raw: string): GameState | null {
     ) {
       return {
         ...fresh,
-        version: 6,
+        version: 7,
         minutes: save.minutes,
         warmth: save.warmth,
         energy: save.energy,
@@ -228,7 +244,7 @@ export function parseSave(raw: string): GameState | null {
       cobbleGone: (save.cobbleGone as Record<string, number> | undefined) ?? {},
       logStrips: (save.logStrips as Record<string, number> | undefined) ?? {},
       cores: (save.cores as Record<string, number> | undefined) ?? {},
-      plants: save.version === 6 ? ((save.plants as Record<string, number> | undefined) ?? {}) : {},
+      plants: save.version === 6 || save.version === 7 ? ((save.plants as Record<string, number> | undefined) ?? {}) : {},
       picked: freshPicked(save.picked),
         outcome: 'playing',
         tip: save.tip,
@@ -263,8 +279,7 @@ export function parseSave(raw: string): GameState | null {
   }
 }
 
-export function loadGame(): GameState | null {
-  const raw = storage.get(SAVE_KEY);
+function settle(raw: string | null): GameState | null {
   if (!raw) return null;
   const parsed = parseSave(raw);
   if (!parsed) return null;
@@ -272,10 +287,19 @@ export function loadGame(): GameState | null {
   return spot.x === parsed.x && spot.y === parsed.y ? parsed : { ...parsed, x: spot.x, y: spot.y };
 }
 
+/** The main slot, then the last good backup. A bad read does not delete either. */
+export function loadGame(): GameState | null {
+  return settle(storage.get(SAVE_KEY)) ?? settle(storage.get(SAVE_BACKUP_KEY));
+}
+
 export function saveGame(state: GameState): void {
-  storage.set(SAVE_KEY, JSON.stringify(state));
+  const current = storage.get(SAVE_KEY);
+  if (current && parseSave(current)) storage.set(SAVE_BACKUP_KEY, current);
+  const stamped = { ...state, version: SAVE_FORMAT as 7 };
+  storage.set(SAVE_KEY, JSON.stringify({ format: SAVE_FORMAT, savedAt: Date.now(), state: stamped }));
 }
 
 export function clearGame(): void {
   storage.remove(SAVE_KEY);
+  storage.remove(SAVE_BACKUP_KEY);
 }

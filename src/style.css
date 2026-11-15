@@ -28,6 +28,17 @@ html, body {
   overflow: hidden;
   overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+button, #stick, #act, .slot, .tile, .cat {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 #app {
@@ -137,8 +148,21 @@ html, body {
 
 #debug-panel button {
   font-size: 11px;
-  padding: 4px 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 10px;
 }
+
+#saved-tick {
+  margin: 0 auto 6px;
+  color: var(--good);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+#saved-tick[hidden] { display: none; }
 
 .slot-caption {
   display: block;
@@ -292,7 +316,7 @@ html, body {
 #right-dock {
   position: absolute;
   right: calc(12px + env(safe-area-inset-right));
-  bottom: calc(var(--dock, 72px) + 8px);
+  bottom: calc(var(--dock, 88px) + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -302,10 +326,10 @@ html, body {
 #right-dock .hotbar { gap: 6px; }
 #right-dock .slot,
 #right-dock #bag {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
 }
 #right-dock #bag .pixel { width: 28px; height: 28px; }
 
@@ -429,10 +453,12 @@ button:focus-visible {
 .craft {
   flex: 1;
   min-height: 0;
-  margin: 0 8px calc(8px + env(safe-area-inset-bottom));
+  max-height: calc(100dvh - 44px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  margin: 0 calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   background: var(--panel-solid);
+  overflow: hidden;
 }
 
 .craft-head, .queue, .time, .ings, .kicker, h2, h3, .cat, .tile span, button, #status, #time, #daypart {
@@ -496,17 +522,19 @@ h3 { font-size: 16px; margin: 6px 0; }
   align-items: start;
 }
 
-.cats { display: flex; flex-direction: row; gap: 6px; }
+.cats { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
 
 .cat {
-  flex: 1 1 0;
+  flex: 1 1 88px;
   min-height: 48px;
   min-width: 44px;
   padding: 8px 10px;
-  font-size: 13px;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  letter-spacing: 0;
   line-height: 1.2;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .craft-status {
@@ -631,8 +659,8 @@ h3 { font-size: 16px; margin: 6px 0; }
 
 #stick {
   position: absolute;
-  left: calc(12px + env(safe-area-inset-left));
-  bottom: calc(var(--dock, 72px) + 8px);
+  left: calc(16px + env(safe-area-inset-left));
+  bottom: calc(var(--dock, 88px) + env(safe-area-inset-bottom));
   width: 96px;
   height: 96px;
   border-radius: 50%;
@@ -720,6 +748,7 @@ h3 { font-size: 16px; margin: 6px 0; }
   .recipes { grid-column: 1; grid-row: 2; max-height: 100%; overflow: auto; }
   .detail { grid-column: 2; grid-row: 2; overflow: auto; max-height: 100%; }
   h1 { font-size: 28px; }
+  #right-dock { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 16px); overflow-y: auto; }
   #stick { width: 88px; height: 88px; }
   #stick-knob { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
   #stick-run { width: 56px; height: 56px; margin: -28px 0 0 -28px; }

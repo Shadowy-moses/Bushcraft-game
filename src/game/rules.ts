@@ -96,7 +96,7 @@ export function debugInventory(): Inventory {
 
 export function initialState(): GameState {
   return {
-    version: 6,
+    version: 7,
     minutes: START_MINUTES,
     warmth: START_WARMTH,
     energy: START_ENERGY,

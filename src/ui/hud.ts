@@ -73,6 +73,7 @@ export class Hud {
       <footer id="bottom-bar">
         <p id="tip" aria-live="polite"></p>
         <p id="nudge"></p>
+        <p id="saved-tick" hidden>Saved</p>
         <div class="place-actions" id="place-actions" hidden></div>
       </footer>
       <div id="stick" hidden aria-label="Move"><div id="stick-run"></div><div id="stick-knob"></div></div>
@@ -498,6 +499,15 @@ export class Hud {
     if (node) node.style.width = `${Math.max(0, Math.min(100, value))}%`;
   }
 
+  flashSaved(): void {
+    const node = document.getElementById('saved-tick');
+    if (!node) return;
+    node.hidden = false;
+    window.setTimeout(() => {
+      node.hidden = true;
+    }, 2200);
+  }
+
   private text(id: string, value: string): void {
     const node = document.getElementById(id);
     if (node && node.textContent !== value) node.textContent = value;
@@ -581,10 +591,10 @@ export class Hud {
     const confirm = this.confirmReset
       ? `
         <section class="confirm-pop panel" role="dialog" aria-label="Start over">
-          <p>Start the afternoon over? The pack and anything you built go with it.</p>
+          <p>Start a new game? The pack and anything you built go with it.</p>
           <div class="confirm-actions">
             <button type="button" data-action="reset-cancel">Keep going</button>
-            <button type="button" class="primary" data-action="restart">Start over</button>
+            <button type="button" class="primary" data-action="restart">New game</button>
           </div>
         </section>
       `
@@ -610,7 +620,7 @@ export class Hud {
           </div>
         </div>
         <footer class="craft-foot">
-          <button type="button" data-action="reset-ask">Start over</button>
+          <button type="button" data-action="reset-ask">New game</button>
         </footer>
         <footer id="queue" class="queue" hidden>
           <p id="queue-label"></p>

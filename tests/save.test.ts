@@ -3,7 +3,7 @@ import { tileToWorld } from '../src/game/iso';
 import { OPENING_TIP } from '../src/game/copy';
 import { bodiesFor, canStand, segmentsFor } from '../src/game/move';
 import { initialState } from '../src/game/rules';
-import { SAVE_KEY } from '../src/game/constants';
+import { SAVE_BACKUP_KEY, SAVE_KEY } from '../src/game/constants';
 import { loadGame, parseSave, saveGame } from '../src/game/save';
 import type { Piece } from '../src/game/types';
 
@@ -26,7 +26,7 @@ describe('saved games', () => {
       tip: 'hi',
     };
     const migrated = parseSave(JSON.stringify(v1));
-    expect(migrated?.version).toBe(6);
+    expect(migrated?.version).toBe(7);
     expect(migrated?.tx).toBe(7);
     expect(migrated?.ty).toBe(4);
     expect(migrated?.facing).toBe('sw');
@@ -77,5 +77,60 @@ describe('saved games', () => {
     expect(canStand(loaded!.x, loaded!.y, bodies, walls)).toBe(true);
     expect(canStand(trapped.x, trapped.y, bodies, walls)).toBe(false);
     vi.unstubAllGlobals();
+  });
+
+  it('saves, reloads, and falls back to the backup when the main slot is corrupt', () => {
+    const memory = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => memory.set(key, value),
+      removeItem: (key: string) => memory.delete(key),
+    });
+    const first = { ...initialState(), minutes: 1100, inventory: { ...initialState().inventory, wood: 9 } };
+    saveGame(first);
+    const again = { ...initialState(), minutes: 1200, inventory: { ...initialState().inventory, wood: 15 } };
+    saveGame(again);
+    expect(memory.has(SAVE_BACKUP_KEY)).toBe(true);
+    const reloaded = loadGame();
+    expect(reloaded?.minutes).toBe(1200);
+    expect(reloaded?.inventory.wood).toBe(15);
+    expect(reloaded?.version).toBe(7);
+    memory.set(SAVE_KEY, '{not json');
+    const fallback = loadGame();
+    expect(fallback?.minutes).toBe(1100);
+    expect(fallback?.inventory.wood).toBe(9);
+    expect(memory.get(SAVE_KEY)).toBe('{not json');
+    vi.unstubAllGlobals();
+  });
+
+  it('migrates a version-6 night into the current envelope', () => {
+    const older = {
+      version: 6,
+      minutes: 1300,
+      warmth: 70,
+      energy: 55,
+      health: 90,
+      hunger: 40,
+      thirst: 30,
+      tx: 6,
+      ty: 5,
+      x: 12,
+      y: 40,
+      facing: 'se',
+      tool: 'hands',
+      inventory: { wood: 4, stone: 2, fiber: 1, cordage: 0 },
+      pieces: [],
+      trees: {},
+      picked: {},
+      outcome: 'playing',
+      tip: 'Still here.',
+    };
+    const migrated = parseSave(JSON.stringify(older));
+    expect(migrated?.version).toBe(7);
+    expect(migrated?.inventory.wood).toBe(4);
+    expect(migrated?.inventory.axe).toBe(false);
+    expect(migrated?.inventory.bowl).toBe(false);
+    expect(migrated?.bowlWater).toBe('empty');
+    expect(migrated?.tool).toBe('hands');
   });
 });

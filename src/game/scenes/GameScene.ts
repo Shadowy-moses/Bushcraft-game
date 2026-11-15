@@ -250,6 +250,7 @@ export class GameScene extends Phaser.Scene {
   private hudBank = 0;
   private floaters: Floater[] = [];
   private onVis = (): void => undefined;
+  private onPageHide = (): void => undefined;
   private onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') this.handleAction('close');
     if (event.key === ' ' || event.key.startsWith('Arrow')) event.preventDefault();
@@ -400,9 +401,12 @@ export class GameScene extends Phaser.Scene {
 
     this.onVis = () => {
       this.hidden = document.hidden;
-      if (this.hidden && this.started) saveGame(this.state);
+      if (this.hidden) this.persist(false);
     };
+    this.onPageHide = () => this.persist(false);
     document.addEventListener('visibilitychange', this.onVis);
+    window.addEventListener('pagehide', this.onPageHide);
+    window.addEventListener('beforeunload', this.onPageHide);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
 
@@ -529,6 +533,8 @@ export class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       this.resizeObs?.disconnect();
       document.removeEventListener('visibilitychange', this.onVis);
+      window.removeEventListener('pagehide', this.onPageHide);
+      window.removeEventListener('beforeunload', this.onPageHide);
       window.removeEventListener('keydown', this.onKeyDown);
       window.removeEventListener('keyup', this.onKeyUp);
       this.hud.destroy();
@@ -603,10 +609,17 @@ export class GameScene extends Phaser.Scene {
       this.paintHud(false);
     }
     this.saveBank += dt;
-    if (this.started && this.saveBank > 5) {
+    if (this.started && this.saveBank > 4) {
       this.saveBank = 0;
-      saveGame(this.state);
+      this.persist(true);
     }
+  }
+
+  /** Writes the whole state. A corrupt slot is left in place; the last good copy is the backup. */
+  private persist(tick: boolean): void {
+    if (!this.started) return;
+    saveGame(this.state);
+    if (tick) this.hud.flashSaved();
   }
 
   private buildGround(): void {
