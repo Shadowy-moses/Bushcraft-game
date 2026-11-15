@@ -164,7 +164,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
   }
   return ok(
     { ...state, energy, picked },
-    'Set that aside. The hatchet wants a trunk.',
+    'Set that aside.',
     node.gather === 'stones' ? 'Stone' : undefined,
   );
 }
@@ -303,9 +303,7 @@ export function strikeRock(state: GameState, id: string): ActionResult {
 export function knapFlint(state: GameState, id: string): ActionResult {
   const node = propById(id);
   if (!node || node.kind !== 'flint_core') return fail(state, 'That is not a flint core.');
-  if (!state.inventory.hammerstone || state.tool !== 'hammerstone') {
-    return fail(state, 'Put the hammerstone in your hand.');
-  }
+  if (!state.inventory.hammerstone) return fail(state, 'You need a hammerstone.');
   const prev = state.cores[id] ?? 0;
   if (prev >= CORE_KNAPS) return fail(state, 'The core is spent.');
   if (!inReach(state.x, state.y, node.tx, node.ty)) return fail(state, 'Walk up to the core.');

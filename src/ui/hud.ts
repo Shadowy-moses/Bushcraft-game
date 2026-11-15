@@ -1,4 +1,5 @@
 import { CRAFT_CATEGORIES, type CraftCategory, type Recipe } from '../game/craft';
+import { UPGRADE_NOTE } from '../game/copy';
 import type { HudModel } from '../game/model';
 import type { Tool } from '../game/types';
 import { ICONS } from './icons';
@@ -561,6 +562,7 @@ export class Hud {
           </aside>
           <div class="bench">
             <nav class="cats">${cats}</nav>
+            ${this.category === 'construction' ? `<p class="upgrade-note">${esc(UPGRADE_NOTE)}</p>` : ''}
             <div class="recipes">${tiles || '<p class="empty">Nothing in this list.</p>'}</div>
             <aside class="detail">${this.detailHtml(recipe)}</aside>
           </div>

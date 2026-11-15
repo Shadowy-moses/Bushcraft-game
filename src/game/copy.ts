@@ -1,3 +1,9 @@
+/** Shown on every stone recipe, and as the line under the build tabs. */
+export const UPGRADE_NOTE =
+  'Twig you already placed turns to stone in place. Equip the hammerstone, stand next to that piece, and tap it or tap Use.';
+
+export const HATCHET_IDLE = 'The hatchet wants a trunk.';
+
 export const OPENING_TIP =
   'Push the stick to walk, and all the way out to run. Stand by a tree and tap it, or tap Use. The hatchet is already in your hand.';
 
