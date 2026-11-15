@@ -1,5 +1,5 @@
 import { materialCost, pieceAnchor } from './build';
-import { FIRE_RADIUS, LOG_STRIPS, NEED_DIRE } from './constants';
+import { BESIDE_FIRE, LOG_STRIPS, NEED_DIRE } from './constants';
 import { AXE_IDLE, HATCHET_IDLE } from './copy';
 import { isFiberCut } from './fiber';
 import { isFelled } from './trees';
@@ -62,7 +62,6 @@ function nearestProp(feet: Feet, props: Prop[], reach = REACH): { prop: Prop; d:
 function handsPickups(state: GameState): Prop[] {
   return PROPS.filter((prop) => {
     if (state.picked[prop.id]) return false;
-    if (prop.gather === 'cobble' && state.inventory.hammerstone && (state.inventory.wetCobble ?? 0) >= 1) return false;
     if (prop.gather === 'sticks' || prop.gather === 'stones' || prop.gather === 'leaves' || prop.gather === 'rocks' || prop.gather === 'cobble') {
       return true;
     }
@@ -139,10 +138,24 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
 
 /** Empty hands. The nearest real target wins, and a boiled pot beats feeding that fire. */
 function handsChoice(state: GameState, feet: Feet): UseChoice {
-  const seated = seatedPot(state, feet);
-  if (seated) return seated;
+  const boiled = boiledDrink(state);
+  if (boiled) return boiled;
   const here = { ...state, x: feet.x, y: feet.y };
   if (canBoil(here)) return { action: 'boil' };
+  if (state.hotStone === 'hot' && state.inventory.bowl && state.bowlWater === 'raw' && nearLitFire(here)) {
+    return { action: 'quench' };
+  }
+  if (
+    state.inventory.bowl &&
+    state.bowlWater === 'raw' &&
+    state.hotStone !== 'hot' &&
+    nearLitFire(here) &&
+    (state.inventory.stone > 0 || (state.inventory.dryCobble ?? 0) > 0 || (state.inventory.wetCobble ?? 0) > 0)
+  ) {
+    return { action: 'heat' };
+  }
+  const close = closeFire(state, feet);
+  if (close) return close;
 
   const water = waterChoice(state, feet);
   if (water) return water;
@@ -152,36 +165,6 @@ function handsChoice(state: GameState, feet: Feet): UseChoice {
   const loose = pickup != null && isLoose(pickup.prop);
   if (birch && (!pickup || birch.d <= pickup.d || (loose && birch.d <= pickup.d + BIRCH_SLACK))) {
     return { action: 'peel', prop: birch.prop };
-  }
-
-  if (state.hotStone === 'hot' && state.inventory.bowl && state.bowlWater === 'raw' && nearLitFire(here)) {
-    return { action: 'quench' };
-  }
-  if (
-    state.inventory.bowl &&
-    state.bowlWater === 'raw' &&
-    state.hotStone !== 'hot' &&
-    nearLitFire(here) &&
-    (state.inventory.stone > 0 || (state.inventory.wetCobble ?? 0) > 0)
-  ) {
-    return { action: 'heat' };
-  }
-
-  const fire = nearestFire(state, feet);
-  const fireAt = fire ? tileToWorld(fire.tx, fire.ty) : null;
-  const fireD = fireAt ? distTo(feet, fireAt.x, fireAt.y) : Infinity;
-  if (fire && fireD <= (pickup?.d ?? Infinity)) {
-    const hot = fire.lit === true || (fire.coalsUntil != null && state.minutes < fire.coalsUntil);
-    if (hot && state.inventory.wood > 0) return { action: 'feed', piece: fire };
-    if (hot) {
-      return {
-        action: 'none',
-        message: fire.lit ? 'Need 1 more wood.' : 'The coals are fading. A length of wood would catch.',
-      };
-    }
-    if (fire.ember === 'smoke' || (state.inventory.coal > 0 && !fire.lit)) return { action: 'blow', piece: fire };
-    if (state.inventory.bowdrill && !fire.lit) return { action: 'drill', piece: fire };
-    if (!fire.lit) return { action: 'none', message: 'The lay is cold. A bow drill could wake a coal.' };
   }
 
   if (pickup) return { action: 'gather', prop: pickup.prop };
@@ -204,11 +187,29 @@ function isLoose(prop: Prop): boolean {
   );
 }
 
-function seatedPot(state: GameState, feet: Feet): UseChoice | null {
-  if (state.cupWater !== 'boiled' || !state.potSeat) return null;
-  const at = tileToWorld(state.potSeat.tx, state.potSeat.ty);
-  if (distTo(feet, at.x, at.y) > FIRE_RADIUS) return null;
-  return { action: 'drink' };
+/** Boiled water is drunk before anything else. It never waits on the creek. */
+function boiledDrink(state: GameState): UseChoice | null {
+  if (state.cupWater === 'boiled') return { action: 'drink' };
+  if (state.bowlWater === 'boiled') return { action: 'drink-bowl' };
+  return null;
+}
+
+/** The teepee under his feet. Creek water and plants do not get this turn. */
+function closeFire(state: GameState, feet: Feet): UseChoice | null {
+  const fire = nearestFire(state, feet, BESIDE_FIRE);
+  if (!fire) return null;
+  const hot = fire.lit === true || (fire.coalsUntil != null && state.minutes < fire.coalsUntil);
+  if (hot && state.inventory.wood > 0) return { action: 'feed', piece: fire };
+  if (hot) {
+    return {
+      action: 'none',
+      message: fire.lit ? 'Need 1 more wood.' : 'The coals are fading. A length of wood would catch.',
+    };
+  }
+  if (fire.ember === 'smoke' || (state.inventory.coal > 0 && !fire.lit)) return { action: 'blow', piece: fire };
+  if (state.inventory.bowdrill && !fire.lit) return { action: 'drill', piece: fire };
+  if (!fire.lit) return { action: 'none', message: 'The lay is cold. A bow drill could wake a coal.' };
+  return null;
 }
 
 /** The short line for whatever Use will do right now. Empty when Use has nothing to do. */
@@ -241,9 +242,15 @@ export function usePrompt(state: GameState, feet: Feet): string {
   return actionLabel(chooseUse(state, feet));
 }
 
-/** At the water, fill an empty pot or bowl. Otherwise drink. This beats forage. */
+/**
+ * At the water: boiled bowl or pot, then a pot that already holds water, then the creek.
+ * An empty pot or bowl is filled instead of drunk.
+ */
 export function waterChoice(state: GameState, feet: Feet): UseChoice | null {
   if (state.tool !== 'hands' || !besideCreek(feet.x, feet.y)) return null;
+  if (state.cupWater === 'boiled') return { action: 'drink' };
+  if (state.bowlWater === 'boiled') return { action: 'drink-bowl' };
+  if (state.cupWater === 'raw') return { action: 'drink' };
   if (state.inventory.pot > 0 && state.cupWater === 'empty') return { action: 'scoop' };
   if (state.inventory.bowl && state.bowlWater === 'empty') return { action: 'scoop-bowl' };
   return { action: 'drink-creek' };

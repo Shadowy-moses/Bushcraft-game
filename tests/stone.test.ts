@@ -53,8 +53,8 @@ describe('stone', () => {
     expect(again.state.inventory.hammerstone).toBe(true);
     expect(again.state.tool).toBe(taken.state.tool);
     const third = gather({ ...again.state, picked: {} }, 'river_cobbles-2-8', true);
-    expect(third.ok).toBe(false);
-    expect(third.message).toBe('');
+    expect(third.ok).toBe(true);
+    expect(third.state.inventory.dryCobble).toBe(1);
   });
 
   it('knaps a flint core in place for two or three flakes, and stone nodes stay flake-free', () => {

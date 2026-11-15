@@ -94,7 +94,8 @@ export function buildModel(
     weather: weatherWord(weatherAt(state.minutes)),
     dampLabel: (state.damp ?? 0) >= 10 ? 'Damp' : '',
     prompt,
-    useLabel: choice.action === 'drill' ? 'Hold' : prompt === 'Drink' ? 'Drink' : 'Use',
+    useLabel:
+      choice.action === 'drill' ? 'Hold' : choice.action === 'blow' ? 'Blow' : prompt === 'Drink' ? 'Drink' : 'Use',
     energyLabel: `${Math.round(state.energy)} · ${energyWord(state.energy)}`,
     lowWarmth: state.warmth < 30,
     status: statusLine(state),

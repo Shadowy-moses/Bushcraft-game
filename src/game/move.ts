@@ -89,23 +89,30 @@ export function offIsland(x: number, y: number): boolean {
   return false;
 }
 
+/** Below this the stick is still. A short lean stays slow; the rim still runs. */
+export const STICK_DEAD = 0.16;
+
 /**
- * A held stick matches the keys. Past the dead zone it is a full step,
- * the same vector a single WASD key produces.
+ * Direction only. Speed comes from the raw tilt, so a small lean does not
+ * become a full step.
  */
 export function stickDirection(x: number, y: number): { x: number; y: number } {
   const mag = Math.hypot(x, y);
-  if (mag < 0.15) return { x: 0, y: 0 };
+  if (mag < STICK_DEAD) return { x: 0, y: 0 };
   return { x: x / mag, y: y / mag };
 }
 
-/** Partial stick walks. A push at the rim runs. Magnitude is 0–1 after the stick is normalised. */
+/**
+ * Partial stick walks. Just past the dead zone he creeps. A push at the rim
+ * still runs at RUN_SPEED. Magnitude is the raw stick tilt, 0–1.
+ */
 export function travelSpeed(magnitude: number): { speed: number; running: boolean } {
   const mag = Math.min(1, Math.max(0, magnitude));
-  if (mag < 0.15) return { speed: 0, running: false };
+  if (mag < STICK_DEAD) return { speed: 0, running: false };
   if (mag >= RUN_STICK) return { speed: RUN_SPEED, running: true };
-  const t = (mag - 0.15) / (RUN_STICK - 0.15);
-  return { speed: WALK_SPEED * (0.72 + 0.28 * t), running: false };
+  const t = (mag - STICK_DEAD) / (RUN_STICK - STICK_DEAD);
+  const eased = t * t * (3 - 2 * t);
+  return { speed: WALK_SPEED * (0.18 + 0.82 * eased), running: false };
 }
 
 export function bodiesFor(

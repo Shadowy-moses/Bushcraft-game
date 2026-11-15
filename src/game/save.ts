@@ -127,6 +127,7 @@ export function parseSave(raw: string): GameState | null {
         cup?: unknown;
         axe?: unknown;
         bowl?: unknown;
+        dryCobble?: unknown;
         wetCobble?: unknown;
       };
       health?: unknown;
@@ -216,6 +217,7 @@ export function parseSave(raw: string): GameState | null {
         pot: typeof save.inventory.pot === 'number' ? save.inventory.pot : save.inventory.cup === true ? 3 : 0,
         axe: save.inventory.axe === true,
         bowl: save.inventory.bowl === true,
+        dryCobble: countOf(save.inventory.dryCobble),
         wetCobble: countOf(save.inventory.wetCobble),
       },
       pieces: save.pieces.map((piece) => restorePiece(piece as Piece)),

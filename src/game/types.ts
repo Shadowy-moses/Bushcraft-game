@@ -47,7 +47,9 @@ export interface Inventory {
   axe: boolean;
   /** A carved wood bowl. It does not wear out. */
   bowl: boolean;
-  /** Wet creek cobbles carried for stone boiling. Not a second hammerstone. */
+  /** Dry bank cobbles. Safe in a fire, and a cobble for the axe. */
+  dryCobble: number;
+  /** Wet creek cobbles from the water's edge. They can crack in a fire. */
   wetCobble: number;
 }
 

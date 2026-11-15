@@ -76,6 +76,8 @@ export const STRIKE_ENERGY = 2;
 export const BUILD_ENERGY = 6;
 /** Cobbles sit in the creek fringe. The bank is close enough. */
 export const COBBLE_REACH = 88;
+/** About one tile. A fire this close wins Use and taps over the creek and the plants. */
+export const BESIDE_FIRE = 36;
 
 export const WOOD_FOUNDATION = 10;
 export const WOOD_WALL = 5;

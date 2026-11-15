@@ -134,6 +134,9 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
           },
         ]
       : []),
+    ...((state.inventory.dryCobble ?? 0) > 0
+      ? [{ id: 'dry-cobble', name: 'Dry cobble', count: state.inventory.dryCobble, frame: 'item_rock' }]
+      : []),
     ...((state.inventory.wetCobble ?? 0) > 0
       ? [{ id: 'wet-cobble', name: 'Wet cobble', count: state.inventory.wetCobble, frame: 'river_cobbles' }]
       : []),
@@ -244,7 +247,7 @@ export function recipesFor(state: GameState): Recipe[] {
       blurb: 'A creek cobble, knapped and pecked into a thick wedge head, then hafted with cord. It bites about 1.6 times as deep as the crude hatchet, so two swings drop a tree.',
       frame: 'item_stone_axe',
       ingredients: [
-        { name: 'Cobble', have: state.inventory.wetCobble ?? 0, need: 1 },
+        { name: 'Cobble', have: (state.inventory.dryCobble ?? 0) + (state.inventory.wetCobble ?? 0), need: 1 },
         { name: 'Wood', have: state.inventory.wood, need: AXE_WOOD },
         { name: 'Cordage', have: state.inventory.cordage, need: AXE_CORDAGE },
       ],
@@ -253,7 +256,7 @@ export function recipesFor(state: GameState): Recipe[] {
       action: 'craft-axe',
       enabled:
         !state.inventory.axe &&
-        (state.inventory.wetCobble ?? 0) >= 1 &&
+        ((state.inventory.dryCobble ?? 0) >= 1 || (state.inventory.wetCobble ?? 0) >= 1) &&
         state.inventory.wood >= AXE_WOOD &&
         state.inventory.cordage >= AXE_CORDAGE,
       done: state.inventory.axe,

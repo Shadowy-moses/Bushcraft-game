@@ -114,7 +114,7 @@ describe('hafted stone axe and wood bowl', () => {
     };
     const dry = heatStone(ready, () => 0);
     expect(dry.burst).toBe(false);
-    expect(dry.spent).toBe('dry');
+    expect(dry.spent).toBe('stone');
     expect(dry.state.inventory.stone).toBe(0);
     expect(dry.state.inventory.wetCobble).toBe(1);
     const hot = { ...dry.state, hotStone: 'hot' as const };

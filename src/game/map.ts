@@ -38,6 +38,21 @@ export const GRAVEL_LANDINGS: { tx: number; ty: number }[] = [
   { tx: 5, ty: 11 },
 ];
 
+/** A cobble on the stones or with water on a side comes up wet. Bank cobbles are dry. */
+export function cobbleIsWet(tx: number, ty: number): boolean {
+  const here = groundAt(tx, ty);
+  if (here === 'creek_water' || here === 'creek_edge_stones' || here === 'creek_gravel') return true;
+  for (const [dx, dy] of [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ] as const) {
+    if (groundAt(tx + dx, ty + dy) === 'creek_water') return true;
+  }
+  return false;
+}
+
 export function inBounds(tx: number, ty: number): boolean {
   return tx >= 0 && ty >= 0 && tx < COLS && ty < ROWS;
 }
@@ -92,10 +107,10 @@ export const PROPS: Prop[] = [
   prop('berry_bush', 8, 2, true, 'berries'),
   prop('berry_bush', 3, 4, true, 'berries'),
   prop('berry_bush', 5, 6, true, 'berries'),
-  prop('cattails', 1, 4, false, 'cattail'),
-  prop('cattails', 11, 3, false, 'cattail'),
   prop('cattails', 1, 1, false, 'cattail'),
-  prop('cattails', 10, 6, false, 'cattail'),
+  prop('cattails', 0, 3, false, 'cattail'),
+  prop('cattails', 11, 3, false, 'cattail'),
+  prop('cattails', 10, 1, false, 'cattail'),
   prop('birch_log', 4, 2, false, 'bark'),
   prop('birch_log', 5, 1, false, 'bark'),
   prop('birch_log', 9, 1, false, 'bark'),
@@ -140,6 +155,7 @@ export const PROPS: Prop[] = [
   prop('river_cobbles', 2, 8, false, 'cobble'),
   prop('river_cobbles', 3, 9, false, 'cobble'),
   prop('river_cobbles', 6, 10, false, 'cobble'),
+  prop('river_cobbles', 7, 9, false, 'cobble'),
 
   // Rare flint nodules. Knap them in place with the hammerstone.
   prop('flint_core', 4, 9, false),
