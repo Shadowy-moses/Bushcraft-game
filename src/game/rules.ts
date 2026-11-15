@@ -18,7 +18,7 @@ import { CORD_FIBER, fiberFromPlant, isFiberCut, regrowFiber } from './fiber';
 import { placeFire, tendFires } from './fire';
 import { OPENING_TIP } from './copy';
 import { clamp, tileToWorld } from './iso';
-import { inReach, reachFor } from './move';
+import { escapeEnclosure, inReach, reachFor } from './move';
 import { propAt, propById } from './map';
 import { CORE_KNAPS, flakesFromKnap, ROCK_HITS, stoneFromStrike } from './stone';
 import { TREE_HITS, isFelled, regrowTrees, woodFromTree } from './trees';
@@ -278,12 +278,12 @@ export function placePiece(
       ? { ...state.inventory, stone: state.inventory.stone - cost }
       : { ...state.inventory, wood: state.inventory.wood - cost };
   return ok(
-    {
+    freed({
       ...state,
       energy: Math.max(0, state.energy - BUILD_ENERGY),
       inventory,
       pieces: [...state.pieces, piece],
-    },
+    }),
     'Up it goes.',
   );
 }
@@ -351,14 +351,20 @@ export function upgradePiece(state: GameState, piece: Piece): ActionResult {
       : item,
   );
   return ok(
-    {
+    freed({
       ...state,
       energy: Math.max(0, state.energy - BUILD_ENERGY),
       inventory: { ...state.inventory, stone: state.inventory.stone - cost },
       pieces,
-    },
+    }),
     'Upgraded to stone.',
   );
+}
+
+function freed(state: GameState): GameState {
+  const spot = escapeEnclosure(state);
+  if (spot.x === state.x && spot.y === state.y) return state;
+  return { ...state, x: spot.x, y: spot.y };
 }
 
 export function wallInTheWay(state: GameState, from: { tx: number; ty: number }, to: { tx: number; ty: number }): boolean {

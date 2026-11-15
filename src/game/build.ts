@@ -418,29 +418,55 @@ export function placementVerdict(
   return spot;
 }
 
+function nearestFoundation(bases: Piece[], feet?: { x: number; y: number }): Piece | null {
+  if (bases.length === 0) return null;
+  if (!feet) return bases[0];
+  return bases.slice().sort((a, b) => {
+    const aa = tileToWorld(a.tx, a.ty);
+    const bb = tileToWorld(b.tx, b.ty);
+    return Math.hypot(aa.x - feet.x, aa.y - feet.y) - Math.hypot(bb.x - feet.x, bb.y - feet.y);
+  })[0];
+}
+
+/**
+ * Doorway takes the open edge nearest his feet, so the gap faces the way he walked up.
+ * A wall takes the next open edge after that, leaving the near side for the door.
+ */
+function nextBuildEdge(
+  base: Tile,
+  open: EdgeName[],
+  kind: PieceKind,
+  feet: { x: number; y: number },
+): EdgeName {
+  const ranked = open
+    .map((edge) => ({ edge, d: Math.hypot(pieceAnchor('wall', base, edge).x - feet.x, pieceAnchor('wall', base, edge).y - feet.y) }))
+    .sort((a, b) => a.d - b.d);
+  const reachable = ranked.filter((item) => inReachOf(feet.x, feet.y, pieceAnchor('wall', base, item.edge), BUILD_REACH));
+  const front = (reachable[0] ?? ranked[0]).edge;
+  if (kind === 'doorway') return front;
+  if (open.length === 1) return open[0];
+  const start = EDGES.indexOf(front);
+  for (let step = 1; step <= EDGES.length; step++) {
+    const candidate = EDGES[(start + step) % EDGES.length];
+    if (candidate !== front && open.includes(candidate)) return candidate;
+  }
+  return open[0];
+}
+
 export function suggestPiece(
   state: GameState,
   kind: PieceKind,
   feet?: { x: number; y: number },
   material: Material = 'twig',
 ): { tile: Tile; edge: EdgeName } {
-  const acceptable = (tile: Tile, edge: EdgeName): boolean => {
-    if (!pieceSpot(kind, tile, edge, state).ok) return false;
-    if (!feet) return true;
-    return placementVerdict(kind, tile, edge, state, feet, material).ok;
-  };
   if (kind === 'wall' || kind === 'doorway') {
     const bases = state.pieces.filter((piece) => piece.kind === 'foundation');
-    for (const base of bases) {
-      for (const edge of EDGES) {
-        if (acceptable(base, edge)) return { tile: { tx: base.tx, ty: base.ty }, edge };
-      }
-    }
-    if (feet) {
-      for (const base of bases) {
-        for (const edge of EDGES) {
-          if (wallSpot(base, edge, kind, state).ok) return { tile: { tx: base.tx, ty: base.ty }, edge };
-        }
+    const base = nearestFoundation(bases, feet) ?? bases[0];
+    if (base) {
+      const open = EDGES.filter((edge) => wallSpot(base, edge, kind, state).ok);
+      if (open.length > 0) {
+        const edge = feet ? nextBuildEdge(base, open, kind, feet) : open[0];
+        return { tile: { tx: base.tx, ty: base.ty }, edge };
       }
     }
   }

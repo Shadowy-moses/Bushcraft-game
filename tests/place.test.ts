@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approachBuild, blocksStep, dampStep, edgeAhead, floorSpot, foundationSpot, nearestSocket, pieceAnchor, pieceFrame, placementVerdict, rotateWall, wallSpot } from '../src/game/build';
+import { approachBuild, blocksStep, dampStep, edgeAhead, floorSpot, foundationSpot, nearestSocket, pieceAnchor, pieceFrame, placementVerdict, rotateWall, suggestPiece, wallSpot } from '../src/game/build';
 import { BUILD_REACH, inReachOf } from '../src/game/move';
 import { tileToWorld } from '../src/game/iso';
 import { findPath } from '../src/game/path';
@@ -149,6 +149,40 @@ describe('building on the block', () => {
     const near = nearestSocket(pieces, at.x + 8, at.y + 4, 26);
     expect(near?.edge).toBe('se');
     expect(nearestSocket(pieces, at.x + 200, at.y + 200, 26)).toBeNull();
+  });
+
+  it('defaults each wall to the next open edge and the doorway to the side he can reach', () => {
+    const feet = tileToWorld(7, 5);
+    let state = {
+      ...initialState(),
+      ...feet,
+      tx: 7,
+      ty: 5,
+      inventory: { ...initialState().inventory, wood: 80 },
+      pieces: [{ kind: 'foundation', tx: 7, ty: 3, edge: 'se' } as Piece],
+    };
+    const walls: EdgeName[] = [];
+    for (let i = 0; i < 3; i++) {
+      const ghost = suggestPiece(state, 'wall', feet);
+      expect(ghost.tile).toEqual({ tx: 7, ty: 3 });
+      expect(walls, ghost.edge).not.toContain(ghost.edge);
+      walls.push(ghost.edge);
+      state = {
+        ...state,
+        pieces: [...state.pieces, { kind: 'wall', tx: ghost.tile.tx, ty: ghost.tile.ty, edge: ghost.edge }],
+      };
+    }
+    const door = suggestPiece(state, 'doorway', feet);
+    expect(walls).not.toContain(door.edge);
+    expect(new Set([...walls, door.edge]).size).toBe(4);
+    const open = (['se', 'sw', 'ne', 'nw'] as EdgeName[]).map((edge) => ({
+      edge,
+      d: Math.hypot(pieceAnchor('wall', { tx: 7, ty: 3 }, edge).x - feet.x, pieceAnchor('wall', { tx: 7, ty: 3 }, edge).y - feet.y),
+    }));
+    const nearest = open.slice().sort((a, b) => a.d - b.d)[0].edge;
+    expect(door.edge).toBe(nearest);
+    expect(inReachOf(feet.x, feet.y, pieceAnchor('wall', door.tile, door.edge), BUILD_REACH)).toBe(true);
+    expect(walls[0]).not.toBe(nearest);
   });
 
   it('picks the atlas frame for each piece and its ghost', () => {
