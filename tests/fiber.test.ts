@@ -15,8 +15,9 @@ import {
   restEnergyPerSecond,
   tick,
 } from '../src/game/rules';
-function stand(tx: number, ty: number) {
-  return { ...initialState(), tx, ty, ...tileToWorld(tx, ty), energy: 100 };
+import type { GameState } from '../src/game/types';
+function stand(tx: number, ty: number): GameState {
+  return { ...initialState(), tx, ty, ...tileToWorld(tx, ty), energy: 100, tool: 'hands' };
 }
 
 describe('fiber, cordage, and the tripod', () => {
@@ -37,7 +38,7 @@ describe('fiber, cordage, and the tripod', () => {
     expect(again.message).toMatch(/stubble/i);
     const grown = tick(cut.state, FIBER_REGROW_MINUTES);
     expect(grown.plants[id]).toBeUndefined();
-    const second = gather({ ...grown, energy: 100 }, id);
+    const second = gather({ ...grown, energy: 100, tool: 'hands' }, id);
     expect(second.ok).toBe(true);
     expect(second.state.inventory.fiber).toBe(gained * 2);
   });

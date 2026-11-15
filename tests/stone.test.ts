@@ -46,7 +46,7 @@ describe('stone', () => {
     expect(taken.ok).toBe(true);
     expect(taken.message).toBe('A hard, round cobble. Good hammerstone.');
     expect(taken.state.inventory.hammerstone).toBe(true);
-    expect(taken.state.tool).toBe('hammerstone');
+    expect(taken.state.tool).toBe('hatchet');
     const again = gather({ ...taken.state, picked: {} }, 'river_cobbles-3-9', true);
     expect(again.message).toBe('You already carry a hammerstone.');
     expect(again.state.inventory.hammerstone).toBe(true);

@@ -5,7 +5,7 @@ import {
   RAW_THIRST,
   ROCK_RETURN_MINUTES,
   ROOT_HUNGER,
-  SICK_MINUTES,
+  SICK_DELAY,
 } from './constants';
 import { isFiberCut } from './fiber';
 import { tileToWorld, worldToTile } from './iso';
@@ -14,14 +14,18 @@ import { REACH } from './move';
 import { ROCK_HITS } from './stone';
 import type { CupWater, GameState } from './types';
 import { weatherAt } from './weather';
-import { nearLitFire } from './fire';
+import { nearEmberFire, nearLitFire } from './fire';
 
 export function plantFrame(kind: string, plants: Record<string, number>, id: string, minutes: number): string | null {
   const resting = isFiberCut(plants, id, minutes);
   if (kind === 'berry_bush') return resting ? 'berry_bush_picked' : 'berry_bush_ripe';
   if (kind === 'cattails') return resting ? 'cattails_1' : 'cattails_0';
-  if (kind === 'bark_cup') return 'item_bark_cup';
+  if (kind === 'birch_log') return 'felled_log';
   return null;
+}
+
+export function nearHeat(state: GameState): boolean {
+  return nearLitFire(state) || nearEmberFire(state);
 }
 
 export function besideCreek(x: number, y: number): boolean {
@@ -37,27 +41,34 @@ export function besideCreek(x: number, y: number): boolean {
 }
 
 export function scoopCreek(state: GameState): { state: GameState; ok: boolean; message: string } {
-  if (!state.inventory.cup) return { state, ok: false, message: 'You need a cup for that.' };
-  if (state.cupWater !== 'empty') return { state, ok: false, message: 'The cup is already full.' };
+  if (state.inventory.pot <= 0 && state.cupWater === 'empty') return { state, ok: false, message: 'You need a bark pot for that.' };
+  if (state.cupWater !== 'empty') return { state, ok: false, message: 'The pot is already full.' };
   if (!besideCreek(state.x, state.y)) return { state, ok: false, message: 'Walk to the creek.' };
   return {
     ok: true,
-    message: 'Creek water in the cup. Boil it before you drink.',
-    state: { ...state, cupWater: 'raw', tip: 'Creek water in the cup. Boil it before you drink.' },
+    message: 'Creek water in the pot. Set it on the coals.',
+    state: { ...state, cupWater: 'raw', tip: 'Creek water in the pot. Set it on the coals.' },
   };
 }
 
 export function canBoil(state: GameState): boolean {
-  return state.inventory.cup && state.cupWater === 'raw' && nearLitFire(state);
+  return state.inventory.pot > 0 && state.cupWater === 'raw' && nearHeat(state);
 }
 
 export function finishBoil(state: GameState): GameState {
   if (state.cupWater !== 'raw') return state;
-  return { ...state, cupWater: 'boiled', tip: 'It has boiled. Safe to drink.' };
+  const pot = Math.max(0, state.inventory.pot - 1);
+  const last = pot === 0;
+  return {
+    ...state,
+    cupWater: 'boiled',
+    inventory: { ...state.inventory, pot },
+    tip: last ? 'It has boiled. The pot gives out.' : 'It has boiled. Safe to drink.',
+  };
 }
 
 export function drinkCup(state: GameState): { state: GameState; ok: boolean; message: string } {
-  if (!state.inventory.cup || state.cupWater === 'empty') return { state, ok: false, message: 'The cup is empty.' };
+  if (state.cupWater === 'empty') return { state, ok: false, message: 'The pot is empty.' };
   if (state.cupWater === 'boiled') {
     return {
       ok: true,
@@ -70,15 +81,18 @@ export function drinkCup(state: GameState): { state: GameState; ok: boolean; mes
       },
     };
   }
+  const sips = (state.sips ?? 0) + 1;
+  const sickens = sips % 3 === 0;
   return {
     ok: true,
-    message: 'You drink it raw. Your stomach turns.',
+    message: sickens ? 'You drink it raw.' : 'You drink it raw. It sits all right.',
     state: {
       ...state,
       cupWater: 'empty',
+      sips,
       thirst: clampNeed(state.thirst + RAW_THIRST),
-      sick: Math.max(state.sick, SICK_MINUTES),
-      tip: 'You drink it raw. Your stomach turns.',
+      sickAt: sickens ? state.minutes + SICK_DELAY : state.sickAt,
+      tip: sickens ? 'You drink it raw.' : 'You drink it raw. It sits all right.',
     },
   };
 }
@@ -174,7 +188,8 @@ export function rainEndsBetween(from: number, to: number): number {
   return count;
 }
 
-export function cupFrame(water: CupWater, hasCup: boolean): string {
-  if (!hasCup || water === 'empty') return 'item_bark_cup';
+export function potFrame(water: CupWater, usesLeft: number): string {
+  if (usesLeft === 1) return 'item_bark_cup_worn';
+  if (water === 'empty') return 'item_bark_cup';
   return 'item_bark_cup_water';
 }

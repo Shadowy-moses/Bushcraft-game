@@ -19,14 +19,14 @@ import { parseSave } from '../src/game/save';
 import { chooseUse } from '../src/game/use';
 
 function stand(tx: number, ty: number) {
-  return { ...initialState(), ...tileToWorld(tx, ty), tx, ty, energy: 100 };
+  return { ...initialState(), ...tileToWorld(tx, ty), tx, ty, energy: 100, tool: 'hands' as const };
 }
 
 describe('the bank, a fresh fiber plant, and empty hands', () => {
   it('picks up a creek cobble from the grass bank', () => {
     expect(groundAt(5, 7)).toBe('grass');
     expect(planRoute(PLAYER_START, 5, 7, blockedFor(initialState()))).not.toBeNull();
-    const state = stand(5, 7);
+    const state = stand(2, 8);
     expect(canStand(state.x, state.y, bodiesFor(state), [])).toBe(true);
     const choice = chooseUse(state, { x: state.x, y: state.y });
     expect(choice.action).toBe('gather');
@@ -57,7 +57,7 @@ describe('the bank, a fresh fiber plant, and empty hands', () => {
     const loaded = parseSave(JSON.stringify(old));
     expect(loaded?.plants).toEqual({});
     expect(loaded?.picked['bush_fiber-9-5']).toBeUndefined();
-    const again = gather({ ...loaded!, ...tileToWorld(9, 5), tx: 9, ty: 5, energy: 100 }, 'bush_fiber-9-5');
+    const again = gather({ ...loaded!, ...tileToWorld(9, 5), tx: 9, ty: 5, energy: 100, tool: 'hands' }, 'bush_fiber-9-5');
     expect(again.ok).toBe(true);
     expect(again.state.inventory.fiber).toBeGreaterThan(0);
   });

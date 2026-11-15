@@ -11,8 +11,11 @@ import {
   HUNGER_PER_HOUR,
   NEED_DIRE,
   NEED_LOW,
+  LOG_STRIPS,
+  POT_BOILS,
   SICK_ENERGY_PER_HOUR,
   SICK_HEALTH_PER_HOUR,
+  SICK_MINUTES,
   START_HEALTH,
   START_HUNGER,
   START_THIRST,
@@ -59,7 +62,8 @@ export function emptyInventory(): Inventory {
     bowdrill: false,
     berries: 0,
     roots: 0,
-    cup: false,
+    bark: 0,
+    pot: 0,
   };
 }
 
@@ -73,6 +77,8 @@ export function initialState(): GameState {
     hunger: START_HUNGER,
     thirst: START_THIRST,
     sick: 0,
+    sickAt: 0,
+    sips: 0,
     cupWater: 'empty',
     tx: PLAYER_START.tx,
     ty: PLAYER_START.ty,
@@ -84,6 +90,7 @@ export function initialState(): GameState {
     trees: {},
     rocks: {},
     rockGone: {},
+    logStrips: {},
     cores: {},
     plants: {},
     picked: {},
@@ -132,7 +139,9 @@ export function tick(state: GameState, gameMinutes: number): GameState {
   let hunger = state.hunger;
   let thirst = state.thirst;
   let sick = state.sick ?? 0;
+  let sickAt = state.sickAt ?? 0;
   let minutes = state.minutes;
+  let turned = false;
   let left = gameMinutes;
   let cursor = state;
   while (left > 0.0001) {
@@ -143,6 +152,11 @@ export function tick(state: GameState, gameMinutes: number): GameState {
     thirst = clamp(thirst - THIRST_PER_HOUR * (step / 60), 0, 100);
     const dire = (hunger < NEED_DIRE ? DIRE_HEALTH_PER_HOUR : 0) + (thirst < NEED_DIRE ? DIRE_HEALTH_PER_HOUR : 0);
     health = clamp(health - dire * (step / 60), 0, 100);
+    if (sickAt > 0 && sick <= 0 && minutes + step >= sickAt) {
+      sick = SICK_MINUTES;
+      sickAt = 0;
+      turned = true;
+    }
     if (sick > 0) {
       const sickStep = Math.min(sick, step);
       energy = clamp(energy - SICK_ENERGY_PER_HOUR * (sickStep / 60), 0, 100);
@@ -160,7 +174,24 @@ export function tick(state: GameState, gameMinutes: number): GameState {
   const rocksBack = regrowRocks(state.rocks, state.rockGone ?? {}, state.minutes, minutes);
   const picked = washCobbles(state.picked, state.minutes, minutes);
   const tended = tendFires(
-    { ...state, warmth, energy, health, hunger, thirst, sick, minutes, trees, plants, rocks: rocksBack.rocks, rockGone: rocksBack.gone, picked, outcome: 'playing' },
+    {
+      ...state,
+      warmth,
+      energy,
+      health,
+      hunger,
+      thirst,
+      sick,
+      sickAt,
+      minutes,
+      trees,
+      plants,
+      rocks: rocksBack.rocks,
+      rockGone: rocksBack.gone,
+      picked,
+      tip: turned ? 'Your stomach turns.' : state.tip,
+      outcome: 'playing',
+    },
     gameMinutes,
   );
   const damp = nextDamp(tended, gameMinutes, nearLitFire(tended) || nearEmberFire(tended));
@@ -287,6 +318,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
   if (node.gather !== 'fiber' && state.picked[id]) return fail(state, 'Nothing left there.');
   if (!free && !inReach(state.x, state.y, node.tx, node.ty, reachFor(node))) return fail(state, 'Walk up to it.');
   if (!free && state.energy < GATHER_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
+  if (!free && state.tool !== 'hands') return fail(state, 'Empty your hands to pick that up.');
   const picked = { ...state.picked, [id]: true as const };
   const energy = free ? state.energy : state.energy - GATHER_ENERGY;
   if (node.gather === 'sticks') {
@@ -302,8 +334,22 @@ export function gather(state: GameState, id: string, free = false): ActionResult
       '+1 Wood',
     );
   }
+  if (node.gather === 'bark') {
+    const taken = (state.logStrips[id] ?? 0) + 1;
+    const done = taken >= LOG_STRIPS;
+    return ok(
+      {
+        ...state,
+        energy,
+        inventory: { ...state.inventory, bark: state.inventory.bark + 1 },
+        logStrips: { ...state.logStrips, [id]: taken },
+        picked: done ? picked : state.picked,
+      },
+      done ? 'The last strip. The log is spent.' : 'A strip of birch bark.',
+      '+1 Bark',
+    );
+  }
   if (node.gather === 'berries' || node.gather === 'cattail') {
-    if (state.tool !== 'hands') return fail(state, 'Empty your hands to pick that.');
     if (isFiberCut(state.plants, id, state.minutes)) {
       return fail(state, node.gather === 'berries' ? 'The berries are gone. They will come back.' : 'The cattail is pulled. It will come back.');
     }
@@ -316,13 +362,6 @@ export function gather(state: GameState, id: string, free = false): ActionResult
       { ...state, energy, inventory, plants: { ...state.plants, [id]: state.minutes } },
       berries ? 'A handful of berries.' : 'A cattail root, pulled from the bank.',
       berries ? `+${gained} berries` : '+1 root',
-    );
-  }
-  if (node.gather === 'cup') {
-    if (state.inventory.cup) return ok({ ...state, energy, picked }, 'You already carry a cup.');
-    return ok(
-      { ...state, energy, picked, inventory: { ...state.inventory, cup: true } },
-      'A cup of bark. It will hold water.',
     );
   }
   if (node.gather === 'fiber') {
@@ -346,7 +385,6 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     return ok(
       {
         ...state,
-        tool: 'hammerstone',
         inventory: { ...state.inventory, hammerstone: true },
         energy,
         picked,
@@ -358,6 +396,46 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     { ...state, energy, picked },
     'Set that aside.',
     node.gather === 'stones' ? 'Stone' : undefined,
+  );
+}
+
+/** One strip from a living birch. It stays peeled for a day. */
+export function peelBirch(state: GameState, id: string): ActionResult {
+  const node = propById(id);
+  if (!node || node.kind !== 'birch_tree') return fail(state, 'That is not a birch.');
+  if (state.tool !== 'hands') return fail(state, 'Empty your hands to peel bark.');
+  if (isFelled(state.trees, id)) return fail(state, 'Only a stump left.');
+  if (!inReach(state.x, state.y, node.tx, node.ty)) return fail(state, 'Walk up to the birch.');
+  if (state.energy < GATHER_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
+  if (isFiberCut(state.plants, id, state.minutes)) return fail(state, 'This birch is peeled. The bark needs a day.');
+  return ok(
+    {
+      ...state,
+      energy: state.energy - GATHER_ENERGY,
+      inventory: { ...state.inventory, bark: state.inventory.bark + 1 },
+      plants: { ...state.plants, [id]: state.minutes },
+    },
+    'A strip of birch bark.',
+    '+1 Bark',
+  );
+}
+
+/** One bark and one cord. Three boils, then the pot is gone. */
+export function craftPot(state: GameState): ActionResult {
+  if (state.inventory.pot > 0) return fail(state, 'You already have a bark pot.');
+  if (state.inventory.bark < 1) return fail(state, 'Need 1 more bark.');
+  if (state.inventory.cordage < 1) return fail(state, 'Need 1 more cordage.');
+  return ok(
+    {
+      ...state,
+      inventory: {
+        ...state.inventory,
+        bark: state.inventory.bark - 1,
+        cordage: state.inventory.cordage - 1,
+        pot: POT_BOILS,
+      },
+    },
+    'A bark pot. It will take three boils.',
   );
 }
 

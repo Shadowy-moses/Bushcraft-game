@@ -397,7 +397,7 @@ export class Hud {
         .join('');
     }
     for (const slot of resources) {
-      const text = String(slot.count);
+      const text = slot.text ?? String(slot.count);
       this.root.querySelectorAll(`[data-slot="${slot.id}"]`).forEach((node) => {
         if (node.textContent !== text) node.textContent = text;
       });

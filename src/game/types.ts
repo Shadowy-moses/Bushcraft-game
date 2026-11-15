@@ -39,13 +39,15 @@ export interface Inventory {
   bowdrill: boolean;
   berries: number;
   roots: number;
-  /** A vessel for creek water. The bark cup is today's container. */
-  cup: boolean;
+  /** Birch bark strips. The pot and, later, other bark work. */
+  bark: number;
+  /** Boils left in the bark pot. Zero means he has no pot. */
+  pot: number;
 }
 
 export type Tool = 'hands' | 'hatchet' | 'hammerstone' | 'plan';
 export type Outcome = 'playing' | 'won' | 'lost';
-export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 'tinder' | 'leaves' | 'berries' | 'cattail' | 'cup';
+export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 'tinder' | 'leaves' | 'berries' | 'cattail' | 'bark';
 export type CupWater = 'empty' | 'raw' | 'boiled';
 
 export interface GameState {
@@ -56,9 +58,15 @@ export interface GameState {
   health: number;
   hunger: number;
   thirst: number;
-  /** Game minutes of sickness still to run. Raw water sets this. */
+  /** Game minutes of sickness still to run. */
   sick: number;
+  /** Game minute a delayed sickness begins. Zero means none is waiting. */
+  sickAt: number;
+  /** Raw drinks taken. About one in three is going to turn. */
+  sips: number;
   cupWater: CupWater;
+  /** Strips taken from each fallen birch log. */
+  logStrips: Record<string, number>;
   tx: number;
   ty: number;
   /** Feet, in world pixels. Free movement does not snap these to a tile. */
@@ -100,7 +108,7 @@ export type PropKind =
   | 'bush_fiber'
   | 'berry_bush'
   | 'cattails'
-  | 'bark_cup'
+  | 'birch_log'
   | 'item_sticks'
   | 'item_stone'
   | 'item_rock'

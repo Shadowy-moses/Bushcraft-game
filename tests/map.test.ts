@@ -57,7 +57,7 @@ describe('the patch of woods', () => {
     expect(hut).toBe(38);
     expect(nodes.length * perNode).toBeGreaterThanOrEqual(hut);
     const mined = { ...initialState(), rocks: { 'rock_node-1-8': 5 }, rockGone: { 'rock_node-1-8': initialState().minutes } };
-    expect(tick(mined, 60).rocks['rock_node-1-8']).toBe(5);
-    expect(tick(mined, 180).rocks['rock_node-1-8']).toBe(0);
+    expect(tick(mined, 180).rocks['rock_node-1-8']).toBe(5);
+    expect(tick(mined, 1440).rocks['rock_node-1-8']).toBe(0);
   });
 });

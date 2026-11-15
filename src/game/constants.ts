@@ -41,8 +41,14 @@ export const RAW_THIRST = 24;
 export const SICK_MINUTES = 120;
 export const SICK_ENERGY_PER_HOUR = 8;
 export const SICK_HEALTH_PER_HOUR = 4;
-/** One mined-out rock node returns this often. Three game hours, about seven real minutes. */
-export const ROCK_RETURN_MINUTES = 180;
+/** One mined-out rock node returns this often. One game day, about an hour of real time. */
+export const ROCK_RETURN_MINUTES = 1440;
+/** A fallen birch log gives this many strips, then it is spent. */
+export const LOG_STRIPS = 4;
+/** A bark pot survives this many boils. */
+export const POT_BOILS = 3;
+/** Raw water, when it sickens him, waits this long before it starts. Two game hours. */
+export const SICK_DELAY = 120;
 
 export const GATHER_ENERGY = 5;
 /**
