@@ -77,7 +77,7 @@ import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
 import { hotbarSlots } from '../craft';
 import { CANT_HOLD, heldIcon, holdSlot } from '../hold';
-import { chooseTarget, upgradePrompt, waterChoice, type UseChoice } from '../use';
+import { chooseTarget, resolveUse, upgradePrompt, waterChoice, type UseChoice } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { BOIL_METHOD } from '../boil';
 import { drinkBowl, drinkCreek, drinkCup, eat, finishBoil, liftPot, plantFrame, scoopBowl, scoopCreek } from '../food';
@@ -1123,7 +1123,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private useNearest(): void {
-    this.performChoice(chooseTarget(this.state, { x: this.px, y: this.py }));
+    const resolved = resolveUse(this.state, { x: this.px, y: this.py });
+    if (resolved.swapped) {
+      this.state = resolved.state;
+      this.hud.announceTool(resolved.name);
+      this.syncHeld();
+    }
+    this.performChoice(resolved.choice);
   }
 
   private performChoice(choice: UseChoice): void {

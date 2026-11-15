@@ -5,7 +5,7 @@ import { PROPS } from './map';
 import { warmthPerGameHour } from './rules';
 import { isFelled } from './trees';
 import type { PieceKind, GameState, Tool } from './types';
-import { chooseUse, usePrompt } from './use';
+import { actionLabel, resolveUse } from './use';
 import { weatherAt, weatherWord } from './weather';
 
 export type SheetId = 'none' | 'title' | 'end' | 'pack' | 'craft';
@@ -72,8 +72,8 @@ export function buildModel(
   const face = clockParts(state.minutes);
   const feet = { x: state.x, y: state.y };
   const warming = nearLitFire(state);
-  const choice = chooseUse(state, feet);
-  const prompt = usePrompt(state, feet);
+  const resolved = resolveUse(state, feet);
+  const prompt = actionLabel(resolved.choice);
   return {
     clock: face.clock,
     daypart: face.daypart,
@@ -95,7 +95,13 @@ export function buildModel(
     dampLabel: (state.damp ?? 0) >= 10 ? 'Damp' : '',
     prompt,
     useLabel:
-      choice.action === 'drill' ? 'Hold' : choice.action === 'blow' ? 'Blow' : prompt === 'Drink' ? 'Drink' : 'Use',
+      resolved.choice.action === 'drill'
+        ? 'Hold'
+        : resolved.choice.action === 'blow'
+          ? 'Blow'
+          : prompt === 'Drink'
+            ? 'Drink'
+            : 'Use',
     energyLabel: `${Math.round(state.energy)} · ${energyWord(state.energy)}`,
     lowWarmth: state.warmth < 30,
     status: statusLine(state),
