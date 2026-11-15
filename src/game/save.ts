@@ -142,6 +142,7 @@ export function parseSave(raw: string): GameState | null {
       hotStone?: unknown;
       potSeat?: unknown;
       rockGone?: unknown;
+      cobbleGone?: unknown;
       rocks?: unknown;
       cores?: unknown;
       plants?: unknown;
@@ -224,6 +225,7 @@ export function parseSave(raw: string): GameState | null {
       trees: save.trees,
       rocks: (save.rocks as Record<string, number> | undefined) ?? {},
       rockGone: (save.rockGone as Record<string, number> | undefined) ?? {},
+      cobbleGone: (save.cobbleGone as Record<string, number> | undefined) ?? {},
       logStrips: (save.logStrips as Record<string, number> | undefined) ?? {},
       cores: (save.cores as Record<string, number> | undefined) ?? {},
       plants: save.version === 6 ? ((save.plants as Record<string, number> | undefined) ?? {}) : {},

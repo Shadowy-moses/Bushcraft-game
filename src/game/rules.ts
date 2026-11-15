@@ -50,7 +50,7 @@ import { cobbleIsWet, propAt, propById } from './map';
 import { CORE_KNAPS, flakesFromKnap, ROCK_HITS, stoneFromStrike } from './stone';
 import { TREE_HITS, isFelled, regrowTrees, woodFromTree } from './trees';
 import type { ActionResult, EdgeName, GameState, Inventory, Material, Piece, PieceKind } from './types';
-import { regrowRocks, washCobbles } from './food';
+import { regrowCobbles, regrowRocks } from './food';
 import { decayPerHour, exposurePerHour, nextDamp, pieceHealth } from './weather';
 
 export function emptyInventory(): Inventory {
@@ -86,7 +86,7 @@ export function debugInventory(): Inventory {
     stone: 20,
     cordage: 4,
     bark: 2,
-    flakes: 2,
+    flakes: 3,
     axe: true,
     bowl: true,
     dryCobble: 2,
@@ -123,6 +123,7 @@ export function initialState(): GameState {
     cores: {},
     plants: {},
     picked: {},
+    cobbleGone: {},
     outcome: 'playing',
     tip: OPENING_TIP,
     damp: 0,
@@ -202,7 +203,8 @@ export function tick(state: GameState, gameMinutes: number): GameState {
   });
   const plants = regrowFiber(state.plants, minutes);
   const rocksBack = regrowRocks(state.rocks, state.rockGone ?? {}, state.minutes, minutes);
-  const picked = washCobbles(state.picked, state.minutes, minutes);
+  const cobblesBack = regrowCobbles(state.picked, state.cobbleGone ?? {}, state.minutes, minutes);
+  const picked = cobblesBack.picked;
   const tended = tendFires(
     {
       ...state,
@@ -219,6 +221,7 @@ export function tick(state: GameState, gameMinutes: number): GameState {
       rocks: rocksBack.rocks,
       rockGone: rocksBack.gone,
       picked,
+      cobbleGone: cobblesBack.gone,
       tip: turned ? 'Your stomach turns.' : state.tip,
       outcome: 'playing',
     },
@@ -413,6 +416,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     );
   }
   if (node.gather === 'cobble') {
+    const cobbleGone = { ...(state.cobbleGone ?? {}), [id]: state.minutes };
     if (!state.inventory.hammerstone) {
       return ok(
         {
@@ -420,6 +424,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
           inventory: { ...state.inventory, hammerstone: true },
           energy,
           picked,
+          cobbleGone,
         },
         'A hard, round cobble. Good hammerstone.',
       );
@@ -432,6 +437,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
           inventory: { ...state.inventory, wetCobble: (state.inventory.wetCobble ?? 0) + 1 },
           energy,
           picked,
+          cobbleGone,
         },
         'A wet creek cobble. It can heat water, but it may crack in a fire.',
       );
@@ -442,6 +448,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
         inventory: { ...state.inventory, dryCobble: (state.inventory.dryCobble ?? 0) + 1 },
         energy,
         picked,
+        cobbleGone,
       },
       'A dry cobble from the bank. It will take the fire.',
     );

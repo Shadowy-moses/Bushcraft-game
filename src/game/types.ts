@@ -100,6 +100,8 @@ export interface GameState {
   /** Game minute each fiber plant was cut. Missing means it is standing. */
   plants: Record<string, number>;
   picked: Record<string, true>;
+  /** Game minute a river cobble was picked up. It returns on the same daily cadence as a rock node. */
+  cobbleGone: Record<string, number>;
   outcome: Outcome;
   tip: string;
   /** 0 to 100. Rain soaks him, and he stays wet after it stops. */

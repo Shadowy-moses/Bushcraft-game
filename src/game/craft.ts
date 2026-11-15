@@ -103,9 +103,9 @@ export function placeButtonLabel(have: number, need: number, material = 'wood'):
 export function hotbarSlots(state: GameState): HotbarSlot[] {
   const hammer = state.inventory.hammerstone;
   return [
-    { id: 'hands', name: 'Hands', count: -1, frame: 'hands' },
-    { id: 'hatchet', name: 'Hatchet', count: -1, frame: 'hatchet' },
-    { id: 'axe', name: 'Axe', count: -1, frame: state.inventory.axe ? 'item_stone_axe' : 'hatchet' },
+    { id: 'hands', name: 'Hands', count: -1, frame: 'item_hands' },
+    { id: 'hatchet', name: 'Hatchet', count: -1, frame: 'item_hatchet' },
+    { id: 'axe', name: 'Axe', count: -1, frame: state.inventory.axe ? 'item_stone_axe' : 'item_hatchet' },
     { id: 'hammerstone', name: 'Hammerstone', count: -1, frame: hammer ? 'item_hammerstone' : 'hands' },
     { id: 'plan', name: 'Building plan', count: -1, frame: 'plan' },
     { id: 'wood', name: 'Wood', count: state.inventory.wood, frame: 'wood' },
@@ -232,7 +232,7 @@ export function recipesFor(state: GameState): Recipe[] {
       category: 'tools',
       name: 'Crude hatchet',
       blurb: 'A crude head jammed on a short haft. It bites slowly: three swings fell a tree, and the wood goes in the pack. It is already in your hand.',
-      frame: 'hatchet',
+      frame: 'item_hatchet',
       ingredients: [],
       seconds: 0,
       timeLabel: 'In your hand',

@@ -40,7 +40,7 @@ describe('boiled water at a landing', () => {
     expect(drunk.state.thirst).toBe(20 + BOILED_THIRST);
     expect(drunk.state.sickAt).toBe(0);
     const raw = { ...boiled, cupWater: 'raw' as const };
-    expect(chooseUse(raw, { x: raw.x, y: raw.y }).action).toBe('drink');
+    expect(chooseUse(raw, { x: raw.x, y: raw.y }).action).toBe('drink-creek');
     const creek = { ...boiled, cupWater: 'empty' as const, inventory: { ...boiled.inventory, pot: 0 } };
     expect(chooseUse(creek, { x: creek.x, y: creek.y }).action).toBe('drink-creek');
   });
@@ -51,9 +51,9 @@ describe('cobbles, flakes, and the debug pack', () => {
     const pack = debugInventory();
     expect(pack.axe).toBe(true);
     expect(pack.bowl).toBe(true);
-    expect(pack.flakes).toBeGreaterThanOrEqual(2);
-    expect(pack.dryCobble).toBeGreaterThanOrEqual(2);
-    expect(pack.wetCobble).toBeGreaterThanOrEqual(1);
+    expect(pack.flakes).toBe(3);
+    expect(pack.dryCobble).toBe(2);
+    expect(pack.wetCobble).toBe(1);
     expect(pack.stone).not.toBe(pack.dryCobble);
   });
 

@@ -18,7 +18,6 @@ import {
   woodShortMessage,
 } from '../build';
 import {
-  BESIDE_FIRE,
   COLS,
   FOLLOW_MAX_H,
   FOLLOW_MAX_W,
@@ -77,7 +76,7 @@ import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
 import { hotbarSlots } from '../craft';
-import { chooseUse, upgradePrompt, waterChoice } from '../use';
+import { chooseTarget, upgradePrompt, waterChoice, type UseChoice } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { BOIL_METHOD } from '../boil';
 import { drinkBowl, drinkCreek, drinkCup, eat, finishBoil, liftPot, plantFrame, scoopBowl, scoopCreek } from '../food';
@@ -711,22 +710,15 @@ export class GameScene extends Phaser.Scene {
       this.takePot();
       return;
     }
-    const fired = this.fireUnderTap(world.x, world.y);
-    if (fired) {
-      this.tendFire(fired);
+    const hits = this.propsAtPoint(world.x, world.y);
+    const front = hits[0];
+    const pointed = front && inReach(this.px, this.py, front.tx, front.ty, reachFor(front)) ? front : undefined;
+    const choice = chooseTarget(this.state, { x: this.px, y: this.py }, pointed);
+    if (choice.action !== 'none') {
+      this.performChoice(choice);
       return;
     }
     const tile = this.tileAt(world.x, world.y);
-    const hits = this.propsAtPoint(world.x, world.y);
-    const cobble = hits[0];
-    if (
-      cobble?.kind === 'river_cobbles' &&
-      !this.state.picked[cobble.id] &&
-      inReach(this.px, this.py, cobble.tx, cobble.ty, reachFor(cobble))
-    ) {
-      this.pickUp(cobble);
-      return;
-    }
     if (this.state.tool === 'hands' && tile && groundAt(tile.tx, tile.ty) === 'creek_water') {
       const water = waterChoice(this.state, { x: this.px, y: this.py });
       if (water?.action === 'drink-creek' || water?.action === 'scoop' || water?.action === 'scoop-bowl') {
@@ -789,44 +781,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.setTip('Walk up to it.');
-  }
-
-  /** A tap on the pit while he is standing next to it, even if a plant sprite overlaps it. */
-  private fireUnderTap(x: number, y: number): Piece | null {
-    let best: Piece | null = null;
-    let bestD = BESIDE_FIRE;
-    for (const piece of this.state.pieces) {
-      if (piece.kind !== 'fire') continue;
-      const at = tileToWorld(piece.tx, piece.ty);
-      if (Math.hypot(at.x - this.px, at.y - this.py) > BESIDE_FIRE) continue;
-      const tap = Math.hypot(at.x - x, at.y - y);
-      if (tap > BESIDE_FIRE || tap >= bestD) continue;
-      best = piece;
-      bestD = tap;
-    }
-    return best;
-  }
-
-  private tendFire(piece: Piece): void {
-    const hot = piece.lit === true || (piece.coalsUntil != null && this.state.minutes < piece.coalsUntil);
-    if (hot && this.state.inventory.wood > 0) {
-      this.feedFire(piece);
-      return;
-    }
-    if (hot) {
-      this.setTip(piece.lit ? 'Need 1 more wood.' : 'The coals are fading. A length of wood would catch.');
-      return;
-    }
-    if (piece.ember === 'smoke' || (this.state.inventory.coal > 0 && !piece.lit)) {
-      this.blowAt(piece);
-      return;
-    }
-    if (this.state.inventory.bowdrill && !piece.lit) {
-      this.holdingDrill = true;
-      this.tryStartDrill();
-      return;
-    }
-    this.setTip('The lay is cold. A bow drill could wake a coal.');
   }
 
   private tileAt(x: number, y: number): { tx: number; ty: number } | null {
@@ -1153,8 +1107,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private useNearest(): void {
+    this.performChoice(chooseTarget(this.state, { x: this.px, y: this.py }));
+  }
+
+  private performChoice(choice: UseChoice): void {
     if (this.drill) return;
-    const choice = chooseUse(this.state, { x: this.px, y: this.py });
     if (choice.action === 'gather') {
       this.pickUp(choice.prop);
       return;

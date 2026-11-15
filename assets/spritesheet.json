@@ -5823,6 +5823,70 @@
     "x": 16,
     "y": 8
    }
+  },
+  "item_hands": {
+   "frame": {
+    "x": 142,
+    "y": 491,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_hatchet": {
+   "frame": {
+    "x": 160,
+    "y": 491,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
   }
  },
  "animations": {

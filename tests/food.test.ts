@@ -130,10 +130,14 @@ describe('food and water', () => {
     const two = regrowRocks(rocks, gone, from, from + 2880);
     expect(two.rocks['rock_node-10-8']).toBe(0);
     expect(rainEndsBetween(20 * 60, 23 * 60)).toBe(1);
+    const start = 20 * 60;
     const picked = { 'river_cobbles-2-8': true as const, 'river_cobbles-3-9': true as const };
-    const washed = tick({ ...initialState(), minutes: 20 * 60, picked }, 23 * 60 - 20 * 60);
-    expect(washed.picked['river_cobbles-2-8']).toBeUndefined();
-    expect(washed.picked['river_cobbles-3-9']).toBe(true);
+    const cobbleGone = { 'river_cobbles-2-8': start, 'river_cobbles-3-9': start };
+    const rained = tick({ ...initialState(), minutes: start, picked, cobbleGone }, 23 * 60 - start);
+    expect(rained.picked['river_cobbles-2-8']).toBe(true);
+    const nextDay = tick({ ...initialState(), minutes: start, picked, cobbleGone }, 1440);
+    expect(nextDay.picked['river_cobbles-2-8']).toBeUndefined();
+    expect(nextDay.picked['river_cobbles-3-9']).toBe(true);
     const atReed = stand(1, 1);
     const reed = chooseUse(atReed, { x: atReed.x, y: atReed.y });
     expect(reed.action).toBe('gather');
