@@ -1,4 +1,5 @@
-import { WOOD_DOOR, WOOD_FLOOR, WOOD_FOUNDATION, WOOD_WALL } from './constants';
+import { TRIPOD_CORDAGE, TRIPOD_WOOD, WOOD_DOOR, WOOD_FLOOR, WOOD_FOUNDATION, WOOD_WALL } from './constants';
+import { isFiberCut } from './fiber';
 import { tileToWorld } from './iso';
 import { groundAt, inBounds, propAt } from './map';
 import { BUILD_REACH, bodiesFor, canStand, inReachOf, segmentsFor } from './move';
@@ -14,6 +15,7 @@ export const WOOD_COST: Record<PieceKind, number> = {
   wall: WOOD_WALL,
   doorway: WOOD_DOOR,
   floor: WOOD_FLOOR,
+  tripod: TRIPOD_WOOD,
 };
 
 /** Same counts as twig. The extra effort is in the mining, not a longer shopping list. */
@@ -22,6 +24,7 @@ export const STONE_COST: Record<PieceKind, number> = {
   wall: WOOD_WALL,
   doorway: WOOD_DOOR,
   floor: WOOD_FLOOR,
+  tripod: TRIPOD_WOOD,
 };
 
 export function materialCost(kind: PieceKind, material: Material = 'twig'): number {
@@ -255,6 +258,7 @@ export function pieceFrame(
   ghost: 'ok' | 'bad' | null = null,
   material: Material = 'twig',
 ): string {
+  if (kind === 'tripod') return 'lashed_tripod';
   const suffix = ghost === 'ok' ? '_ghost_ok' : ghost === 'bad' ? '_ghost_bad' : '';
   const family = material === 'stone' ? 'stone' : 'twig';
   if (kind === 'foundation') return `${family}_foundation${suffix}`;
@@ -274,9 +278,13 @@ function clearGround(tile: Tile, state: GameState): string | null {
   if (groundAt(tile.tx, tile.ty) === 'creek_water') return 'The creek runs through there.';
   const prop = propAt(tile.tx, tile.ty);
   if (prop?.blocks && !isFelled(state.trees, prop.id)) {
-    if (prop.kind === 'rock') return 'A rock is in the way.';
-    if (prop.kind === 'bush_fiber') return 'A bush is in the way.';
-    return 'A tree is in the way. Chop it down first.';
+    if (prop.kind === 'bush_fiber' && isFiberCut(state.plants, prop.id, state.minutes)) {
+      /* Cut stubble is not in the way. */
+    } else {
+      if (prop.kind === 'rock') return 'A rock is in the way.';
+      if (prop.kind === 'bush_fiber') return 'A bush is in the way.';
+      return 'A tree is in the way. Chop it down first.';
+    }
   }
   if (tile.tx === state.tx && tile.ty === state.ty) return 'You’re standing there.';
   return null;
@@ -319,7 +327,20 @@ export function floorSpot(tile: Tile, state: GameState): Spot {
   return { ok: true, reason: 'The walls will hold it. Tap Confirm to lay the floor.' };
 }
 
+export function tripodSpot(tile: Tile, state: GameState): Spot {
+  const ground = clearGround(tile, state);
+  if (ground) return { ok: false, reason: ground };
+  if (hasFoundation(state.pieces, tile.tx, tile.ty) || hasFloor(state.pieces, tile.tx, tile.ty)) {
+    return { ok: false, reason: 'Not on the hut. Set it on open ground.' };
+  }
+  if (state.pieces.some((piece) => piece.kind === 'tripod' && piece.tx === tile.tx && piece.ty === tile.ty)) {
+    return { ok: false, reason: 'A tripod is already there.' };
+  }
+  return { ok: true, reason: 'Clear ground. Tap Confirm to lash the tripod.' };
+}
+
 export function pieceSpot(kind: PieceKind, tile: Tile, edge: EdgeName, state: GameState): Spot {
+  if (kind === 'tripod') return tripodSpot(tile, state);
   if (kind === 'foundation') return foundationSpot(tile, state);
   if (kind === 'floor') return floorSpot(tile, state);
   return wallSpot(tile, edge, kind, state);
@@ -363,6 +384,14 @@ export function placementVerdict(
 ): Spot {
   const spot = pieceSpot(kind, tile, edge, state);
   if (!spot.ok) return spot;
+  if (kind === 'tripod') {
+    if (state.inventory.wood < TRIPOD_WOOD) {
+      return { ok: false, reason: `Need ${TRIPOD_WOOD - state.inventory.wood} more wood` };
+    }
+    if (state.inventory.cordage < TRIPOD_CORDAGE) {
+      return { ok: false, reason: `Need ${TRIPOD_CORDAGE - state.inventory.cordage} more cordage` };
+    }
+  }
   const have = material === 'stone' ? state.inventory.stone : state.inventory.wood;
   if (materialCost(kind, material) > have) {
     return { ok: false, reason: materialShortMessage(kind, have, material) };
@@ -432,6 +461,9 @@ export function blocksStep(pieces: Piece[], from: Tile, to: Tile): boolean {
 }
 
 export function canAfford(state: GameState, kind: PieceKind, material: Material = 'twig'): boolean {
+  if (kind === 'tripod') {
+    return state.inventory.wood >= TRIPOD_WOOD && state.inventory.cordage >= TRIPOD_CORDAGE;
+  }
   const have = material === 'stone' ? state.inventory.stone : state.inventory.wood;
   return have >= materialCost(kind, material);
 }

@@ -45,7 +45,13 @@ export interface HudModel {
   trees: MinimapTree[];
 }
 
-export function buildModel(state: GameState, sheet: SheetId, resting: boolean, place: PlaceModel | null = null): HudModel {
+export function buildModel(
+  state: GameState,
+  sheet: SheetId,
+  resting: boolean,
+  place: PlaceModel | null = null,
+  queue: { label: string; progress: number } | null = null,
+): HudModel {
   const perHour = warmthPerGameHour(state);
   const face = clockParts(state.minutes);
   return {
@@ -64,7 +70,7 @@ export function buildModel(state: GameState, sheet: SheetId, resting: boolean, p
     sheet,
     hotbar: hotbarSlots(state),
     recipes: recipesFor(state),
-    queue: null,
+    queue,
     endTitle: 'Still standing',
     endBody: 'The afternoon is still yours.',
     place,

@@ -1,4 +1,4 @@
-import { CRAFT_CATEGORIES, placeButtonLabel, type CraftCategory, type Recipe } from '../game/craft';
+import { CRAFT_CATEGORIES, type CraftCategory, type Recipe } from '../game/craft';
 import type { HudModel } from '../game/model';
 import type { Tool } from '../game/types';
 import { ICONS } from './icons';
@@ -39,6 +39,7 @@ export class Hud {
   private recipeId = 'foundation';
   private qty = 1;
   private hotbarSig = '';
+  private pouchSig = '';
   private placeKind = '';
   private sheetSig = '';
   private frames = new Map<string, FrameRect>();
@@ -53,6 +54,7 @@ export class Hud {
           <div id="time">--:--</div>
           <div id="daypart"></div>
         </div>
+        <div id="pouch" class="pouch"></div>
       </header>
       <div id="vitals" class="panel">
         <div class="vital"><span class="vicon">${ICONS.health}</span><div class="bar health"><span id="health-fill"></span></div></div>
@@ -108,6 +110,7 @@ export class Hud {
       }
       if (json.meta?.size) this.sheetSize = json.meta.size;
       this.hotbarSig = '';
+      this.pouchSig = '';
       this.sheetSig = '';
       if (this.model) this.render(this.model, true);
     } catch {
@@ -241,6 +244,7 @@ export class Hud {
     }
     const playing = model.sheet !== 'title' && model.sheet !== 'end';
     document.getElementById('top-bar')?.toggleAttribute('hidden', !playing);
+    document.getElementById('pouch')?.toggleAttribute('hidden', !playing);
     document.getElementById('bottom-bar')?.toggleAttribute('hidden', !playing);
     document.getElementById('vitals')?.toggleAttribute('hidden', !playing);
     document.getElementById('right-dock')?.toggleAttribute('hidden', !playing);
@@ -253,6 +257,7 @@ export class Hud {
     }
     document.getElementById('act')?.toggleAttribute('hidden', !(stickOn && !model.place));
     this.paintHotbar(model);
+    this.paintPouch(model);
     this.paintDock(model);
     this.paintIngredients(model);
     this.paintQueue(model);
@@ -265,11 +270,13 @@ export class Hud {
     const craft = document.querySelector<HTMLButtonElement>('[data-action="craft-go"]');
     const recipe = this.currentRecipe();
     if (!craft || !recipe) return;
-    const cost = recipe.ingredients[0];
     const placing = recipe.action.startsWith('place-');
-    if (placing && cost) {
-      craft.textContent = placeButtonLabel(cost.have, cost.need, cost.name.toLowerCase());
-      craft.disabled = cost.have < cost.need;
+    if (placing) {
+      const short = recipe.ingredients.find((item) => item.have < item.need);
+      craft.textContent = short
+        ? `Need ${short.need - short.have} more ${short.name.toLowerCase()}`
+        : 'Place';
+      craft.disabled = Boolean(short);
       return;
     }
     craft.textContent = 'Craft';
@@ -323,27 +330,20 @@ export class Hud {
   private paintHotbar(model: HudModel | null): void {
     const bar = document.getElementById('hotbar');
     if (!bar || !model) return;
-    const signature = `${model.hotbar.map((slot) => slot.frame).join(',')}:${this.frames.size}`;
+    const tools = model.hotbar.map((slot, index) => ({ slot, index })).filter(({ slot }) => slot.count < 0);
+    const signature = `${tools.map(({ slot }) => slot.frame).join(',')}:${this.frames.size}`;
     const equipped = equippedIndex(model.tool);
     if (signature !== this.hotbarSig) {
       this.hotbarSig = signature;
-      bar.innerHTML = model.hotbar
+      bar.innerHTML = tools
         .map(
-          (slot, index) => `
+          ({ slot, index }) => `
             <button type="button" class="slot${index === equipped ? ' on' : ''}" data-action="slot-${index}" aria-label="${esc(slot.name)}">
               ${this.iconHtml(slot.frame, false)}
-              <span class="count" data-slot="${slot.id}">${slot.count < 0 ? '' : slot.count}</span>
             </button>
           `,
         )
         .join('');
-      return;
-    }
-    for (const slot of model.hotbar) {
-      this.root.querySelectorAll(`[data-slot="${slot.id}"]`).forEach((node) => {
-        const text = slot.count < 0 ? '' : String(slot.count);
-        if (node.textContent !== text) node.textContent = text;
-      });
     }
     this.root.querySelectorAll('.slot').forEach((node) => {
       const action = (node as HTMLElement).dataset.action ?? '';
@@ -352,13 +352,44 @@ export class Hud {
     });
   }
 
+  /** Wood, stone, flakes, fiber, and cordage. A short strip, not another column. */
+  private paintPouch(model: HudModel): void {
+    const pouch = document.getElementById('pouch');
+    if (!pouch) return;
+    const resources = model.hotbar.filter((slot) => slot.count >= 0);
+    const signature = `${resources.map((slot) => slot.frame).join(',')}:${this.frames.size}`;
+    if (signature !== this.pouchSig) {
+      this.pouchSig = signature;
+      pouch.innerHTML = resources
+        .map(
+          (slot) => `
+            <span class="chip" aria-label="${esc(slot.name)} ${slot.count}">
+              ${this.iconHtml(slot.frame, false, 16)}
+              <span class="n" data-slot="${slot.id}">${slot.count}</span>
+            </span>
+          `,
+        )
+        .join('');
+    }
+    for (const slot of resources) {
+      const text = String(slot.count);
+      this.root.querySelectorAll(`[data-slot="${slot.id}"]`).forEach((node) => {
+        if (node.textContent !== text) node.textContent = text;
+      });
+      const chip = pouch.querySelector(`[data-slot="${slot.id}"]`)?.parentElement;
+      const label = `${slot.name} ${slot.count}`;
+      if (chip && chip.getAttribute('aria-label') !== label) chip.setAttribute('aria-label', label);
+    }
+  }
+
   private paintDock(model: HudModel): void {
     const placing = model.place?.kind ?? '';
     const bag = document.getElementById('bag');
     const bar = document.getElementById('hotbar');
     const place = document.getElementById('place-actions');
     if (!bag || !bar || !place) return;
-    const showPlace = placing === 'foundation' || placing === 'wall' || placing === 'doorway' || placing === 'floor';
+    const showPlace =
+      placing === 'foundation' || placing === 'wall' || placing === 'doorway' || placing === 'floor' || placing === 'tripod';
     bag.hidden = showPlace;
     bar.hidden = showPlace;
     place.hidden = !showPlace;
@@ -558,9 +589,11 @@ export class Hud {
         `,
       )
       .join('');
-    const wood = recipe.ingredients.find((item) => item.name === 'Wood');
+    const short = recipe.ingredients.find((item) => item.have < item.need);
     const craftLabel = recipe.action.startsWith('place-')
-      ? placeButtonLabel(wood?.have ?? 0, wood?.need ?? 0)
+      ? short
+        ? `Need ${short.need - short.have} more ${short.name.toLowerCase()}`
+        : 'Place'
       : 'Craft';
     return `
       ${this.iconHtml(recipe.frame, true)}
@@ -577,12 +610,12 @@ export class Hud {
     `;
   }
 
-  private iconHtml(frame: string, large: boolean): string {
+  private iconHtml(frame: string, large: boolean, fit = large ? 72 : 40): string {
     const rect = this.frames.get(frame);
-    if (!rect) return `<span class="icon${large ? ' lg' : ''}">${ICONS[frame] ?? ICONS.hands}</span>`;
-    const fit = large ? 72 : 40;
+    const size = fit <= 16 ? ' sm' : large ? ' lg' : '';
+    if (!rect) return `<span class="icon${size}">${ICONS[frame] ?? ICONS.hands}</span>`;
     const scale = fit / Math.max(rect.w, rect.h);
     const base = import.meta.env.BASE_URL;
-    return `<span class="icon${large ? ' lg' : ''}"><span class="sheet-icon" style="width:${rect.w}px;height:${rect.h}px;background-image:url('${base}assets/spritesheet.png');background-position:-${rect.x}px -${rect.y}px;background-size:${this.sheetSize.w}px ${this.sheetSize.h}px;transform:scale(${scale})"></span></span>`;
+    return `<span class="icon${size}"><span class="sheet-icon" style="width:${rect.w}px;height:${rect.h}px;background-image:url('${base}assets/spritesheet.png');background-position:-${rect.x}px -${rect.y}px;background-size:${this.sheetSize.w}px ${this.sheetSize.h}px;transform:scale(${scale})"></span></span>`;
   }
 }

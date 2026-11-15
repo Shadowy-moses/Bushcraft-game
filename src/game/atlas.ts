@@ -52,6 +52,8 @@ export const ATLAS_FRAMES = [
   'birch_tree',
   'rock',
   'bush_fiber',
+  'bush_fiber_cut',
+  'lashed_tripod',
   'item_sticks',
   'item_stone',
   'item_fiber',

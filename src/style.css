@@ -54,7 +54,7 @@ html, body {
 [hidden] { display: none !important; }
 
 #overlay, button, .clock, .slot, #stick, #act { pointer-events: auto; }
-#top-bar, #bottom-bar, #right-dock, .hotbar, .place-actions, #vitals, #minimap { pointer-events: none; }
+#top-bar, #bottom-bar, #right-dock, .hotbar, .place-actions, #vitals, #minimap, #pouch { pointer-events: none; }
 
 .panel {
   background:
@@ -107,6 +107,39 @@ html, body {
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
+
+.pouch {
+  position: absolute;
+  top: calc(54px + env(safe-area-inset-top));
+  right: calc(10px + env(safe-area-inset-right));
+  left: 176px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-content: flex-start;
+  gap: 4px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 5px 0 2px;
+  background: rgba(10, 9, 8, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+.chip .n {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--cream);
+  text-shadow: 0 1px 1px #000;
+}
+
+.icon.sm { width: 16px; height: 16px; }
+.icon.sm .pixel { width: 16px; height: 16px; }
 
 #bottom-bar {
   position: absolute;

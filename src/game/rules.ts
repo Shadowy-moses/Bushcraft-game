@@ -4,11 +4,17 @@ import {
   CHOP_ENERGY,
   GATHER_ENERGY,
   PLAYER_START,
+  REST_ENERGY_PER_SECOND,
   START_ENERGY,
   START_MINUTES,
   START_WARMTH,
   STRIKE_ENERGY,
+  TRIPOD_CORDAGE,
+  TRIPOD_REST_BONUS,
+  TRIPOD_REST_REACH,
+  TRIPOD_WOOD,
 } from './constants';
+import { CORD_FIBER, fiberFromPlant, isFiberCut, regrowFiber } from './fiber';
 import { OPENING_TIP } from './copy';
 import { clamp, tileToWorld } from './iso';
 import { inReach } from './move';
@@ -18,12 +24,12 @@ import { TREE_HITS, isFelled, regrowTrees, woodFromTree } from './trees';
 import type { ActionResult, EdgeName, GameState, Inventory, Material, Piece, PieceKind } from './types';
 
 export function emptyInventory(): Inventory {
-  return { wood: 0, stone: 0, flakes: 0, rocks: 0, hammerstone: false };
+  return { wood: 0, stone: 0, flakes: 0, rocks: 0, hammerstone: false, fiber: 0, cordage: 0 };
 }
 
 export function initialState(): GameState {
   return {
-    version: 4,
+    version: 5,
     minutes: START_MINUTES,
     warmth: START_WARMTH,
     energy: START_ENERGY,
@@ -37,6 +43,7 @@ export function initialState(): GameState {
     trees: {},
     rocks: {},
     cores: {},
+    plants: {},
     picked: {},
     outcome: 'playing',
     tip: OPENING_TIP,
@@ -73,7 +80,23 @@ export function tick(state: GameState, gameMinutes: number): GameState {
     const prop = propById(id);
     return Boolean(prop && hasFoundation(state.pieces, prop.tx, prop.ty));
   });
-  return { ...state, warmth, minutes, trees, outcome: 'playing' };
+  const plants = regrowFiber(state.plants, minutes);
+  return { ...state, warmth, minutes, trees, plants, outcome: 'playing' };
+}
+
+/** Stamina coming back. A tripod under his shoulder adds a little. */
+export function restEnergyPerSecond(state: GameState): number {
+  const bonus = besideTripod(state) ? 1 + TRIPOD_REST_BONUS : 1;
+  return REST_ENERGY_PER_SECOND * bonus;
+}
+
+export function besideTripod(state: GameState): boolean {
+  for (const piece of state.pieces) {
+    if (piece.kind !== 'tripod') continue;
+    const at = tileToWorld(piece.tx, piece.ty);
+    if (Math.hypot(at.x - state.x, at.y - state.y) <= TRIPOD_REST_REACH) return true;
+  }
+  return false;
 }
 
 export function gainEnergy(state: GameState, amount: number): GameState {
@@ -108,6 +131,20 @@ export function gather(state: GameState, id: string, free = false): ActionResult
       },
       '+1 wood (stick). Trees give more.',
       '+1 Wood',
+    );
+  }
+  if (node.gather === 'fiber') {
+    if (isFiberCut(state.plants, id, state.minutes)) return fail(state, 'Only stubble. It will come back.');
+    const gained = fiberFromPlant(id);
+    return ok(
+      {
+        ...state,
+        energy,
+        inventory: { ...state.inventory, fiber: state.inventory.fiber + gained },
+        plants: { ...state.plants, [id]: state.minutes },
+      },
+      'The stems give up their fiber.',
+      `+${gained} fiber`,
     );
   }
   if (node.gather === 'cobble') {
@@ -165,6 +202,29 @@ export function chopTree(state: GameState, id: string): ActionResult {
   );
 }
 
+/** Spends the fiber. The cord itself arrives when the twist finishes. */
+export function beginCordage(state: GameState): ActionResult {
+  if (state.inventory.fiber < CORD_FIBER) {
+    const short = CORD_FIBER - state.inventory.fiber;
+    return fail(state, `Need ${short} more fiber.`);
+  }
+  return ok(
+    {
+      ...state,
+      inventory: { ...state.inventory, fiber: state.inventory.fiber - CORD_FIBER },
+    },
+    'Reverse-wrapping the fibers…',
+  );
+}
+
+export function finishCordage(state: GameState): GameState {
+  return {
+    ...state,
+    inventory: { ...state.inventory, cordage: state.inventory.cordage + 1 },
+    tip: 'You reverse-wrap the fibers into cord.',
+  };
+}
+
 export function placePiece(
   state: GameState,
   kind: PieceKind,
@@ -173,6 +233,28 @@ export function placePiece(
   edge: EdgeName,
   material: Material = 'twig',
 ): ActionResult {
+  if (kind === 'tripod') {
+    if (state.inventory.wood < TRIPOD_WOOD) {
+      return fail(state, `Need ${TRIPOD_WOOD - state.inventory.wood} more wood`);
+    }
+    if (state.inventory.cordage < TRIPOD_CORDAGE) {
+      return fail(state, `Need ${TRIPOD_CORDAGE - state.inventory.cordage} more cordage`);
+    }
+    const piece: Piece = { kind, tx, ty, edge };
+    return ok(
+      {
+        ...state,
+        energy: Math.max(0, state.energy - BUILD_ENERGY),
+        inventory: {
+          ...state.inventory,
+          wood: state.inventory.wood - TRIPOD_WOOD,
+          cordage: state.inventory.cordage - TRIPOD_CORDAGE,
+        },
+        pieces: [...state.pieces, piece],
+      },
+      'Lashed tight. It will take some weight.',
+    );
+  }
   const cost = materialCost(kind, material);
   const have = material === 'stone' ? state.inventory.stone : state.inventory.wood;
   if (have < cost) return fail(state, materialShortMessage(kind, have, material));
@@ -247,6 +329,7 @@ export function upgradePiece(state: GameState, piece: Piece): ActionResult {
   if (!state.inventory.hammerstone || state.tool !== 'hammerstone') {
     return fail(state, 'Put the hammerstone in your hand.');
   }
+  if (piece.kind === 'tripod') return fail(state, 'The lashing stays as it is.');
   if ((piece.material ?? 'twig') === 'stone') return fail(state, 'Already stone.');
   const cost = materialCost(piece.kind, 'stone');
   if (state.inventory.stone < cost) return fail(state, materialShortMessage(piece.kind, state.inventory.stone, 'stone'));

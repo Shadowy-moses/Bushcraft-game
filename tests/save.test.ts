@@ -22,7 +22,7 @@ describe('saved games', () => {
       tip: 'hi',
     };
     const migrated = parseSave(JSON.stringify(v1));
-    expect(migrated?.version).toBe(4);
+    expect(migrated?.version).toBe(5);
     expect(migrated?.tx).toBe(7);
     expect(migrated?.ty).toBe(4);
     expect(migrated?.facing).toBe('sw');
