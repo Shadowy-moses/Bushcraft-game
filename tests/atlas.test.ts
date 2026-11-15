@@ -5,8 +5,8 @@ import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
-    expect(Object.keys(atlas.frames)).toHaveLength(164);
-    expect(atlas.meta.size).toEqual({ w: 512, h: 464 });
+    expect(Object.keys(atlas.frames)).toHaveLength(166);
+    expect(atlas.meta.size).toEqual({ w: 512, h: 502 });
     expect(atlas.meta.image).toBe('spritesheet.png');
     for (const name of ATLAS_FRAMES) {
       const frame = atlas.frames[name as keyof typeof atlas.frames];
@@ -133,6 +133,13 @@ describe('artist atlas', () => {
     expect(atlas.frames.bark_pot_coals.frame).toMatchObject({ w: 22, h: 18 });
     expect(atlas.frames.bark_pot_coals.anchorPx).toEqual({ x: 11, y: 15 });
     expect(atlas.frames.bark_pot_coals_boil.anchorPx).toEqual({ x: 11, y: 15 });
+    expect(atlas.frames.birch_tree.frame).toMatchObject({ w: 32, h: 56 });
+    expect(atlas.frames.birch_tree.anchorPx).toEqual({ x: 16, y: 49 });
+    expect(atlas.frames.birch_tree_peeled.frame).toMatchObject({ w: 32, h: 56 });
+    expect(atlas.frames.birch_tree_peeled.anchorPx).toEqual({ x: 16, y: 49 });
+    expect(atlas.frames.birch_log.frame).toMatchObject({ w: 48, h: 24 });
+    expect(atlas.frames.birch_log.anchorPx).toEqual({ x: 24, y: 18 });
+    expect(atlas.frames.felled_log.anchorPx).toEqual({ x: 24, y: 18 });
   });
 
   it('reads the woodsman feet from the atlas instead of a fixed offset', () => {

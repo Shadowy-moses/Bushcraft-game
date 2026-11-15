@@ -5247,6 +5247,70 @@
     "x": 11,
     "y": 15
    }
+  },
+  "birch_tree_peeled": {
+   "frame": {
+    "x": 84,
+    "y": 446,
+    "w": 32,
+    "h": 56
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 56
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 56
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 49
+   }
+  },
+  "birch_log": {
+   "frame": {
+    "x": 118,
+    "y": 446,
+    "w": 48,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 24
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 24,
+    "y": 18
+   }
   }
  },
  "animations": {
@@ -5352,7 +5416,7 @@
   "format": "RGBA8888",
   "size": {
    "w": 512,
-   "h": 464
+   "h": 502
   },
   "scale": "1",
   "note": "anchor = footprint center (ground contact) normalized; use sprite.setOrigin(anchor.x, anchor.y). Ground tile 32x16 2:1 iso."

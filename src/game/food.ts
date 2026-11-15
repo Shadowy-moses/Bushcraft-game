@@ -20,7 +20,8 @@ export function plantFrame(kind: string, plants: Record<string, number>, id: str
   const resting = isFiberCut(plants, id, minutes);
   if (kind === 'berry_bush') return resting ? 'berry_bush_picked' : 'berry_bush_ripe';
   if (kind === 'cattails') return resting ? 'cattails_1' : 'cattails_0';
-  if (kind === 'birch_log') return 'felled_log';
+  if (kind === 'birch_tree') return resting ? 'birch_tree_peeled' : 'birch_tree';
+  if (kind === 'birch_log') return 'birch_log';
   return null;
 }
 

@@ -1683,11 +1683,7 @@ export class GameScene extends Phaser.Scene {
       sprite.setTint(tint);
     }
     for (const view of this.propViews) {
-      let tint = lightTint(this.state.minutes, view.prop.tx, view.prop.ty, false, null);
-      if (view.prop.kind === 'birch_tree' && isFiberCut(this.state.plants, view.prop.id, this.state.minutes)) {
-        tint = multiplyTint(tint, 0xd8cbb0);
-      }
-      view.sprite.setTint(tint);
+      view.sprite.setTint(lightTint(this.state.minutes, view.prop.tx, view.prop.ty, false, null));
     }
     this.player?.setTint(lightTint(this.state.minutes, this.state.tx, this.state.ty, false, null));
     for (const piece of this.state.pieces) {
