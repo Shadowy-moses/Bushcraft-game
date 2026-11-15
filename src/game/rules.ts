@@ -235,7 +235,8 @@ export function repairPiece(state: GameState, piece: Piece): ActionResult {
 
 export function coverTripod(state: GameState, piece: Piece, cover: 'boughs' | 'bark'): ActionResult {
   if (piece.kind !== 'tripod') return fail(state, 'Lash a tripod first.');
-  if (piece.cover) return fail(state, 'That frame is already covered.');
+  if (piece.cover === cover) return fail(state, 'That cover is already on it.');
+  const replaced = piece.cover != null;
   if (cover === 'boughs') {
     if (state.inventory.fiber < BOUGH_FIBER) return fail(state, `Need ${BOUGH_FIBER - state.inventory.fiber} more fiber.`);
     return ok(
@@ -244,7 +245,7 @@ export function coverTripod(state: GameState, piece: Piece, cover: 'boughs' | 'b
         inventory: { ...state.inventory, fiber: state.inventory.fiber - BOUGH_FIBER },
         pieces: state.pieces.map((item) => (samePiece(item, piece) ? { ...item, cover } : item)),
       },
-      'Boughs across the frame. They leak a little.',
+      replaced ? 'The new cover replaces the old one. Nothing comes back.' : 'Boughs across the frame. They leak a little.',
     );
   }
   if (state.inventory.wood < BARK_WOOD) return fail(state, `Need ${BARK_WOOD - state.inventory.wood} more wood.`);
@@ -261,7 +262,7 @@ export function coverTripod(state: GameState, piece: Piece, cover: 'boughs' | 'b
       },
       pieces: state.pieces.map((item) => (samePiece(item, piece) ? { ...item, cover } : item)),
     },
-    'Bark strips, lashed tight. The rain stays out.',
+    replaced ? 'The new cover replaces the old one. Nothing comes back.' : 'Bark strips, lashed tight. The rain stays out.',
   );
 }
 
@@ -269,7 +270,7 @@ export function nearestBareTripod(state: GameState): Piece | null {
   let best: Piece | null = null;
   let bestD = Infinity;
   for (const piece of state.pieces) {
-    if (piece.kind !== 'tripod' || piece.cover) continue;
+    if (piece.kind !== 'tripod') continue;
     const at = tileToWorld(piece.tx, piece.ty);
     const d = Math.hypot(at.x - state.x, at.y - state.y);
     if (d < bestD) {

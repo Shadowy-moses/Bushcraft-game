@@ -5,7 +5,7 @@ import type { GameState, GroundId, Prop, PropKind, GatherKind } from './types';
 
 /**
  * Each row is one ty, left to right in tx.
- * f forest floor, g grass, d dirt clearing, w creek, e creek-edge stones.
+ * f forest floor, g grass, d dirt clearing, w creek, e creek-edge stones, v gravel landing.
  */
 export const GROUND_ROWS = [
   'ffffffffffff',
@@ -17,9 +17,9 @@ export const GROUND_ROWS = [
   'ffgggddgggff',
   'efffggggfffe',
   'wefffgggffew',
-  'wweffggffeww',
+  'wwvffggffvww',
   'wwwweffeewww',
-  'wwwwweeeewww',
+  'wwwwwveeewww',
 ];
 
 const GROUND_CHAR: Record<string, GroundId> = {
@@ -28,7 +28,15 @@ const GROUND_CHAR: Record<string, GroundId> = {
   d: 'dirt',
   w: 'creek_water',
   e: 'creek_edge_stones',
+  v: 'creek_gravel',
 };
+
+/** Gravel breaks in the rock line, where he can walk up to the water. */
+export const GRAVEL_LANDINGS: { tx: number; ty: number }[] = [
+  { tx: 2, ty: 9 },
+  { tx: 9, ty: 9 },
+  { tx: 5, ty: 11 },
+];
 
 export function inBounds(tx: number, ty: number): boolean {
   return tx >= 0 && ty >= 0 && tx < COLS && ty < ROWS;

@@ -11,7 +11,7 @@ describe('the patch of woods', () => {
     expect(GROUND_ROWS).toHaveLength(ROWS);
     for (const row of GROUND_ROWS) {
       expect(row).toHaveLength(COLS);
-      expect(row).toMatch(/^[fgdwe]+$/);
+      expect(row).toMatch(/^[fgdwev]+$/);
     }
     expect(groundAt(FIRE_TILE.tx, FIRE_TILE.ty)).toBe('dirt');
     expect(groundAt(0, 11)).toBe('creek_water');

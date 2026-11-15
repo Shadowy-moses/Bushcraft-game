@@ -5,7 +5,7 @@ import { PROPS } from './map';
 import { warmthPerGameHour } from './rules';
 import { isFelled } from './trees';
 import type { PieceKind, GameState, Tool } from './types';
-import { upgradePrompt } from './use';
+import { repairPrompt, upgradePrompt } from './use';
 import { weatherAt, weatherWord } from './weather';
 
 export type SheetId = 'none' | 'title' | 'end' | 'pack' | 'craft';
@@ -93,7 +93,7 @@ export function buildModel(
     debug,
     weather: weatherWord(weatherAt(state.minutes)),
     dampLabel: (state.damp ?? 0) >= 10 ? 'Damp' : '',
-    prompt: upgradePrompt(state, feet) ?? '',
+    prompt: repairPrompt(state, feet) ?? upgradePrompt(state, feet) ?? '',
     useLabel: hold ? 'Hold' : 'Use',
     energyLabel: `${Math.round(state.energy)} · ${energyWord(state.energy)}`,
     lowWarmth: state.warmth < 30,

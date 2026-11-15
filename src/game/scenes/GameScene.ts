@@ -1372,6 +1372,26 @@ export class GameScene extends Phaser.Scene {
       this.afterChange();
       return;
     }
+    if (id === 'debug-refill') {
+      if (!this.debugMode) return;
+      this.state = { ...this.state, health: 100, warmth: 100, hunger: 100, thirst: 100, energy: 100, sick: 0, sickAt: 0 };
+      this.afterChange();
+      return;
+    }
+    if (id === 'debug-wear') {
+      if (!this.debugMode) return;
+      this.state = {
+        ...this.state,
+        pieces: this.state.pieces.map((piece) => {
+          if (piece.kind === 'fire' || piece.kind === 'tripod') return piece;
+          if ((piece.material ?? 'twig') === 'stone') return piece;
+          const near = Math.max(Math.abs(piece.tx - this.state.tx), Math.abs(piece.ty - this.state.ty)) <= 3;
+          return near ? { ...piece, health: 50 } : piece;
+        }),
+      };
+      this.afterChange();
+      return;
+    }
     if (id === 'start') {
       this.started = true;
       this.sheet = 'none';
@@ -2292,13 +2312,15 @@ export class GameScene extends Phaser.Scene {
         this.fireGlows.set(key, glow);
       }
       const at = tileToWorld(piece.tx, piece.ty);
+      const flame = this.buildings.get(pieceKey(piece));
+      const ground = { x: flame?.x ?? at.x, y: flame?.y ?? at.y };
       glow.setTexture('world', Math.floor(this.time.now / 180) % 2 === 0 ? 'firelight_0' : 'firelight_1');
       glow.setOrigin(0.5, 0.5);
-      glow.setPosition(at.x, at.y);
-      glow.setDepth(depthFor(at.y, 1));
+      glow.setPosition(ground.x, ground.y);
+      glow.setDepth(depthFor(ground.y, 2));
       glow.setVisible(true);
       glow.setAlpha(lit ? 0.5 : 0.28);
-      if (lit && Math.hypot(at.x - this.px, at.y - this.py) <= 56) ringAt = at;
+      if (lit && Math.hypot(ground.x - this.px, ground.y - this.py) <= 56) ringAt = ground;
     }
     for (const [key, glow] of this.fireGlows) {
       if (!seen.has(key)) glow.setVisible(false);
@@ -2345,8 +2367,39 @@ export class GameScene extends Phaser.Scene {
       const baseY = beside ? Math.max(at.y, this.py) : at.y;
       flame.setDepth(depthFor(baseY, 8));
       const glow = this.fireGlows.get(`${piece.tx},${piece.ty}`);
-      glow?.setDepth(depthFor(baseY, 7));
-      if (this.warmthRing?.visible) this.warmthRing.setDepth(depthFor(baseY, 9));
+      glow?.setPosition(flame.x, flame.y);
+      glow?.setDepth(depthFor(flame.y, 2));
+      if (this.warmthRing?.visible && Math.hypot(this.warmthRing.x - flame.x, this.warmthRing.y - flame.y) < 8) {
+        this.warmthRing.setPosition(flame.x, flame.y);
+        this.warmthRing.setDepth(depthFor(flame.y, 3));
+      }
+    }
+    this.fadeCanopies();
+  }
+
+  /** A leafy or pine canopy goes see-through when it covers him or a lit fire. */
+  private fadeCanopies(): void {
+    const player = this.player;
+    if (!player) return;
+    const body = new Phaser.Geom.Rectangle(player.x - 10, player.y - 30, 20, 32);
+    const fires: Phaser.Geom.Rectangle[] = [];
+    for (const piece of this.state.pieces) {
+      if (piece.kind !== 'fire' || piece.lit !== true) continue;
+      const flame = this.buildings.get(pieceKey(piece));
+      if (flame?.visible) fires.push(flame.getBounds());
+    }
+    for (const view of this.propViews) {
+      const tree = this.isTree(view.prop) && view.sprite.visible;
+      if (!tree) {
+        if (view.sprite.alpha !== 1) view.sprite.setAlpha(1);
+        continue;
+      }
+      const bounds = view.sprite.getBounds();
+      const cover =
+        Phaser.Geom.Intersects.RectangleToRectangle(bounds, body) ||
+        fires.some((fire) => Phaser.Geom.Intersects.RectangleToRectangle(bounds, fire));
+      const alpha = cover ? 0.34 : 1;
+      if (view.sprite.alpha !== alpha) view.sprite.setAlpha(alpha);
     }
   }
 

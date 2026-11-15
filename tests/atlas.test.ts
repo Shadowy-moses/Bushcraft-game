@@ -5,8 +5,8 @@ import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
-    expect(Object.keys(atlas.frames)).toHaveLength(166);
-    expect(atlas.meta.size).toEqual({ w: 512, h: 502 });
+    expect(Object.keys(atlas.frames)).toHaveLength(182);
+    expect(atlas.meta.size).toEqual({ w: 512, h: 507 });
     expect(atlas.meta.image).toBe('spritesheet.png');
     for (const name of ATLAS_FRAMES) {
       const frame = atlas.frames[name as keyof typeof atlas.frames];
@@ -140,6 +140,10 @@ describe('artist atlas', () => {
     expect(atlas.frames.birch_log.frame).toMatchObject({ w: 48, h: 24 });
     expect(atlas.frames.birch_log.anchorPx).toEqual({ x: 24, y: 18 });
     expect(atlas.frames.felled_log.anchorPx).toEqual({ x: 24, y: 18 });
+    expect(atlas.frames.creek_gravel.frame).toMatchObject({ w: 32, h: 16 });
+    expect(atlas.frames.creek_gravel.anchorPx).toEqual({ x: 16, y: 8 });
+    expect(atlas.frames.warmth_ring.anchorPx).toEqual({ x: 58, y: 30 });
+    expect(atlas.frames.fire_tipi_lit_0.anchorPx).toEqual({ x: 16, y: 32 });
   });
 
   it('reads the woodsman feet from the atlas instead of a fixed offset', () => {

@@ -84,6 +84,8 @@ export class Hud {
         <button type="button" data-action="debug-eight">8:00 rain</button>
         <button type="button" data-action="debug-hour">+1 hour</button>
         <button type="button" data-action="debug-rain">Make it rain</button>
+        <button type="button" data-action="debug-refill">Refill stats</button>
+        <button type="button" data-action="debug-wear">Wear nearby</button>
       </div>
       <div id="overlay" hidden></div>
     `;
@@ -191,6 +193,7 @@ export class Hud {
     if (!target || target.hasAttribute('disabled')) return;
     const action = target.dataset.action;
     if (!action) return;
+    if (target.closest('#debug-panel')) (target as HTMLButtonElement).blur();
     if (action.startsWith('slot-')) {
       this.handlers.onAction(action);
       return;
