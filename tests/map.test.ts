@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { materialCost } from '../src/game/build';
 import { COLS, FIRE_TILE, PLAYER_START, ROWS, SHELTER_TILES } from '../src/game/constants';
 import { GROUND_ROWS, PROPS, groundAt, isBlocked, blockedFor } from '../src/game/map';
 import { planRoute } from '../src/game/path';
-import { initialState } from '../src/game/rules';
+import { initialState, tick } from '../src/game/rules';
+import { stoneFromStrike } from '../src/game/stone';
 
 describe('the patch of woods', () => {
   it('is a 12 by 12 clearing with a creek', () => {
@@ -40,5 +42,21 @@ describe('the patch of woods', () => {
     for (const prop of trees) {
       expect(planRoute(PLAYER_START, prop.tx, prop.ty, blockedFor(state)), prop.id).not.toBeNull();
     }
+  });
+
+  it('has seven rock nodes, enough stone for one hut, and they stay mined', () => {
+    const nodes = PROPS.filter((prop) => prop.kind === 'rock_node');
+    expect(nodes).toHaveLength(7);
+    const perNode = [1, 2, 3, 4, 5].reduce((sum, hit) => sum + stoneFromStrike(hit), 0);
+    expect(perNode).toBe(6);
+    const hut =
+      materialCost('foundation', 'stone') +
+      materialCost('wall', 'stone') * 3 +
+      materialCost('doorway', 'stone') +
+      materialCost('floor', 'stone');
+    expect(hut).toBe(38);
+    expect(nodes.length * perNode).toBeGreaterThanOrEqual(hut);
+    const mined = { ...initialState(), rocks: { 'rock_node-1-8': 5 } };
+    expect(tick(mined, 4000).rocks['rock_node-1-8']).toBe(5);
   });
 });

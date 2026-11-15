@@ -892,6 +892,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.state = result.state;
+    this.adoptFeet();
     this.faceTile(piece.tx, piece.ty);
     this.playPose('strike');
     this.afterChange();
@@ -1132,6 +1133,14 @@ export class GameScene extends Phaser.Scene {
     if (this.pose !== 'walk') return;
     this.pose = 'idle';
     this.showIdle();
+  }
+
+  /** Follow a nudge from placing or upgrading. Walking still picks things up; this does not. */
+  private adoptFeet(): void {
+    this.px = this.state.x;
+    this.py = this.state.y;
+    this.player.setPosition(Math.round(this.px), Math.round(this.py));
+    this.player.setDepth(depthFor(this.py, 6));
   }
 
   private placeFeet(x: number, y: number): void {
@@ -1905,6 +1914,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.state = result.state;
+    this.adoptFeet();
     this.faceTile(job.tile.tx, job.tile.ty);
     this.playPose(job.kind === 'tripod' ? 'gather' : 'chop');
     this.afterChange();

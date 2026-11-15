@@ -5,15 +5,16 @@ import {
   PLAYER_RADIUS,
   TRUNK_RADIUS,
   approachPoint,
-  canStand,
   bodiesFor,
+  canStand,
+  escapeEnclosure,
   inReach,
   offIsland,
   resolveMove,
   segmentsFor,
   travelSpeed,
 } from '../src/game/move';
-import { initialState } from '../src/game/rules';
+import { initialState, upgradePiece } from '../src/game/rules';
 import type { Piece } from '../src/game/types';
 
 describe('free movement', () => {
@@ -83,6 +84,68 @@ describe('free movement', () => {
     expect(tile.ty).toBeLessThanOrEqual(10);
     expect(offIsland(tileToWorld(0, 6).x, tileToWorld(0, 6).y)).toBe(true);
     expect(offIsland(start.x - 200, start.y)).toBe(true);
+  });
+
+  it('nudges him out through the doorway when the hut has no way through', () => {
+    const center = tileToWorld(7, 3);
+    const pieces: Piece[] = [
+      { kind: 'foundation', tx: 7, ty: 3, edge: 'se' },
+      { kind: 'wall', tx: 7, ty: 3, edge: 'se' },
+      { kind: 'wall', tx: 7, ty: 3, edge: 'sw' },
+      { kind: 'wall', tx: 7, ty: 3, edge: 'ne' },
+      { kind: 'doorway', tx: 7, ty: 3, edge: 'nw' },
+    ];
+    const state = { ...initialState(), x: center.x, y: center.y, pieces };
+    const bodies = bodiesFor(state);
+    const walls = segmentsFor(pieces);
+    const out = escapeEnclosure(state);
+    expect(canStand(out.x, out.y, bodies, walls)).toBe(true);
+    const again = escapeEnclosure({ ...state, x: out.x, y: out.y });
+    expect(again).toEqual({ x: out.x, y: out.y });
+    const door = tileToWorld(7, 3);
+    const gap = { x: door.x - 8, y: door.y - 4 };
+    const outside = { x: gap.x - 16, y: gap.y - 8 };
+    const shoved = resolveMove(out.x, out.y, outside.x - out.x, outside.y - out.y, bodies, walls);
+    const clear = Math.hypot(shoved.x - outside.x, shoved.y - outside.y) < 8 || Math.hypot(out.x - outside.x, out.y - outside.y) < 8;
+    expect(clear).toBe(true);
+  });
+
+  it('nudges him off a wall he is standing inside', () => {
+    const center = tileToWorld(7, 3);
+    const onWall = { x: center.x + 8, y: center.y + 4 };
+    const pieces: Piece[] = [{ kind: 'wall', tx: 7, ty: 3, edge: 'se' }];
+    const state = { ...initialState(), ...onWall, pieces };
+    const bodies = bodiesFor(state);
+    const walls = segmentsFor(pieces);
+    expect(canStand(onWall.x, onWall.y, bodies, walls)).toBe(false);
+    const out = escapeEnclosure(state);
+    expect(canStand(out.x, out.y, bodies, walls)).toBe(true);
+    expect(Math.hypot(out.x - onWall.x, out.y - onWall.y)).toBeGreaterThan(1);
+  });
+
+  it('does not change the collider when a twig wall is upgraded to stone', () => {
+    const pieces: Piece[] = [
+      { kind: 'foundation', tx: 7, ty: 3, edge: 'se' },
+      { kind: 'wall', tx: 7, ty: 3, edge: 'se', material: 'twig' },
+      { kind: 'doorway', tx: 7, ty: 3, edge: 'sw', material: 'twig' },
+    ];
+    const stone = pieces.map((piece) => ({ ...piece, material: 'stone' as const }));
+    expect(segmentsFor(stone)).toEqual(segmentsFor(pieces));
+    const center = tileToWorld(7, 3);
+    const state = {
+      ...initialState(),
+      x: center.x,
+      y: center.y,
+      tool: 'hammerstone' as const,
+      inventory: { ...initialState().inventory, hammerstone: true, stone: 20 },
+      pieces,
+    };
+    const upgraded = upgradePiece(state, pieces[1]);
+    expect(upgraded.ok).toBe(true);
+    expect(segmentsFor(upgraded.state.pieces)).toEqual(segmentsFor(pieces));
+    expect(upgraded.state.x).toBeCloseTo(center.x);
+    expect(upgraded.state.y).toBeCloseTo(center.y);
+    expect(upgraded.state.pieces[1].material).toBe('stone');
   });
 
   it('walks on a short stick and runs when it is pushed out', () => {

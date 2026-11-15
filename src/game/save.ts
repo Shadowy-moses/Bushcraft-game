@@ -1,5 +1,6 @@
 import { SAVE_KEY } from './constants';
 import { tileToWorld } from './iso';
+import { escapeEnclosure } from './move';
 import { initialState } from './rules';
 import type { EdgeName, GameState, Material, Outcome, Piece, PieceKind, Tool } from './types';
 import type { TreeMark } from './trees';
@@ -203,7 +204,10 @@ export function parseSave(raw: string): GameState | null {
 export function loadGame(): GameState | null {
   const raw = storage.get(SAVE_KEY);
   if (!raw) return null;
-  return parseSave(raw);
+  const parsed = parseSave(raw);
+  if (!parsed) return null;
+  const spot = escapeEnclosure(parsed);
+  return spot.x === parsed.x && spot.y === parsed.y ? parsed : { ...parsed, x: spot.x, y: spot.y };
 }
 
 export function saveGame(state: GameState): void {

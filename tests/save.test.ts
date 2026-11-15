@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { tileToWorld } from '../src/game/iso';
 import { OPENING_TIP } from '../src/game/copy';
+import { bodiesFor, canStand, segmentsFor } from '../src/game/move';
 import { initialState } from '../src/game/rules';
-import { parseSave } from '../src/game/save';
+import { SAVE_KEY } from '../src/game/constants';
+import { loadGame, parseSave, saveGame } from '../src/game/save';
+import type { Piece } from '../src/game/types';
 
 describe('saved games', () => {
   it('turns an older night into a fresh build and keeps where he stood', () => {
@@ -46,5 +50,32 @@ describe('saved games', () => {
       trees: { 'pine_tree-6-1': { hits: 3, felledAt: 1000 } },
     });
     expect(parseSave('not json')).toBeNull();
+  });
+
+  it('stands him outside a closed hut when the save loads', () => {
+    const memory = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => memory.set(key, value),
+      removeItem: (key: string) => memory.delete(key),
+    });
+    const center = tileToWorld(7, 3);
+    const pieces: Piece[] = [
+      { kind: 'foundation', tx: 7, ty: 3, edge: 'se' },
+      { kind: 'wall', tx: 7, ty: 3, edge: 'se' },
+      { kind: 'wall', tx: 7, ty: 3, edge: 'sw' },
+      { kind: 'wall', tx: 7, ty: 3, edge: 'ne' },
+      { kind: 'doorway', tx: 7, ty: 3, edge: 'nw' },
+    ];
+    const trapped = { ...initialState(), x: center.x + 8, y: center.y + 4, pieces };
+    saveGame(trapped);
+    expect(memory.get(SAVE_KEY)).toBeTruthy();
+    const loaded = loadGame();
+    expect(loaded).not.toBeNull();
+    const bodies = bodiesFor(loaded!);
+    const walls = segmentsFor(loaded!.pieces);
+    expect(canStand(loaded!.x, loaded!.y, bodies, walls)).toBe(true);
+    expect(canStand(trapped.x, trapped.y, bodies, walls)).toBe(false);
+    vi.unstubAllGlobals();
   });
 });

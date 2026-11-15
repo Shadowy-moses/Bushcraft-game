@@ -230,6 +230,79 @@ export function reachFor(node: { kind: string }): number {
   return node.kind === 'river_cobbles' ? COBBLE_REACH : REACH;
 }
 
+/**
+ * If he loaded or upgraded into a walled tile, or the doorway is the only gap,
+ * stand him just outside that gap. Stone and twig share the same edge collider.
+ */
+export function escapeEnclosure(state: Pick<GameState, 'x' | 'y' | 'pieces' | 'trees'>): { x: number; y: number } {
+  const bodies = bodiesFor(state);
+  const walls = segmentsFor(state.pieces);
+  if (canExit(state.x, state.y, bodies, walls, state.pieces)) return { x: state.x, y: state.y };
+  for (const piece of state.pieces) {
+    if (piece.kind !== 'doorway') continue;
+    const spot = outsideDoor(piece);
+    if (canStand(spot.x, spot.y, bodies, walls)) return spot;
+  }
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (let y = state.y - 48; y <= state.y + 48; y += 4) {
+    for (let x = state.x - 48; x <= state.x + 48; x += 4) {
+      if (!canStand(x, y, bodies, walls)) continue;
+      const d = Math.hypot(x - state.x, y - state.y);
+      if (d < bestD) {
+        best = { x, y };
+        bestD = d;
+      }
+    }
+  }
+  return best ?? { x: state.x, y: state.y };
+}
+
+function outsideDoor(piece: Piece): { x: number; y: number } {
+  const center = tileToWorld(piece.tx, piece.ty);
+  const at = pieceAnchorDoor(piece);
+  const dx = at.x - center.x;
+  const dy = at.y - center.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: at.x + (dx / len) * 16, y: at.y + (dy / len) * 16 };
+}
+
+function pieceAnchorDoor(piece: Piece): { x: number; y: number } {
+  const center = tileToWorld(piece.tx, piece.ty);
+  const off = EDGE_ENDS[piece.edge];
+  return {
+    x: center.x + (off[0].x + off[1].x) / 2,
+    y: center.y + (off[0].y + off[1].y) / 2,
+  };
+}
+
+function edgesBuilt(pieces: Piece[], tx: number, ty: number): number {
+  return (['se', 'sw', 'ne', 'nw'] as EdgeName[]).filter((edge) =>
+    pieces.some((piece) => (piece.kind === 'wall' || piece.kind === 'doorway') && piece.tx === tx && piece.ty === ty && piece.edge === edge),
+  ).length;
+}
+
+function canExit(
+  x: number,
+  y: number,
+  bodies: Body[],
+  walls: WallSeg[],
+  pieces: Piece[],
+): boolean {
+  if (!canStand(x, y, bodies, walls)) return false;
+  const tile = worldToTile(x, y);
+  if (edgesBuilt(pieces, tile.tx, tile.ty) < 3) return true;
+  const door = pieces.find(
+    (piece) => piece.kind === 'doorway' && piece.tx === tile.tx && piece.ty === tile.ty,
+  );
+  if (!door) return false;
+  const out = outsideDoor(door);
+  const dx = out.x - x;
+  const dy = out.y - y;
+  const moved = resolveMove(x, y, dx, dy, bodies, walls);
+  return Math.hypot(moved.x - x, moved.y - y) > 8;
+}
+
 export function inReach(x: number, y: number, tx: number, ty: number, reach = REACH): boolean {
   const at = tileToWorld(tx, ty);
   return Math.hypot(x - at.x, y - at.y) <= reach;
