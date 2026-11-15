@@ -14,15 +14,17 @@ function withPack(extra: Partial<GameState['inventory']>): GameState {
 }
 
 describe('hafted stone axe and wood bowl', () => {
-  it('hafts an axe from a flake, wood, and cord without changing the tool', () => {
-    const state = withPack({ flakes: 1, wood: 2, cordage: 1 });
+  it('hafts an axe from a cobble, wood, and cord without changing the tool', () => {
+    const state = withPack({ wetCobble: 1, wood: 2, cordage: 1, flakes: 3 });
     const made = craftAxe(state);
     expect(made.ok).toBe(true);
     expect(made.state.tool).toBe(state.tool);
     expect(made.state.inventory.axe).toBe(true);
-    expect(made.state.inventory.flakes).toBe(0);
+    expect(made.state.inventory.wetCobble).toBe(0);
+    expect(made.state.inventory.flakes).toBe(3);
     expect(made.state.inventory.wood).toBe(0);
     expect(made.state.inventory.cordage).toBe(0);
+    expect(made.message).toMatch(/wedge/);
     expect(craftAxe(made.state).ok).toBe(false);
     expect(recipesFor(state).find((recipe) => recipe.id === 'stone-axe')).toMatchObject({
       category: 'tools',
@@ -50,18 +52,20 @@ describe('hafted stone axe and wood bowl', () => {
     expect(AXE_BITE).toBeCloseTo(1.6);
   });
 
-  it('carves a bowl with the axe or a flake, and the tool stays', () => {
-    const bare = withPack({ wood: BOWL_WOOD });
-    expect(craftBowl(bare).message).toMatch(/axe or a flint flake/);
-    const carved = craftBowl(withPack({ wood: BOWL_WOOD, flakes: 1 }));
+  it('burn-scrapes a bowl beside a lit fire and does not use up the flake', () => {
+    const fire = { kind: 'fire' as const, tx: 7, ty: 4, edge: 'se' as const, lit: true, fuel: 80 };
+    const at = tileToWorld(7, 5);
+    const cold = { ...withPack({ wood: BOWL_WOOD, flakes: 1, axe: true }), ...at, tx: 7, ty: 5 };
+    expect(craftBowl(cold).message).toMatch(/lit fire/);
+    const noFlake = { ...cold, pieces: [fire], inventory: { ...cold.inventory, flakes: 0 } };
+    expect(craftBowl(noFlake).message).toMatch(/flake/);
+    const carved = craftBowl({ ...cold, pieces: [fire] });
     expect(carved.ok).toBe(true);
     expect(carved.state.inventory.bowl).toBe(true);
     expect(carved.state.inventory.flakes).toBe(1);
+    expect(carved.state.inventory.axe).toBe(true);
     expect(carved.state.inventory.wood).toBe(0);
     expect(carved.state.tool).toBe('hatchet');
-    const withAxe = craftBowl(withPack({ wood: BOWL_WOOD, axe: true, flakes: 0 }));
-    expect(withAxe.ok).toBe(true);
-    expect(withAxe.state.inventory.axe).toBe(true);
   });
 
   it('boils bowl water with a dry stone, and a wet cobble can crack', () => {
@@ -119,7 +123,7 @@ describe('hafted stone axe and wood bowl', () => {
       tx: 7,
       ty: 5,
       tool: 'hands' as const,
-      picked: { 'item_sticks-8-6': true, 'item_stone-6-4': true },
+      picked: { 'item_sticks-8-6': true as const, 'item_stone-6-4': true as const },
       pieces: [{ kind: 'fire' as const, tx: 7, ty: 4, edge: 'se' as const, lit: true, fuel: 40 }],
       inventory: { ...filled.state.inventory, stone: 1 },
     };

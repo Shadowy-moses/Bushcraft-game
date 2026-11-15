@@ -1,7 +1,6 @@
 import { materialCost } from './build';
 import {
   AXE_CORDAGE,
-  AXE_FLAKES,
   AXE_WOOD,
   BARK_CORDAGE,
   BARK_WOOD,
@@ -19,6 +18,7 @@ import {
   TRIPOD_WOOD,
 } from './constants';
 import { UPGRADE_NOTE } from './copy';
+import { nearLitFire } from './fire';
 import { CORD_FIBER, CORD_SECONDS } from './fiber';
 import type { GameState, Material, PieceKind } from './types';
 
@@ -241,10 +241,10 @@ export function recipesFor(state: GameState): Recipe[] {
       id: 'stone-axe',
       category: 'tools',
       name: 'Hafted stone axe',
-      blurb: 'A flint flake hafted with cord. It bites about 1.6 times as deep as the crude hatchet, so two swings drop a tree.',
+      blurb: 'A creek cobble, knapped and pecked into a thick wedge head, then hafted with cord. It bites about 1.6 times as deep as the crude hatchet, so two swings drop a tree.',
       frame: 'item_stone_axe',
       ingredients: [
-        { name: 'Flake', have: state.inventory.flakes, need: AXE_FLAKES },
+        { name: 'Cobble', have: state.inventory.wetCobble ?? 0, need: 1 },
         { name: 'Wood', have: state.inventory.wood, need: AXE_WOOD },
         { name: 'Cordage', have: state.inventory.cordage, need: AXE_CORDAGE },
       ],
@@ -253,7 +253,7 @@ export function recipesFor(state: GameState): Recipe[] {
       action: 'craft-axe',
       enabled:
         !state.inventory.axe &&
-        state.inventory.flakes >= AXE_FLAKES &&
+        (state.inventory.wetCobble ?? 0) >= 1 &&
         state.inventory.wood >= AXE_WOOD &&
         state.inventory.cordage >= AXE_CORDAGE,
       done: state.inventory.axe,
@@ -262,13 +262,16 @@ export function recipesFor(state: GameState): Recipe[] {
       id: 'wood-bowl',
       category: 'tools',
       name: 'Wood bowl',
-      blurb: 'Carved from two lengths of wood with a stone axe or a flint flake. The tool is not used up. A hot stone dropped in boils creek water, and the bowl does not wear out.',
+      blurb: 'Burn and scrape. Two wood, a flint flake to scrape with (it is not used up), and a lit fire nearby. A coal chars the hollow. The bowl does not wear out.',
       frame: 'item_wood_bowl',
-      ingredients: [{ name: 'Wood', have: state.inventory.wood, need: BOWL_WOOD }],
+      ingredients: [
+        { name: 'Wood', have: state.inventory.wood, need: BOWL_WOOD },
+        { name: 'Flake', have: state.inventory.flakes, need: 1 },
+      ],
       seconds: 0,
-      timeLabel: 'Carved in the hands',
+      timeLabel: nearLitFire(state) ? 'Beside a lit fire' : 'Needs a lit fire nearby',
       action: 'craft-bowl',
-      enabled: !state.inventory.bowl && state.inventory.wood >= BOWL_WOOD && (state.inventory.axe || state.inventory.flakes >= 1),
+      enabled: !state.inventory.bowl && state.inventory.wood >= BOWL_WOOD && state.inventory.flakes >= 1 && nearLitFire(state),
       done: state.inventory.bowl,
     },
     ...PIECES.map((spec) => pieceRecipe(state, spec, 'twig')),

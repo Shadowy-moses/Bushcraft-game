@@ -313,7 +313,7 @@ export class GameScene extends Phaser.Scene {
               stone: 20,
               cordage: 4,
               bark: 2,
-              flakes: 4,
+              flakes: 1,
               axe: true,
               bowl: true,
               wetCobble: 1,

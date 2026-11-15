@@ -47,8 +47,7 @@ export const ROCK_RETURN_MINUTES = 1440;
 export const LOG_STRIPS = 4;
 /** A bark pot survives this many boils. */
 export const POT_BOILS = 3;
-/** Hafted stone axe: one flint flake, two wood, one cord. */
-export const AXE_FLAKES = 1;
+/** Hafted stone axe: one creek cobble, two wood, one cord. */
 export const AXE_WOOD = 2;
 export const AXE_CORDAGE = 1;
 /** Chop progress per swing. A tree falls at 3. The axe bites 1.6 times as deep. */

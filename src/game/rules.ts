@@ -22,7 +22,6 @@ import {
   THIRST_PER_HOUR,
   AXE_BITE,
   AXE_CORDAGE,
-  AXE_FLAKES,
   AXE_WOOD,
   BOWL_WOOD,
   CHOP_ENERGY,
@@ -460,10 +459,10 @@ export function craftPot(state: GameState): ActionResult {
   );
 }
 
-/** One flake, two wood, one cord. The axe stays in the pack until he taps it. */
+/** One cobble, two wood, one cord. The axe stays in the pack until he taps it. */
 export function craftAxe(state: GameState): ActionResult {
   if (state.inventory.axe) return fail(state, 'You already have a stone axe.');
-  if (state.inventory.flakes < AXE_FLAKES) return fail(state, 'Need 1 more flake.');
+  if ((state.inventory.wetCobble ?? 0) < 1) return fail(state, 'Need 1 more cobble.');
   if (state.inventory.wood < AXE_WOOD) return fail(state, 'Need 2 more wood.');
   if (state.inventory.cordage < AXE_CORDAGE) return fail(state, 'Need 1 more cordage.');
   return ok(
@@ -471,27 +470,28 @@ export function craftAxe(state: GameState): ActionResult {
       ...state,
       inventory: {
         ...state.inventory,
-        flakes: state.inventory.flakes - AXE_FLAKES,
+        wetCobble: state.inventory.wetCobble - 1,
         wood: state.inventory.wood - AXE_WOOD,
         cordage: state.inventory.cordage - AXE_CORDAGE,
         axe: true,
       },
     },
-    'A hafted stone axe. It bites deeper than the crude hatchet.',
+    'A hafted stone axe. The cobble is knapped and pecked into a thick wedge.',
   );
 }
 
-/** Two wood, and a stone axe or a flake to carve with. The tool is not used up. */
+/** Burn and scrape: a lit fire, a flake that is not used up, and two wood. */
 export function craftBowl(state: GameState): ActionResult {
   if (state.inventory.bowl) return fail(state, 'You already have a wood bowl.');
-  if (!state.inventory.axe && state.inventory.flakes < 1) return fail(state, 'Carve it with the stone axe or a flint flake.');
   if (state.inventory.wood < BOWL_WOOD) return fail(state, 'Need 2 more wood.');
+  if (state.inventory.flakes < 1) return fail(state, 'A flint flake scrapes out the hollow.');
+  if (!nearLitFire(state)) return fail(state, 'The bowl needs a lit fire nearby. A coal chars the hollow.');
   return ok(
     {
       ...state,
       inventory: { ...state.inventory, wood: state.inventory.wood - BOWL_WOOD, bowl: true },
     },
-    'A wood bowl. It will hold water, and it will not wear out.',
+    'A wood bowl. The coal charred the hollow, and the flake scraped it clean.',
   );
 }
 
