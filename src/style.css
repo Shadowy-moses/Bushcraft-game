@@ -119,12 +119,18 @@ html, body {
 
 #debug-panel {
   position: absolute;
-  z-index: 6;
-  top: calc(108px + env(safe-area-inset-top));
+  z-index: 8;
+  top: calc(4px + env(safe-area-inset-top));
   left: calc(8px + env(safe-area-inset-left));
+  right: calc(8px + env(safe-area-inset-right));
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 4px;
+}
+
+#hud.debug-on #overlay.craft-mode {
+  padding-top: calc(112px + env(safe-area-inset-top));
 }
 
 #debug-panel[hidden] { display: none; }

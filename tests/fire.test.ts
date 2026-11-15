@@ -11,7 +11,7 @@ import {
   tendFires,
 } from '../src/game/fire';
 import { tileToWorld } from '../src/game/iso';
-import { blockedFor, groundAt } from '../src/game/map';
+import { PROPS, blockedFor, groundAt } from '../src/game/map';
 import { canStand, bodiesFor, gatherStand, reachFor } from '../src/game/move';
 import { planRoute } from '../src/game/path';
 import { emptyInventory, gather, initialState } from '../src/game/rules';
@@ -28,14 +28,13 @@ describe('the bank, a fresh fiber plant, and empty hands', () => {
     expect(planRoute(PLAYER_START, 5, 7, blockedFor(initialState()))).not.toBeNull();
     const state = stand(2, 8);
     expect(canStand(state.x, state.y, bodiesFor(state), [])).toBe(true);
-    const choice = chooseUse(state, { x: state.x, y: state.y });
-    expect(choice.action).toBe('gather');
-    if (choice.action !== 'gather') return;
-    expect(choice.prop.kind).toBe('river_cobbles');
-    expect(reachFor(choice.prop)).toBeGreaterThan(54);
-    const standOn = gatherStand(choice.prop, state);
+    expect(chooseUse(state, { x: state.x, y: state.y }).action).toBe('drink-creek');
+    const cobble = PROPS.find((prop) => prop.id === 'river_cobbles-2-8');
+    expect(cobble).toBeTruthy();
+    expect(reachFor(cobble!)).toBeGreaterThan(54);
+    const standOn = gatherStand(cobble!, state);
     expect(standOn).not.toBeNull();
-    const taken = gather(state, choice.prop.id);
+    const taken = gather(state, cobble!.id);
     expect(taken.ok).toBe(true);
     expect(taken.message).toBe('A hard, round cobble. Good hammerstone.');
   });

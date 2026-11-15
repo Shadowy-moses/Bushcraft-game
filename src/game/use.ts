@@ -15,7 +15,7 @@ import type { GameState, Piece, Prop } from './types';
 export type UseChoice =
   | { action: 'gather' | 'knap' | 'chop' | 'strike' | 'peel'; prop: Prop }
   | { action: 'upgrade' | 'repair'; piece: Piece }
-  | { action: 'scoop' | 'scoop-bowl' | 'boil' | 'heat' | 'quench' | 'drink' | 'drink-bowl' | 'eat' }
+  | { action: 'scoop' | 'scoop-bowl' | 'boil' | 'heat' | 'quench' | 'drink' | 'drink-bowl' | 'drink-creek' }
   | { action: 'none'; message: string };
 
 interface Feet {
@@ -132,6 +132,9 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
   }
   if (state.tool !== 'hands') return { action: 'none', message: 'Nothing in these hands.' };
 
+  const water = waterChoice(state, feet);
+  if (water) return water;
+
   const pickup = nearestProp(feet, handsPickups(state));
   const birch = nearestProp(feet, liveBirches(state));
   const underfoot = (d: number) => d <= 16;
@@ -149,8 +152,6 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
   ) {
     return { action: 'heat' };
   }
-  if (state.inventory.pot > 0 && state.cupWater === 'empty' && besideCreek(feet.x, feet.y)) return { action: 'scoop' };
-  if (state.inventory.bowl && state.bowlWater === 'empty' && besideCreek(feet.x, feet.y)) return { action: 'scoop-bowl' };
   if (pickup && (!birch || pickup.d <= birch.d)) return { action: 'gather', prop: pickup.prop };
   if (birch) return { action: 'peel', prop: birch.prop };
   if (state.cupWater === 'boiled') return { action: 'drink' };
@@ -159,9 +160,24 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
   if (state.cupWater === 'raw') return { action: 'none', message: 'Set it on the coals.' };
   const worn = nearestWorn(state, feet);
   if (worn) return { action: 'repair', piece: worn.piece };
-  if (state.inventory.berries > 0) return { action: 'eat' };
-  if (state.inventory.roots > 0) return { action: 'eat' };
   return { action: 'none', message: 'Nothing in these hands.' };
+}
+
+/** At the water, fill an empty pot or bowl. Otherwise drink. This beats forage. */
+export function waterChoice(state: GameState, feet: Feet): UseChoice | null {
+  if (state.tool !== 'hands' || !besideCreek(feet.x, feet.y)) return null;
+  if (state.inventory.pot > 0 && state.cupWater === 'empty') return { action: 'scoop' };
+  if (state.inventory.bowl && state.bowlWater === 'empty') return { action: 'scoop-bowl' };
+  return { action: 'drink-creek' };
+}
+
+/** The Use button reads Drink while a mouthful of creek is what Use will do. */
+export function drinkPrompt(state: GameState, feet: Feet): string | null {
+  const water = waterChoice(state, feet);
+  if (!water) return null;
+  if (water.action === 'scoop') return 'Fill pot';
+  if (water.action === 'scoop-bowl') return 'Fill bowl';
+  return 'Drink';
 }
 
 /** Shown when a damaged twig piece is in reach. One length of wood patches it. */
