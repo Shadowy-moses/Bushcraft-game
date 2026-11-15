@@ -1,7 +1,7 @@
 import type { TreeMark } from './trees';
 import type { Facing } from './woodsman';
 
-export type PieceKind = 'foundation' | 'wall' | 'doorway' | 'floor' | 'tripod';
+export type PieceKind = 'foundation' | 'wall' | 'doorway' | 'floor' | 'tripod' | 'fire';
 export type EdgeName = 'se' | 'sw' | 'ne' | 'nw';
 export type Material = 'twig' | 'stone';
 
@@ -12,6 +12,11 @@ export interface Piece {
   edge: EdgeName;
   /** Missing on older saves. Those pieces are twig. */
   material?: Material;
+  /** Game minutes of fuel left in a teepee. */
+  fuel?: number;
+  lit?: boolean;
+  /** First blow of a coal into the tinder bundle. */
+  ember?: 'none' | 'smoke';
 }
 
 export interface Inventory {
@@ -22,14 +27,18 @@ export interface Inventory {
   hammerstone: boolean;
   fiber: number;
   cordage: number;
+  tinder: number;
+  kindling: number;
+  coal: number;
+  bowdrill: boolean;
 }
 
-export type Tool = 'hatchet' | 'hammerstone' | 'plan';
+export type Tool = 'hands' | 'hatchet' | 'hammerstone' | 'plan';
 export type Outcome = 'playing' | 'won' | 'lost';
 export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 'tinder' | 'leaves';
 
 export interface GameState {
-  version: 5;
+  version: 6;
   minutes: number;
   warmth: number;
   energy: number;

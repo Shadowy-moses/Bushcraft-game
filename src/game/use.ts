@@ -1,4 +1,5 @@
 import { materialCost, pieceAnchor } from './build';
+import { COBBLE_REACH } from './constants';
 import { HATCHET_IDLE } from './copy';
 import { isFiberCut } from './fiber';
 import { tileToWorld } from './iso';
@@ -26,11 +27,11 @@ function propDist(feet: Feet, prop: Prop): number {
   return distTo(feet, at.x, at.y);
 }
 
-function nearestProp(feet: Feet, props: Prop[]): { prop: Prop; d: number } | null {
+function nearestProp(feet: Feet, props: Prop[], reach = REACH): { prop: Prop; d: number } | null {
   let best: { prop: Prop; d: number } | null = null;
   for (const prop of props) {
     const d = propDist(feet, prop);
-    if (d > REACH) continue;
+    if (d > reach) continue;
     if (!best || d < best.d) best = { prop, d };
   }
   return best;
@@ -72,7 +73,7 @@ function liveRocks(state: GameState): Prop[] {
 function nearestUpgrade(state: GameState, feet: Feet): { piece: Piece; d: number } | null {
   let best: { piece: Piece; d: number } | null = null;
   for (const piece of state.pieces) {
-    if (piece.kind === 'tripod') continue;
+    if (piece.kind === 'tripod' || piece.kind === 'fire') continue;
     if ((piece.material ?? 'twig') !== 'twig') continue;
     const at = pieceAnchor(piece.kind, piece, piece.edge);
     const d = distTo(feet, at.x, at.y);
@@ -90,7 +91,7 @@ function nearestUpgrade(state: GameState, feet: Feet): { piece: Piece; d: number
  */
 export function chooseUse(state: GameState, feet: Feet): UseChoice {
   if (!state.inventory.hammerstone) {
-    const cobble = nearestProp(feet, liveCobbles(state));
+    const cobble = nearestProp(feet, liveCobbles(state), COBBLE_REACH);
     if (cobble) return { action: 'gather', prop: cobble.prop };
   }
 
@@ -116,10 +117,11 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
   if (work?.action === 'upgrade' && work.piece) return work;
 
   const piles = nearestProp(feet, loosePickups(state));
-  const tree = state.tool === 'hammerstone' ? null : nearestProp(feet, standingTrees(state));
+  const tree = state.tool === 'hatchet' ? nearestProp(feet, standingTrees(state)) : null;
   if (piles && (!tree || piles.d <= tree.d)) return { action: 'gather', prop: piles.prop };
   if (tree) return { action: 'chop', prop: tree.prop };
   if (state.tool === 'hammerstone') return { action: 'none', message: 'Nothing to strike.' };
+  if (state.tool === 'hands') return { action: 'none', message: 'Nothing in these hands.' };
   return { action: 'none', message: HATCHET_IDLE };
 }
 

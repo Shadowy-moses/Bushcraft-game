@@ -1,5 +1,5 @@
-import type { EdgeName, GameState, Piece } from './types';
-import { COLS, TILE_H, TILE_W } from './constants';
+import type { EdgeName, GameState, Piece, Prop } from './types';
+import { COBBLE_REACH, COLS, TILE_H, TILE_W } from './constants';
 import { isFiberCut } from './fiber';
 import { tileToWorld, worldToTile } from './iso';
 import { groundAt, inBounds, PROPS } from './map';
@@ -226,9 +226,37 @@ export function resolveMove(
   return { x: cx, y: cy };
 }
 
-export function inReach(x: number, y: number, tx: number, ty: number): boolean {
+export function reachFor(node: { kind: string }): number {
+  return node.kind === 'river_cobbles' ? COBBLE_REACH : REACH;
+}
+
+export function inReach(x: number, y: number, tx: number, ty: number, reach = REACH): boolean {
   const at = tileToWorld(tx, ty);
-  return Math.hypot(x - at.x, y - at.y) <= REACH;
+  return Math.hypot(x - at.x, y - at.y) <= reach;
+}
+
+/** A place he can stand and still reach this pickup, including a cobble from the bank. */
+export function gatherStand(
+  prop: Prop,
+  state: Pick<GameState, 'trees' | 'pieces'> & { plants?: Record<string, number>; minutes?: number },
+): { x: number; y: number } | null {
+  const at = tileToWorld(prop.tx, prop.ty);
+  const reach = reachFor(prop);
+  const bodies = bodiesFor(state);
+  const walls = segmentsFor(state.pieces ?? []);
+  const tryAt = (x: number, y: number) =>
+    Math.hypot(x - at.x, y - at.y) <= reach && canStand(x, y, bodies, walls);
+  if (tryAt(at.x, at.y)) return { x: at.x, y: at.y };
+  for (const dist of [12, 20, 32, 44, 56, 72, 84]) {
+    if (dist > reach) break;
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      const x = at.x + Math.cos(angle) * dist;
+      const y = at.y + Math.sin(angle) * dist;
+      if (tryAt(x, y)) return { x, y };
+    }
+  }
+  return null;
 }
 
 export function inReachOf(x: number, y: number, at: { x: number; y: number }, reach = REACH): boolean {

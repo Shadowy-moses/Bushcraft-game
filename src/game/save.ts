@@ -6,11 +6,20 @@ import type { TreeMark } from './trees';
 import { facingFromSave, isFacing } from './woodsman';
 import { storage } from '../platform/storage';
 
-const KINDS: PieceKind[] = ['foundation', 'wall', 'doorway', 'floor', 'tripod'];
+const KINDS: PieceKind[] = ['foundation', 'wall', 'doorway', 'floor', 'tripod', 'fire'];
 const EDGES: EdgeName[] = ['se', 'sw', 'ne', 'nw'];
 
 function isTool(value: unknown): value is Tool {
-  return value === 'hatchet' || value === 'hammerstone' || value === 'plan';
+  return value === 'hands' || value === 'hatchet' || value === 'hammerstone' || value === 'plan';
+}
+
+function freshPicked(picked: Record<string, true>): Record<string, true> {
+  const next: Record<string, true> = {};
+  for (const [id, value] of Object.entries(picked)) {
+    if (id.startsWith('bush_fiber-')) continue;
+    if (value) next[id] = true;
+  }
+  return next;
 }
 
 function materialOf(value: unknown): Material {
@@ -74,6 +83,10 @@ export function parseSave(raw: string): GameState | null {
         hammerstone?: unknown;
         fiber?: unknown;
         cordage?: unknown;
+        tinder?: unknown;
+        kindling?: unknown;
+        coal?: unknown;
+        bowdrill?: unknown;
       };
       rocks?: unknown;
       cores?: unknown;
@@ -100,7 +113,7 @@ export function parseSave(raw: string): GameState | null {
       (typeof save.plants === 'object' &&
         Object.values(save.plants as Record<string, unknown>).every((at) => typeof at === 'number'));
     if (
-      (save.version === 3 || save.version === 4 || save.version === 5) &&
+      (save.version === 3 || save.version === 4 || save.version === 5 || save.version === 6) &&
       save.inventory &&
       typeof save.inventory.wood === 'number' &&
       Array.isArray(save.pieces) &&
@@ -112,7 +125,7 @@ export function parseSave(raw: string): GameState | null {
     ) {
       return {
         ...fresh,
-        version: 5,
+        version: 6,
         minutes: save.minutes,
         warmth: save.warmth,
         energy: save.energy,
@@ -128,24 +141,45 @@ export function parseSave(raw: string): GameState | null {
           flakes: countOf(save.inventory.flakes),
           rocks: countOf(save.inventory.rocks),
           hammerstone: save.inventory.hammerstone === true,
-          fiber: countOf(save.inventory.fiber),
-          cordage: countOf(save.inventory.cordage),
-        },
-        pieces: save.pieces.map((piece) => {
-          const item = piece as Piece;
-          if (item.kind === 'tripod') return { kind: item.kind, tx: item.tx, ty: item.ty, edge: item.edge };
-          return { ...item, material: materialOf(item.material) };
-        }),
-        trees: save.trees,
-        rocks: (save.rocks as Record<string, number> | undefined) ?? {},
-        cores: (save.cores as Record<string, number> | undefined) ?? {},
-        plants: (save.plants as Record<string, number> | undefined) ?? {},
-        picked: save.picked,
+        fiber: countOf(save.inventory.fiber),
+        cordage: countOf(save.inventory.cordage),
+        tinder: countOf(save.inventory.tinder),
+        kindling: countOf(save.inventory.kindling),
+        coal: countOf(save.inventory.coal),
+        bowdrill: save.inventory.bowdrill === true,
+      },
+      pieces: save.pieces.map((piece) => {
+        const item = piece as Piece;
+        if (item.kind === 'tripod' || item.kind === 'fire') {
+          return {
+            kind: item.kind,
+            tx: item.tx,
+            ty: item.ty,
+            edge: item.edge,
+            fuel: countOf(item.fuel),
+            lit: item.lit === true,
+            ember: item.ember === 'smoke' ? 'smoke' as const : 'none' as const,
+          };
+        }
+        return { ...item, material: materialOf(item.material) };
+      }),
+      trees: save.trees,
+      rocks: (save.rocks as Record<string, number> | undefined) ?? {},
+      cores: (save.cores as Record<string, number> | undefined) ?? {},
+      plants: save.version === 6 ? ((save.plants as Record<string, number> | undefined) ?? {}) : {},
+      picked: freshPicked(save.picked),
         outcome: 'playing',
         tip: save.tip,
       };
     }
-    if (save.version === 1 || save.version === 2 || save.version === 3 || save.version === 4 || save.version === 5) {
+    if (
+      save.version === 1 ||
+      save.version === 2 ||
+      save.version === 3 ||
+      save.version === 4 ||
+      save.version === 5 ||
+      save.version === 6
+    ) {
       return {
         ...fresh,
         minutes: save.minutes,
@@ -156,7 +190,7 @@ export function parseSave(raw: string): GameState | null {
         x,
         y,
         facing,
-        picked: pickedOk(save.picked) ? save.picked : {},
+        picked: pickedOk(save.picked) ? freshPicked(save.picked) : {},
         tip: fresh.tip,
       };
     }

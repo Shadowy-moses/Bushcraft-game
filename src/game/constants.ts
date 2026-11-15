@@ -31,6 +31,8 @@ export const CHOP_ENERGY = 1;
  */
 export const STRIKE_ENERGY = 2;
 export const BUILD_ENERGY = 6;
+/** Cobbles sit in the creek fringe. The bank is close enough. */
+export const COBBLE_REACH = 88;
 
 export const WOOD_FOUNDATION = 10;
 export const WOOD_WALL = 5;
@@ -44,6 +46,28 @@ export const TRIPOD_CORDAGE = 2;
 export const TRIPOD_REST_REACH = 36;
 /** Extra stamina return while resting against a tripod. 0.4 is forty percent. */
 export const TRIPOD_REST_BONUS = 0.4;
+
+/** Bow, spindle, hearth, and a bearing block. Cordage is the bowstring. */
+export const BOWDRILL_WOOD = 4;
+export const BOWDRILL_CORD = 1;
+/** Dry grass or shredded bark, twisted into one bundle. */
+export const TINDER_FIBER = 2;
+/** One length of wood splits into two handfuls of kindling. */
+export const KINDLING_WOOD = 1;
+export const KINDLING_OUT = 2;
+/** Teepee: tinder in the middle, kindling around it, then fuel wood. */
+export const FIRE_TINDER = 1;
+export const FIRE_KINDLING = 2;
+export const FIRE_WOOD = 2;
+/** Game minutes one piece of wood feeds a burning teepee. About two and a half real minutes. */
+export const FIRE_FUEL_PER_WOOD = 60;
+/** World pixels. Standing inside this of a lit teepee warms him. */
+export const FIRE_RADIUS = 56;
+/** Added on top of the hour's drift while he is in that radius. */
+export const FIRE_WARMTH_PER_HOUR = 60;
+/** Hold the bow this many real seconds or the coal dusts out. */
+export const DRILL_SECONDS = 5;
+export const DRILL_STAMINA_PER_SECOND = 2;
 
 /**
  * Game minutes that pass each real second while you are up and working.

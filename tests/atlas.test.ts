@@ -5,8 +5,8 @@ import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
-    expect(Object.keys(atlas.frames)).toHaveLength(124);
-    expect(atlas.meta.size).toEqual({ w: 512, h: 336 });
+    expect(Object.keys(atlas.frames)).toHaveLength(133);
+    expect(atlas.meta.size).toEqual({ w: 512, h: 354 });
     expect(atlas.meta.image).toBe('spritesheet.png');
     for (const name of ATLAS_FRAMES) {
       const frame = atlas.frames[name as keyof typeof atlas.frames];
@@ -83,6 +83,15 @@ describe('artist atlas', () => {
     expect(atlas.frames.item_cordage.anchorPx).toEqual({ x: 8, y: 12 });
     expect(atlas.frames.lashed_tripod.frame).toMatchObject({ w: 36, h: 44 });
     expect(atlas.frames.lashed_tripod.anchorPx).toEqual({ x: 18, y: 40 });
+    expect(atlas.frames.bowdrill_0.frame).toMatchObject({ w: 28, h: 24 });
+    expect(atlas.frames.bowdrill_1.anchorPx).toEqual({ x: 14, y: 20 });
+    expect(atlas.frames.bowdrill_coal.anchorPx).toEqual({ x: 14, y: 20 });
+    expect(atlas.frames.item_bowdrill_kit.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_tinder.frame).toMatchObject({ w: 16, h: 16 });
+    expect(atlas.frames.item_kindling.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_coal.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_tinder_lit_0.frame).toMatchObject({ w: 16, h: 16 });
+    expect(atlas.frames.item_tinder_lit_1.anchorPx).toEqual({ x: 8, y: 12 });
     expect(atlas.frames.stone_wall_ne.frame).toMatchObject({ w: 31, h: 39 });
     expect(atlas.frames.stone_wall_ne.anchorPx).toEqual({ x: 10, y: 36 });
     expect(atlas.frames.woodsman_se_strike_0.anchorPx).toEqual({ x: 16, y: 31 });

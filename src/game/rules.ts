@@ -15,21 +15,34 @@ import {
   TRIPOD_WOOD,
 } from './constants';
 import { CORD_FIBER, fiberFromPlant, isFiberCut, regrowFiber } from './fiber';
+import { placeFire, tendFires } from './fire';
 import { OPENING_TIP } from './copy';
 import { clamp, tileToWorld } from './iso';
-import { inReach } from './move';
+import { inReach, reachFor } from './move';
 import { propAt, propById } from './map';
 import { CORE_KNAPS, flakesFromKnap, ROCK_HITS, stoneFromStrike } from './stone';
 import { TREE_HITS, isFelled, regrowTrees, woodFromTree } from './trees';
 import type { ActionResult, EdgeName, GameState, Inventory, Material, Piece, PieceKind } from './types';
 
 export function emptyInventory(): Inventory {
-  return { wood: 0, stone: 0, flakes: 0, rocks: 0, hammerstone: false, fiber: 0, cordage: 0 };
+  return {
+    wood: 0,
+    stone: 0,
+    flakes: 0,
+    rocks: 0,
+    hammerstone: false,
+    fiber: 0,
+    cordage: 0,
+    tinder: 0,
+    kindling: 0,
+    coal: 0,
+    bowdrill: false,
+  };
 }
 
 export function initialState(): GameState {
   return {
-    version: 5,
+    version: 6,
     minutes: START_MINUTES,
     warmth: START_WARMTH,
     energy: START_ENERGY,
@@ -81,7 +94,7 @@ export function tick(state: GameState, gameMinutes: number): GameState {
     return Boolean(prop && hasFoundation(state.pieces, prop.tx, prop.ty));
   });
   const plants = regrowFiber(state.plants, minutes);
-  return { ...state, warmth, minutes, trees, plants, outcome: 'playing' };
+  return tendFires({ ...state, warmth, minutes, trees, plants, outcome: 'playing' }, gameMinutes);
 }
 
 /** Stamina coming back. A tripod under his shoulder adds a little. */
@@ -115,8 +128,8 @@ function ok(state: GameState, message: string, popup?: string): ActionResult {
 export function gather(state: GameState, id: string, free = false): ActionResult {
   const node = propById(id);
   if (!node?.gather) return fail(state, 'Nothing to pick up there.');
-  if (state.picked[id]) return fail(state, 'Nothing left there.');
-  if (!free && !inReach(state.x, state.y, node.tx, node.ty)) return fail(state, 'Walk up to it.');
+  if (node.gather !== 'fiber' && state.picked[id]) return fail(state, 'Nothing left there.');
+  if (!free && !inReach(state.x, state.y, node.tx, node.ty, reachFor(node))) return fail(state, 'Walk up to it.');
   if (!free && state.energy < GATHER_ENERGY) return fail(state, 'You’re worn out. Rest a moment.');
   const picked = { ...state.picked, [id]: true as const };
   const energy = free ? state.energy : state.energy - GATHER_ENERGY;
@@ -233,6 +246,7 @@ export function placePiece(
   edge: EdgeName,
   material: Material = 'twig',
 ): ActionResult {
+  if (kind === 'fire') return placeFire(state, tx, ty);
   if (kind === 'tripod') {
     if (state.inventory.wood < TRIPOD_WOOD) {
       return fail(state, `Need ${TRIPOD_WOOD - state.inventory.wood} more wood`);
@@ -327,7 +341,7 @@ export function upgradePiece(state: GameState, piece: Piece): ActionResult {
   if (!state.inventory.hammerstone || state.tool !== 'hammerstone') {
     return fail(state, 'Put the hammerstone in your hand.');
   }
-  if (piece.kind === 'tripod') return fail(state, 'The lashing stays as it is.');
+  if (piece.kind === 'tripod' || piece.kind === 'fire') return fail(state, 'The lashing stays as it is.');
   if ((piece.material ?? 'twig') === 'stone') return fail(state, 'Already stone.');
   const cost = materialCost(piece.kind, 'stone');
   if (state.inventory.stone < cost) return fail(state, materialShortMessage(piece.kind, state.inventory.stone, 'stone'));

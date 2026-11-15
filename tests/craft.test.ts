@@ -5,11 +5,12 @@ import { emptyInventory, initialState } from '../src/game/rules';
 describe('the building plan', () => {
   it('starts with the hatchet equipped and wood in the pack line', () => {
     const slots = hotbarSlots(initialState());
-    expect(slots[0]).toMatchObject({ id: 'hatchet', name: 'Hatchet' });
-    expect(slots[1]).toMatchObject({ id: 'hammerstone', name: 'Hammerstone' });
-    expect(slots[2]).toMatchObject({ id: 'plan', name: 'Building plan' });
-    expect(slots[3].count).toBe(0);
+    expect(slots[0]).toMatchObject({ id: 'hands', name: 'Hands' });
+    expect(slots[1]).toMatchObject({ id: 'hatchet', name: 'Hatchet' });
+    expect(slots[2]).toMatchObject({ id: 'hammerstone', name: 'Hammerstone' });
+    expect(slots[3]).toMatchObject({ id: 'plan', name: 'Building plan' });
     expect(slots[4].count).toBe(0);
+    expect(slots[5].count).toBe(0);
   });
 
   it('offers four wood pieces and keeps the hatchet as a tool you already own', () => {
@@ -29,8 +30,12 @@ describe('the building plan', () => {
       'stone-wall',
       'stone-doorway',
       'stone-floor',
+      'tinder',
+      'kindling',
+      'bowdrill',
       'cordage',
       'tripod',
+      'fire',
     ]);
     expect(broke.find((recipe) => recipe.id === 'cordage')).toMatchObject({
       category: 'resources',

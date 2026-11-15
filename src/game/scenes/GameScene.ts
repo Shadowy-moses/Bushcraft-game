@@ -30,11 +30,23 @@ import {
 } from '../constants';
 import { HATCHET_IDLE, OPENING_TIP, restingTip } from '../copy';
 import { CORD_SECONDS, fiberFrame, isFiberCut } from '../fiber';
+import { addFirewood, blowCoal, craftBowdrill, craftKindling, craftTinder, fireShort, giveCoal, nearestFire, stepDrill } from '../fire';
 import { clamp, depthFor, tileToWorld, worldToTile } from '../iso';
 import { SHADOW_TINT, lightTint, multiplyTint, skyColor } from '../light';
 import { PROPS, groundAt, inBounds, propAt } from '../map';
 import { buildModel, type PlaceModel, type SheetId } from '../model';
-import { BUILD_REACH, bodiesFor, inReach, inReachOf, PICKUP_RADIUS, resolveMove, segmentsFor, travelSpeed } from '../move';
+import {
+  BUILD_REACH,
+  bodiesFor,
+  gatherStand,
+  inReach,
+  inReachOf,
+  PICKUP_RADIUS,
+  reachFor,
+  resolveMove,
+  segmentsFor,
+  travelSpeed,
+} from '../move';
 import {
   beginCordage,
   besideTripod,
@@ -181,6 +193,11 @@ export class GameScene extends Phaser.Scene {
   private ghostPulse = 0;
   private approach: { x: number; y: number; kind: PieceKind; tile: Tile; edge: EdgeName } | null = null;
   private approachStill = 0;
+  private walkTo: { x: number; y: number; id: string } | null = null;
+  private drill: { tx: number; ty: number; progress: number } | null = null;
+  private holdingDrill = false;
+  private fx: Phaser.GameObjects.Sprite | null = null;
+  private fxUntil = 0;
   private placeValid = false;
   private placeHint = '';
   private pointer = { x: 0, y: 0, down: false };
@@ -206,10 +223,17 @@ export class GameScene extends Phaser.Scene {
     if (event.key === 'Escape') this.handleAction('close');
     if (event.key === ' ' || event.key.startsWith('Arrow')) event.preventDefault();
     this.keys.add(event.key.toLowerCase());
-    if ((event.key === 'e' || event.key === ' ') && !event.repeat) this.handleAction('use');
+    if ((event.key === 'e' || event.key === ' ') && !event.repeat) {
+      this.holdingDrill = true;
+      this.handleAction('use');
+    }
   };
   private onKeyUp = (event: KeyboardEvent): void => {
     this.keys.delete(event.key.toLowerCase());
+    if (event.key === 'e' || event.key === ' ') {
+      this.holdingDrill = false;
+      this.releaseDrill();
+    }
   };
   private resizeObs?: ResizeObserver;
 
@@ -273,6 +297,17 @@ export class GameScene extends Phaser.Scene {
         this.stickY = y;
         if (Math.hypot(x, y) > 0.1) this.resting = false;
       },
+    });
+    const act = document.getElementById('act');
+    act?.addEventListener('pointerdown', (event) => {
+      event.stopPropagation();
+      this.holdingDrill = true;
+      if (this.tryStartDrill()) event.preventDefault();
+    });
+    window.addEventListener('pointerup', () => {
+      if (!this.holdingDrill) return;
+      this.holdingDrill = false;
+      this.releaseDrill();
     });
 
     const cam = this.cameras.main;
@@ -465,8 +500,10 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     const dt = Math.min(0.05, delta / 1000);
     if (this.cameras.main.zoom !== ZOOM) this.layoutCamera();
-    if (this.approach) this.stepApproach(dt);
+    if (this.walkTo) this.stepWalk(dt);
+    else if (this.approach) this.stepApproach(dt);
     else this.stepFree(dt);
+    this.stepDrillFrame(dt);
     this.stepGhostShove();
     this.expirePose();
     this.expireLogs();
@@ -490,12 +527,21 @@ export class GameScene extends Phaser.Scene {
         this.minuteBank = 0;
         const beforeTrees = this.state.trees;
         const beforePlants = this.state.plants;
+        const beforeFires = this.state.pieces
+          .filter((piece) => piece.kind === 'fire')
+          .map((piece) => `${piece.tx},${piece.ty}:${piece.lit}:${piece.fuel}`)
+          .join('|');
         this.state = tick(this.state, minutes);
         if (this.state.trees !== beforeTrees) {
           this.syncProps();
           this.syncStumps();
         }
         if (this.state.plants !== beforePlants) this.syncRocks();
+        const afterFires = this.state.pieces
+          .filter((piece) => piece.kind === 'fire')
+          .map((piece) => `${piece.tx},${piece.ty}:${piece.lit}:${piece.fuel}`)
+          .join('|');
+        if (afterFires !== beforeFires) this.syncBuildings();
       }
       if (!this.resting) this.stepUpgradeHint();
       if (this.resting && this.state.energy >= 100) {
@@ -632,7 +678,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     const near = hits
-      .filter((prop) => this.actionable(prop) && inReach(this.px, this.py, prop.tx, prop.ty))
+      .filter((prop) => this.actionable(prop) && inReach(this.px, this.py, prop.tx, prop.ty, reachFor(prop)))
       .sort((a, b) => this.reachDist(a) - this.reachDist(b));
     if (near[0]) {
       this.useProp(near[0]);
@@ -644,7 +690,14 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const gatherable = hits.find((prop) => prop.gather && !this.state.picked[prop.id]);
-    if (gatherable) this.setTip('Walk up to it.');
+    if (!gatherable) return;
+    const stand = gatherStand(gatherable, this.state);
+    if (stand) {
+      this.walkTo = { x: stand.x, y: stand.y, id: gatherable.id };
+      this.setTip('Heading over.');
+      return;
+    }
+    this.setTip('Walk up to it.');
   }
 
   private tileAt(x: number, y: number): { tx: number; ty: number } | null {
@@ -844,7 +897,143 @@ export class GameScene extends Phaser.Scene {
     this.afterChange();
   }
 
+  private useFire(piece: Piece): boolean {
+    if (piece.lit || (piece.fuel ?? 0) > 0 && this.state.inventory.wood > 0 && piece.lit) {
+      const result = addFirewood(this.state, piece);
+      if (!result.ok) this.setTip(result.message);
+      else {
+        this.state = result.state;
+        this.afterChange();
+      }
+      return true;
+    }
+    if (piece.ember === 'smoke' || (this.state.inventory.coal > 0 && !piece.lit)) {
+      const result = blowCoal(this.state, piece);
+      if (!result.ok) {
+        this.setTip(result.message);
+        return true;
+      }
+      this.state = result.state;
+      const at = tileToWorld(piece.tx, piece.ty);
+      const frame = piece.ember === 'smoke' ? 'item_tinder_lit_1' : 'item_tinder_lit_0';
+      this.showFx(at.x, at.y - 10, frame);
+      this.fxUntil = this.time.now + (piece.ember === 'smoke' ? 700 : 900);
+      this.afterChange();
+      return true;
+    }
+    if (this.state.inventory.bowdrill && !piece.lit) {
+      this.tryStartDrill();
+      return true;
+    }
+    if (!piece.lit) {
+      this.setTip('The lay is cold. A bow drill could wake a coal.');
+      return true;
+    }
+    return false;
+  }
+
+  private tryStartDrill(): boolean {
+    if (this.drill || !this.state.inventory.bowdrill) return false;
+    const fire = nearestFire(this.state, { x: this.px, y: this.py });
+    if (!fire || fire.lit || fire.ember === 'smoke') return false;
+    if (this.state.energy <= 0) {
+      this.setTip('You’re worn out. Rest a moment.');
+      return false;
+    }
+    this.drill = { tx: fire.tx, ty: fire.ty, progress: 0 };
+    this.holdingDrill = true;
+    this.setTip('Hold. Work the bow.');
+    return true;
+  }
+
+  private releaseDrill(): void {
+    if (!this.drill || this.drill.progress >= 1) return;
+    if (this.drill.progress <= 0) {
+      this.drill = null;
+      return;
+    }
+    this.drill = null;
+    this.hideFx();
+    this.setTip('Too soon. The coal dusts out.');
+  }
+
+  private stepDrillFrame(dt: number): void {
+    const job = this.drill;
+    if (job) {
+      const step = stepDrill(job.progress, dt, this.holdingDrill, this.state.energy);
+      this.state = { ...this.state, energy: step.energy };
+      job.progress = step.progress;
+      const at = tileToWorld(job.tx, job.ty);
+      const frame = Math.floor(this.time.now / 180) % 2 === 0 ? 'bowdrill_0' : 'bowdrill_1';
+      this.showFx(at.x + 14, at.y, frame);
+      const pct = Math.round(step.progress * 100);
+      const tip = `Hold. Work the bow. ${pct}%`;
+      if (this.state.tip !== tip && step.result === 'going') this.setTip(tip);
+      if (step.result === 'coal') {
+        this.drill = null;
+        this.state = giveCoal(this.state);
+        this.showFx(at.x + 14, at.y, 'bowdrill_coal');
+        this.fxUntil = this.time.now + 1200;
+        this.afterChange();
+      } else if (step.result === 'fail') {
+        this.drill = null;
+        this.hideFx();
+        this.setTip(step.energy <= 0 ? 'You’re worn out. Rest a moment.' : 'Too soon. The coal dusts out.');
+      }
+      return;
+    }
+    const smoking = this.state.pieces.find((piece) => piece.kind === 'fire' && piece.ember === 'smoke');
+    if (smoking) {
+      const at = tileToWorld(smoking.tx, smoking.ty);
+      this.showFx(at.x, at.y - 8, 'item_tinder_lit_0');
+      return;
+    }
+    if (this.fx && this.fxUntil > 0 && this.time.now > this.fxUntil) this.hideFx();
+  }
+
+  private showFx(x: number, y: number, frame: string): void {
+    if (!this.fx) {
+      this.fx = this.add.sprite(x, y, 'world', frame);
+    }
+    this.applyAtlas(this.fx, frame);
+    this.fx.setPosition(Math.round(x), Math.round(y));
+    this.fx.setDepth(26000);
+    this.fx.setVisible(true);
+  }
+
+  private hideFx(): void {
+    this.fx?.setVisible(false);
+    this.fxUntil = 0;
+  }
+
+  private stepWalk(dt: number): void {
+    const job = this.walkTo;
+    if (!job) return;
+    const dx = job.x - this.px;
+    const dy = job.y - this.py;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 4) {
+      this.walkTo = null;
+      const prop = PROPS.find((item) => item.id === job.id);
+      if (prop) this.pickUp(prop);
+      return;
+    }
+    const step = Math.min(dist, 90 * dt);
+    const prevX = this.px;
+    const prevY = this.py;
+    const next = resolveMove(this.px, this.py, (dx / dist) * step, (dy / dist) * step, bodiesFor(this.state), segmentsFor(this.state.pieces));
+    this.placeFeet(next.x, next.y);
+    if (Math.hypot(next.x - prevX, next.y - prevY) < 0.2 && dist > 6) {
+      this.walkTo = null;
+      this.setTip('Walk up to it.');
+    }
+  }
+
   private useNearest(): void {
+    if (this.drill) return;
+    const feet = { x: this.px, y: this.py };
+    const fire = nearestFire(this.state, feet);
+    if (fire && this.useFire(fire)) return;
     const choice = chooseUse(this.state, { x: this.px, y: this.py });
     if (choice.action === 'gather') {
       this.pickUp(choice.prop);
@@ -1095,8 +1284,9 @@ export class GameScene extends Phaser.Scene {
     }
     if (id.startsWith('slot-')) {
       const index = Number(id.slice(5));
-      if (index === 0) this.state = { ...this.state, tool: 'hatchet' };
-      if (index === 1) {
+      if (index === 0) this.state = { ...this.state, tool: 'hands' };
+      if (index === 1) this.state = { ...this.state, tool: 'hatchet' };
+      if (index === 2) {
         if (!this.state.inventory.hammerstone) {
           this.setTip('Knap a hammerstone first.');
           return;
@@ -1105,7 +1295,7 @@ export class GameScene extends Phaser.Scene {
         this.paintHud(false);
         return;
       }
-      if (index === 2) {
+      if (index === 3) {
         this.state = { ...this.state, tool: 'plan' };
         this.openCraft();
         return;
@@ -1115,6 +1305,17 @@ export class GameScene extends Phaser.Scene {
     }
     if (id === 'pack' || id === 'craft') {
       this.openCraft();
+      return;
+    }
+    if (id === 'craft-tinder' || id === 'craft-kindling' || id === 'craft-bowdrill') {
+      const result =
+        id === 'craft-tinder' ? craftTinder(this.state) : id === 'craft-kindling' ? craftKindling(this.state) : craftBowdrill(this.state);
+      if (!result.ok) {
+        this.setTip(result.message);
+        return;
+      }
+      this.state = result.state;
+      this.afterChange();
       return;
     }
     if (id === 'craft-cordage') {
@@ -1290,12 +1491,17 @@ export class GameScene extends Phaser.Scene {
         this.buildings.set(key, sprite);
       }
       const pose = this.piecePose(piece.kind, piece, null);
-      sprite.setTexture('world', pose.key);
       sprite.setOrigin(pose.ox, pose.oy);
       sprite.setFlipX(false);
       sprite.setPosition(Math.round(pose.x), Math.round(pose.y));
       sprite.setDepth(depthFor(pose.y, pose.bias));
       sprite.setVisible(true);
+      if (piece.kind === 'fire' && piece.lit) {
+        if (sprite.anims.currentAnim?.key !== 'fire_tipi_lit') sprite.play('fire_tipi_lit');
+      } else {
+        if (sprite.anims.isPlaying) sprite.anims.stop();
+        if (sprite.frame.name !== pose.key) sprite.setTexture('world', pose.key);
+      }
     }
     for (const [key, sprite] of this.buildings) {
       if (live.has(key)) continue;
@@ -1382,6 +1588,10 @@ export class GameScene extends Phaser.Scene {
         const woodShort = Math.max(0, TRIPOD_WOOD - this.state.inventory.wood);
         const cordShort = Math.max(0, TRIPOD_CORDAGE - this.state.inventory.cordage);
         this.setTip(woodShort > 0 ? `Need ${woodShort} more wood` : `Need ${cordShort} more cordage`);
+        return;
+      }
+      if (kind === 'fire') {
+        this.setTip(fireShort(this.state));
         return;
       }
       const have = material === 'stone' ? this.state.inventory.stone : this.state.inventory.wood;
@@ -1610,7 +1820,7 @@ export class GameScene extends Phaser.Scene {
       return { x: pos.x + off.x, y: pos.y + off.y, key, ox: origin.x, oy: origin.y, tall: true, bias: 5 };
     }
     if (kind === 'floor') return { x: pos.x, y: pos.y, key, ox: origin.x, oy: origin.y, tall: false, bias: 12 };
-    if (kind === 'tripod') return { x: pos.x, y: pos.y, key, ox: origin.x, oy: origin.y, tall: true, bias: 8 };
+    if (kind === 'tripod' || kind === 'fire') return { x: pos.x, y: pos.y, key, ox: origin.x, oy: origin.y, tall: true, bias: 8 };
     return { x: pos.x, y: pos.y, key, ox: origin.x, oy: origin.y, tall: false, bias: 1 };
   }
 
@@ -1638,7 +1848,7 @@ export class GameScene extends Phaser.Scene {
     this.ghostHome = { x: sprite.x, y: sprite.y };
     sprite.setDepth(20000);
     sprite.setVisible(true);
-    if (this.placing === 'tripod') {
+    if (this.placing === 'tripod' || this.placing === 'fire') {
       sprite.setAlpha(0.72);
       sprite.setTint(spot.ok || walk ? 0xb6d98a : 0xc45a4a);
     }

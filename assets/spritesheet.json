@@ -3967,6 +3967,294 @@
     "x": 18,
     "y": 40
    }
+  },
+  "bowdrill_0": {
+   "frame": {
+    "x": 404,
+    "y": 292,
+    "w": 28,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 28,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 28,
+    "h": 24
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "anchorPx": {
+    "x": 14,
+    "y": 20
+   }
+  },
+  "bowdrill_1": {
+   "frame": {
+    "x": 434,
+    "y": 292,
+    "w": 28,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 28,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 28,
+    "h": 24
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "anchorPx": {
+    "x": 14,
+    "y": 20
+   }
+  },
+  "bowdrill_coal": {
+   "frame": {
+    "x": 464,
+    "y": 292,
+    "w": 28,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 28,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 28,
+    "h": 24
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "anchorPx": {
+    "x": 14,
+    "y": 20
+   }
+  },
+  "item_bowdrill_kit": {
+   "frame": {
+    "x": 494,
+    "y": 292,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_tinder": {
+   "frame": {
+    "x": 0,
+    "y": 338,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_tinder_lit_0": {
+   "frame": {
+    "x": 18,
+    "y": 338,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_tinder_lit_1": {
+   "frame": {
+    "x": 36,
+    "y": 338,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_kindling": {
+   "frame": {
+    "x": 54,
+    "y": 338,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_coal": {
+   "frame": {
+    "x": 72,
+    "y": 338,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
   }
  },
  "animations": {
@@ -4072,7 +4360,7 @@
   "format": "RGBA8888",
   "size": {
    "w": 512,
-   "h": 336
+   "h": 354
   },
   "scale": "1",
   "note": "anchor = footprint center (ground contact) normalized; use sprite.setOrigin(anchor.x, anchor.y). Ground tile 32x16 2:1 iso."
