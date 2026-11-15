@@ -1,12 +1,13 @@
 import { materialCost, pieceAnchor } from './build';
 import { LOG_STRIPS, NEED_DIRE } from './constants';
-import { HATCHET_IDLE } from './copy';
+import { AXE_IDLE, HATCHET_IDLE } from './copy';
 import { isFiberCut } from './fiber';
 import { isFelled } from './trees';
 import { tileToWorld } from './iso';
 import { PROPS } from './map';
 import { CHOP_REACH, REACH } from './move';
 import { canBoil, besideCreek } from './food';
+import { nearLitFire } from './fire';
 import { pieceHealth } from './weather';
 import { CORE_KNAPS, ROCK_HITS } from './stone';
 import type { GameState, Piece, Prop } from './types';
@@ -14,7 +15,7 @@ import type { GameState, Piece, Prop } from './types';
 export type UseChoice =
   | { action: 'gather' | 'knap' | 'chop' | 'strike' | 'peel'; prop: Prop }
   | { action: 'upgrade' | 'repair'; piece: Piece }
-  | { action: 'scoop' | 'boil' | 'drink' | 'eat' }
+  | { action: 'scoop' | 'scoop-bowl' | 'boil' | 'heat' | 'quench' | 'drink' | 'drink-bowl' | 'eat' }
   | { action: 'none'; message: string };
 
 interface Feet {
@@ -58,7 +59,7 @@ function nearestProp(feet: Feet, props: Prop[], reach = REACH): { prop: Prop; d:
 function handsPickups(state: GameState): Prop[] {
   return PROPS.filter((prop) => {
     if (state.picked[prop.id]) return false;
-    if (prop.gather === 'cobble' && state.inventory.hammerstone) return false;
+    if (prop.gather === 'cobble' && state.inventory.hammerstone && (state.inventory.wetCobble ?? 0) >= 1) return false;
     if (prop.gather === 'sticks' || prop.gather === 'stones' || prop.gather === 'leaves' || prop.gather === 'rocks' || prop.gather === 'cobble') {
       return true;
     }
@@ -113,10 +114,10 @@ function nearestUpgrade(state: GameState, feet: Feet): { piece: Piece; d: number
  * Nothing here changes which tool that is.
  */
 export function chooseUse(state: GameState, feet: Feet): UseChoice {
-  if (state.tool === 'hatchet') {
+  if (state.tool === 'hatchet' || state.tool === 'axe') {
     const tree = nearestProp(feet, standingTrees(state), CHOP_REACH);
     if (tree) return { action: 'chop', prop: tree.prop };
-    return { action: 'none', message: HATCHET_IDLE };
+    return { action: 'none', message: state.tool === 'axe' ? AXE_IDLE : HATCHET_IDLE };
   }
   if (state.tool === 'hammerstone') {
     const rock = nearestProp(feet, liveRocks(state));
@@ -138,10 +139,22 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
   if (birch && underfoot(birch.d)) return { action: 'peel', prop: birch.prop };
   const here = { ...state, x: feet.x, y: feet.y };
   if (canBoil(here)) return { action: 'boil' };
+  if (state.hotStone === 'hot' && state.inventory.bowl && state.bowlWater === 'raw') return { action: 'quench' };
+  if (
+    state.inventory.bowl &&
+    state.bowlWater === 'raw' &&
+    state.hotStone !== 'hot' &&
+    nearLitFire(here) &&
+    (state.inventory.stone > 0 || (state.inventory.wetCobble ?? 0) > 0)
+  ) {
+    return { action: 'heat' };
+  }
   if (state.inventory.pot > 0 && state.cupWater === 'empty' && besideCreek(feet.x, feet.y)) return { action: 'scoop' };
+  if (state.inventory.bowl && state.bowlWater === 'empty' && besideCreek(feet.x, feet.y)) return { action: 'scoop-bowl' };
   if (pickup && (!birch || pickup.d <= birch.d)) return { action: 'gather', prop: pickup.prop };
   if (birch) return { action: 'peel', prop: birch.prop };
   if (state.cupWater === 'boiled') return { action: 'drink' };
+  if (state.bowlWater === 'boiled') return { action: 'drink-bowl' };
   if (state.cupWater === 'raw' && state.thirst < NEED_DIRE) return { action: 'drink' };
   if (state.cupWater === 'raw') return { action: 'none', message: 'Set it on the coals.' };
   const worn = nearestWorn(state, feet);

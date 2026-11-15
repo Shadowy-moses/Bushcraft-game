@@ -43,9 +43,15 @@ export interface Inventory {
   bark: number;
   /** Boils left in the bark pot. Zero means he has no pot. */
   pot: number;
+  /** A hafted stone axe. It does not switch into his hand on its own. */
+  axe: boolean;
+  /** A carved wood bowl. It does not wear out. */
+  bowl: boolean;
+  /** Wet creek cobbles carried for stone boiling. Not a second hammerstone. */
+  wetCobble: number;
 }
 
-export type Tool = 'hands' | 'hatchet' | 'hammerstone' | 'plan';
+export type Tool = 'hands' | 'hatchet' | 'axe' | 'hammerstone' | 'plan';
 export type Outcome = 'playing' | 'won' | 'lost';
 export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 'tinder' | 'leaves' | 'berries' | 'cattail' | 'bark';
 export type CupWater = 'empty' | 'raw' | 'boiled';
@@ -65,6 +71,10 @@ export interface GameState {
   /** Raw drinks taken. About one in three is going to turn. */
   sips: number;
   cupWater: CupWater;
+  /** Water in the wood bowl, separate from the bark pot. */
+  bowlWater: CupWater;
+  /** A stone that has finished heating and can be dropped into the bowl. */
+  hotStone: 'none' | 'hot';
   /** Strips taken from each fallen birch log. */
   logStrips: Record<string, number>;
   tx: number;

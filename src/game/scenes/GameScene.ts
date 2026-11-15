@@ -27,7 +27,7 @@ import {
   TRIPOD_WOOD,
   ZOOM,
 } from '../constants';
-import { HATCHET_IDLE, OPENING_TIP, restingTip } from '../copy';
+import { AXE_IDLE, HATCHET_IDLE, OPENING_TIP, restingTip } from '../copy';
 import { CORD_SECONDS, fiberFrame, isFiberCut } from '../fiber';
 import { addFirewood, blowCoal, craftBowdrill, craftKindling, craftTinder, fireShort, giveCoal, nearestFire, nearEmberFire, nearLitFire, stepDrill } from '../fire';
 import { clamp, depthFor, tileToWorld, worldToTile } from '../iso';
@@ -52,6 +52,8 @@ import {
   beginCordage,
   besideTripod,
   chopTree,
+  craftAxe,
+  craftBowl,
   craftPot,
   peelBirch,
   finishCordage,
@@ -75,7 +77,8 @@ import { isFelled } from '../trees';
 import { chooseUse, upgradePrompt } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { BOIL_METHOD } from '../boil';
-import { drinkCup, eat, finishBoil, plantFrame, scoopCreek } from '../food';
+import { drinkBowl, drinkCup, eat, finishBoil, plantFrame, scoopBowl, scoopCreek } from '../food';
+import { dropHotStone, heatStone, HEAT_SECONDS, markStoneHot, refundStone, STONE_BOIL_SECONDS } from '../stoneboil';
 import { weatherAt } from '../weather';
 import { facingFromVector, mirrorFacing, poseClip, poseName } from '../woodsman';
 import { Hud } from '../../ui/hud';
@@ -231,6 +234,13 @@ export class GameScene extends Phaser.Scene {
   private boilJob: { started: number; tx: number; ty: number } | null = null;
   private steam: Phaser.GameObjects.Sprite | null = null;
   private potSprite: Phaser.GameObjects.Sprite | null = null;
+  private heatJob: { started: number; tx: number; ty: number; spent: 'dry' | 'wet' } | null = null;
+  private stoneAt: { tx: number; ty: number } | null = null;
+  private stoneSprite: Phaser.GameObjects.Sprite | null = null;
+  private bowlSprite: Phaser.GameObjects.Sprite | null = null;
+  private bowlShowUntil = 0;
+  private crackSprite: Phaser.GameObjects.Sprite | null = null;
+  private crackUntil = 0;
   private chips: Chip[] = [];
   private reachMark?: Phaser.GameObjects.Graphics;
   private minuteBank = 0;
@@ -296,7 +306,18 @@ export class GameScene extends Phaser.Scene {
       this.state = this.debugMode
         ? {
             ...fresh,
-            inventory: { ...fresh.inventory, wood: 40, fiber: 20, stone: 20, cordage: 4, bark: 2 },
+            inventory: {
+              ...fresh.inventory,
+              wood: 40,
+              fiber: 20,
+              stone: 20,
+              cordage: 4,
+              bark: 2,
+              flakes: 4,
+              axe: true,
+              bowl: true,
+              wetCobble: 1,
+            },
           }
         : fresh;
       this.started = this.debugMode || this.skipTitle;
@@ -538,6 +559,7 @@ export class GameScene extends Phaser.Scene {
     this.stepChips(dt);
     this.stepCraft();
     this.stepBoil();
+    this.stepStoneWork();
     this.stepAtmosphere();
     this.fadeOccluders();
     if (this.started && !this.hidden && this.sheet === 'none' && !this.placing && this.state.outcome === 'playing') {
@@ -694,13 +716,13 @@ export class GameScene extends Phaser.Scene {
     }
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const hits = this.propsAtPoint(world.x, world.y);
-    if (this.state.tool === 'hatchet') {
+    if (this.state.tool === 'hatchet' || this.state.tool === 'axe') {
       const tree = hits.find((prop) => this.isTree(prop) && !isFelled(this.state.trees, prop.id));
       if (tree && inReach(this.px, this.py, tree.tx, tree.ty, CHOP_REACH)) {
         this.swingAt(tree);
         return;
       }
-      this.setTip(tree ? 'Walk up to the trunk.' : 'The hatchet wants a trunk.');
+      this.setTip(tree ? 'Walk up to the trunk.' : this.state.tool === 'axe' ? AXE_IDLE : HATCHET_IDLE);
       return;
     }
     if (this.state.tool !== 'hands' && this.state.tool !== 'hammerstone') return;
@@ -1098,6 +1120,27 @@ export class GameScene extends Phaser.Scene {
     const feet = { x: this.px, y: this.py };
     if (
       this.state.tool === 'hands' &&
+      this.state.hotStone === 'hot' &&
+      this.state.inventory.bowl &&
+      this.state.bowlWater === 'raw'
+    ) {
+      this.dropInBowl();
+      return;
+    }
+    if (
+      this.state.tool === 'hands' &&
+      this.state.inventory.bowl &&
+      this.state.bowlWater === 'raw' &&
+      this.state.hotStone !== 'hot' &&
+      !this.heatJob &&
+      nearLitFire(this.state) &&
+      (this.state.inventory.stone > 0 || (this.state.inventory.wetCobble ?? 0) > 0)
+    ) {
+      this.startHeat();
+      return;
+    }
+    if (
+      this.state.tool === 'hands' &&
       this.state.inventory.pot > 0 &&
       this.state.cupWater === 'raw' &&
       (nearLitFire(this.state) || nearEmberFire(this.state))
@@ -1132,8 +1175,22 @@ export class GameScene extends Phaser.Scene {
       this.peelAt(choice.prop);
       return;
     }
-    if (choice.action === 'scoop' || choice.action === 'drink' || choice.action === 'eat') {
+    if (
+      choice.action === 'scoop' ||
+      choice.action === 'scoop-bowl' ||
+      choice.action === 'drink' ||
+      choice.action === 'drink-bowl' ||
+      choice.action === 'eat'
+    ) {
       this.handsFood(choice.action);
+      return;
+    }
+    if (choice.action === 'heat') {
+      this.startHeat();
+      return;
+    }
+    if (choice.action === 'quench') {
+      this.dropInBowl();
       return;
     }
     if (choice.action === 'boil') {
@@ -1292,6 +1349,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showPose(pose: 'idle' | 'walk' | 'gather' | 'chop' | 'strike'): void {
+    if (pose === 'chop' && this.state.tool === 'axe') {
+      const key = `woodsman_${this.state.facing}_axe`;
+      if (this.anims.exists(key)) {
+        this.player.setFlipX(false);
+        if (this.player.anims.currentAnim?.key !== key || !this.player.anims.isPlaying) this.player.play(key);
+        this.syncFrameOrigin(this.player);
+        return;
+      }
+    }
     const clip = poseClip(
       this.state.facing,
       pose,
@@ -1421,6 +1487,15 @@ export class GameScene extends Phaser.Scene {
       if (index === 0) this.state = { ...this.state, tool: 'hands' };
       if (index === 1) this.state = { ...this.state, tool: 'hatchet' };
       if (index === 2) {
+        if (!this.state.inventory.axe) {
+          this.setTip('Haft a stone axe first.');
+          return;
+        }
+        this.state = { ...this.state, tool: 'axe' };
+        this.paintHud(false);
+        return;
+      }
+      if (index === 3) {
         if (!this.state.inventory.hammerstone) {
           this.setTip('Knap a hammerstone first.');
           return;
@@ -1429,7 +1504,7 @@ export class GameScene extends Phaser.Scene {
         this.paintHud(false);
         return;
       }
-      if (index === 3) {
+      if (index === 4) {
         this.state = { ...this.state, tool: 'plan' };
         this.openCraft();
         return;
@@ -1456,6 +1531,15 @@ export class GameScene extends Phaser.Scene {
       else {
         this.state = result.state;
         this.playPose('gather');
+        this.afterChange();
+      }
+      return;
+    }
+    if (id === 'craft-axe' || id === 'craft-bowl') {
+      const result = id === 'craft-axe' ? craftAxe(this.state) : craftBowl(this.state);
+      if (!result.ok) this.setTip(result.message);
+      else {
+        this.state = result.state;
         this.afterChange();
       }
       return;
@@ -1743,7 +1827,25 @@ export class GameScene extends Phaser.Scene {
     this.afterChange();
   }
 
-  private handsFood(action: 'scoop' | 'drink' | 'eat'): void {
+  private handsFood(action: 'scoop' | 'scoop-bowl' | 'drink' | 'drink-bowl' | 'eat'): void {
+    if (action === 'scoop-bowl') {
+      const result = scoopBowl(this.state);
+      if (!result.ok) this.setTip(result.message);
+      else {
+        this.state = result.state;
+        this.afterChange();
+      }
+      return;
+    }
+    if (action === 'drink-bowl') {
+      const result = drinkBowl(this.state);
+      if (!result.ok) this.setTip(result.message);
+      else {
+        this.state = result.state;
+        this.afterChange();
+      }
+      return;
+    }
     if (action === 'scoop') {
       const result = scoopCreek(this.state);
       if (!result.ok) this.setTip(result.message);
@@ -1770,6 +1872,104 @@ export class GameScene extends Phaser.Scene {
       this.playPose('gather');
       this.afterChange();
     }
+  }
+
+  private fireSpot(): { tx: number; ty: number } | null {
+    const fire = this.state.pieces.find(
+      (piece) => piece.kind === 'fire' && (piece.lit === true || (piece.coalsUntil != null && this.state.minutes < piece.coalsUntil)),
+    );
+    return fire ? { tx: fire.tx, ty: fire.ty } : null;
+  }
+
+  private showCrackedCobble(tx: number, ty: number): void {
+    const at = tileToWorld(tx, ty);
+    if (!this.crackSprite) this.crackSprite = this.add.sprite(at.x + 12, at.y + 2, 'world', 'item_cobble_cracked');
+    this.applyAtlas(this.crackSprite, 'item_cobble_cracked');
+    this.crackSprite.setPosition(Math.round(at.x + 22), Math.round(at.y + 8));
+    this.crackSprite.setDepth(depthFor(at.y + 8, 12));
+    this.crackSprite.setScale(2);
+    this.crackSprite.setVisible(true);
+    this.crackUntil = this.time.now + 1400;
+  }
+
+  private startHeat(): void {
+    if (this.heatJob) return;
+    const spot = this.fireSpot();
+    if (!spot) {
+      this.setTip('The fire is out.');
+      return;
+    }
+    const result = heatStone(this.state);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.state = result.state;
+    if (result.burst) {
+      this.showCrackedCobble(spot.tx, spot.ty);
+      this.afterChange();
+      return;
+    }
+    if (!result.spent) return;
+    this.heatJob = { started: this.time.now, tx: spot.tx, ty: spot.ty, spent: result.spent };
+    this.stoneAt = { tx: spot.tx, ty: spot.ty };
+    this.afterChange();
+  }
+
+  private dropInBowl(): void {
+    const result = dropHotStone(this.state);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.state = result.state;
+    this.heatJob = null;
+    const spot = this.stoneAt ?? this.fireSpot() ?? { tx: this.state.tx, ty: this.state.ty };
+    this.stoneAt = null;
+    this.stoneSprite?.setVisible(false);
+    const at = tileToWorld(spot.tx, spot.ty);
+    if (!this.bowlSprite) this.bowlSprite = this.add.sprite(at.x + 14, at.y + 2, 'world', 'item_wood_bowl_boil');
+    this.applyAtlas(this.bowlSprite, 'item_wood_bowl_boil');
+    this.bowlSprite.setPosition(Math.round(at.x + 22), Math.round(at.y + 6));
+    this.bowlSprite.setDepth(depthFor(at.y + 6, 12));
+    this.bowlSprite.setScale(2);
+    this.bowlSprite.setVisible(true);
+    this.bowlShowUntil = this.time.now + STONE_BOIL_SECONDS * 1000;
+    this.afterChange();
+  }
+
+  private stepStoneWork(): void {
+    if (this.crackSprite) this.crackSprite.setVisible(this.time.now < this.crackUntil);
+    if (this.bowlSprite && this.time.now >= this.bowlShowUntil) this.bowlSprite.setVisible(false);
+    const job = this.heatJob;
+    if (job && !nearLitFire(this.state)) {
+      this.state = refundStone(this.state, job.spent);
+      this.heatJob = null;
+      this.stoneAt = null;
+      this.stoneSprite?.setVisible(false);
+      this.afterChange();
+      return;
+    }
+    const showHot = Boolean(job) || this.state.hotStone === 'hot';
+    const atSpot = job ? { tx: job.tx, ty: job.ty } : this.stoneAt;
+    if (!showHot || !atSpot) {
+      if (!job) this.stoneSprite?.setVisible(false);
+      return;
+    }
+    const at = tileToWorld(atSpot.tx, atSpot.ty);
+    const frame = Math.floor(this.time.now / 180) % 2 === 0 ? 'item_hot_stone_0' : 'item_hot_stone_1';
+    if (!this.stoneSprite) this.stoneSprite = this.add.sprite(at.x + 12, at.y + 2, 'world', frame);
+    this.applyAtlas(this.stoneSprite, frame);
+    this.stoneSprite.setPosition(Math.round(at.x - 18), Math.round(at.y + 4));
+    this.stoneSprite.setDepth(depthFor(at.y + 4, 12));
+    this.stoneSprite.setScale(2);
+    this.stoneSprite.setVisible(true);
+    if (!job) return;
+    if (this.time.now - job.started < HEAT_SECONDS * 1000) return;
+    this.heatJob = null;
+    this.stoneAt = { tx: job.tx, ty: job.ty };
+    this.state = markStoneHot(this.state);
+    this.afterChange();
   }
 
   private beginBoil(): void {

@@ -1,8 +1,12 @@
 import { materialCost } from './build';
 import {
+  AXE_CORDAGE,
+  AXE_FLAKES,
+  AXE_WOOD,
   BARK_CORDAGE,
   BARK_WOOD,
   BOUGH_FIBER,
+  BOWL_WOOD,
   BOWDRILL_CORD,
   BOWDRILL_WOOD,
   CRAFT_TAP_GAP_MS,
@@ -101,6 +105,7 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
   return [
     { id: 'hands', name: 'Hands', count: -1, frame: 'hands' },
     { id: 'hatchet', name: 'Hatchet', count: -1, frame: 'hatchet' },
+    { id: 'axe', name: 'Axe', count: -1, frame: state.inventory.axe ? 'item_stone_axe' : 'hatchet' },
     { id: 'hammerstone', name: 'Hammerstone', count: -1, frame: hammer ? 'item_hammerstone' : 'hands' },
     { id: 'plan', name: 'Building plan', count: -1, frame: 'plan' },
     { id: 'wood', name: 'Wood', count: state.inventory.wood, frame: 'wood' },
@@ -114,6 +119,27 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
     { id: 'berries', name: 'Berries', count: state.inventory.berries, frame: 'item_berries' },
     { id: 'roots', name: 'Cattail root', count: state.inventory.roots, frame: 'item_cattail_root' },
     { id: 'bark', name: 'Bark', count: state.inventory.bark, frame: 'item_birch_bark' },
+    ...(state.inventory.bowl || state.bowlWater !== 'empty'
+      ? [
+          {
+            id: 'bowl',
+            name: 'Wood bowl',
+            count: 1,
+            frame:
+              state.bowlWater === 'boiled'
+                ? 'item_wood_bowl_boil'
+                : state.bowlWater === 'raw'
+                  ? 'item_wood_bowl_water'
+                  : 'item_wood_bowl',
+          },
+        ]
+      : []),
+    ...((state.inventory.wetCobble ?? 0) > 0
+      ? [{ id: 'wet-cobble', name: 'Wet cobble', count: state.inventory.wetCobble, frame: 'river_cobbles' }]
+      : []),
+    ...(state.hotStone === 'hot'
+      ? [{ id: 'hot-stone', name: 'Hot stone', count: 1, frame: 'item_hot_stone_0' }]
+      : []),
     ...(state.inventory.pot > 0 || state.cupWater !== 'empty'
       ? [
           {
@@ -201,8 +227,8 @@ export function recipesFor(state: GameState): Recipe[] {
     {
       id: 'hatchet',
       category: 'tools',
-      name: 'Primitive hatchet',
-      blurb: 'A stone head on a short haft. It is already in your hand. Three swings fell a tree, and the wood goes in the pack.',
+      name: 'Crude hatchet',
+      blurb: 'A crude head jammed on a short haft. It bites slowly: three swings fell a tree, and the wood goes in the pack. It is already in your hand.',
       frame: 'hatchet',
       ingredients: [],
       seconds: 0,
@@ -210,6 +236,40 @@ export function recipesFor(state: GameState): Recipe[] {
       action: '',
       enabled: false,
       done: true,
+    },
+    {
+      id: 'stone-axe',
+      category: 'tools',
+      name: 'Hafted stone axe',
+      blurb: 'A flint flake hafted with cord. It bites about 1.6 times as deep as the crude hatchet, so two swings drop a tree.',
+      frame: 'item_stone_axe',
+      ingredients: [
+        { name: 'Flake', have: state.inventory.flakes, need: AXE_FLAKES },
+        { name: 'Wood', have: state.inventory.wood, need: AXE_WOOD },
+        { name: 'Cordage', have: state.inventory.cordage, need: AXE_CORDAGE },
+      ],
+      seconds: 0,
+      timeLabel: 'In the hands',
+      action: 'craft-axe',
+      enabled:
+        !state.inventory.axe &&
+        state.inventory.flakes >= AXE_FLAKES &&
+        state.inventory.wood >= AXE_WOOD &&
+        state.inventory.cordage >= AXE_CORDAGE,
+      done: state.inventory.axe,
+    },
+    {
+      id: 'wood-bowl',
+      category: 'tools',
+      name: 'Wood bowl',
+      blurb: 'Carved from two lengths of wood with a stone axe or a flint flake. The tool is not used up. A hot stone dropped in boils creek water, and the bowl does not wear out.',
+      frame: 'item_wood_bowl',
+      ingredients: [{ name: 'Wood', have: state.inventory.wood, need: BOWL_WOOD }],
+      seconds: 0,
+      timeLabel: 'Carved in the hands',
+      action: 'craft-bowl',
+      enabled: !state.inventory.bowl && state.inventory.wood >= BOWL_WOOD && (state.inventory.axe || state.inventory.flakes >= 1),
+      done: state.inventory.bowl,
     },
     ...PIECES.map((spec) => pieceRecipe(state, spec, 'twig')),
     ...STONE_PIECES.map((spec) => pieceRecipe(state, spec, 'stone')),

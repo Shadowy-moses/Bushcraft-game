@@ -52,6 +52,17 @@ export function scoopCreek(state: GameState): { state: GameState; ok: boolean; m
   };
 }
 
+export function scoopBowl(state: GameState): { state: GameState; ok: boolean; message: string } {
+  if (!state.inventory.bowl) return { state, ok: false, message: 'Carve a wood bowl first.' };
+  if (state.bowlWater !== 'empty') return { state, ok: false, message: 'The bowl is already full.' };
+  if (!besideCreek(state.x, state.y)) return { state, ok: false, message: 'Walk to the creek.' };
+  return {
+    ok: true,
+    message: 'Creek water in the bowl.',
+    state: { ...state, bowlWater: 'raw', tip: 'Creek water in the bowl.' },
+  };
+}
+
 export function canBoil(state: GameState): boolean {
   return state.inventory.pot > 0 && state.cupWater === 'raw' && nearHeat(state);
 }
@@ -96,6 +107,41 @@ export function drinkCup(
     state: {
       ...state,
       cupWater: 'empty',
+      sips,
+      thirst: clampNeed(state.thirst + RAW_THIRST),
+      sickAt: sickens ? state.minutes + SICK_DELAY : state.sickAt,
+      tip: sickens ? 'You drink it raw.' : 'You drink it raw. It sits all right.',
+    },
+  };
+}
+
+/** Boiled bowl water restores the same thirst as the bark pot. The bowl is still there afterward. */
+export function drinkBowl(
+  state: GameState,
+  random: () => number = Math.random,
+): { state: GameState; ok: boolean; message: string } {
+  if (!state.inventory.bowl) return { state, ok: false, message: 'You have no bowl.' };
+  if (state.bowlWater === 'empty') return { state, ok: false, message: 'The bowl is empty.' };
+  if (state.bowlWater === 'boiled') {
+    return {
+      ok: true,
+      message: 'Cool enough. The thirst eases.',
+      state: {
+        ...state,
+        bowlWater: 'empty',
+        thirst: clampNeed(state.thirst + BOILED_THIRST),
+        tip: 'Cool enough. The thirst eases.',
+      },
+    };
+  }
+  const sips = (state.sips ?? 0) + 1;
+  const sickens = random() < RAW_SICK_CHANCE;
+  return {
+    ok: true,
+    message: sickens ? 'You drink it raw.' : 'You drink it raw. It sits all right.',
+    state: {
+      ...state,
+      bowlWater: 'empty',
       sips,
       thirst: clampNeed(state.thirst + RAW_THIRST),
       sickAt: sickens ? state.minutes + SICK_DELAY : state.sickAt,

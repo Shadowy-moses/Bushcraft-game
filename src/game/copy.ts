@@ -3,6 +3,7 @@ export const UPGRADE_NOTE =
   'Twig you already placed turns to stone in place. Equip the hammerstone, stand next to that piece, and tap it or tap Use.';
 
 export const HATCHET_IDLE = 'The hatchet wants a trunk.';
+export const AXE_IDLE = 'The stone axe wants a trunk.';
 
 export const OPENING_TIP =
   'Push the stick to move. It keeps the same pace as the keys. Stand by a tree and tap it, or tap Use. The hatchet is already in your hand.';

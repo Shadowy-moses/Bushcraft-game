@@ -11,8 +11,9 @@ export interface HudHandlers {
 
 function equippedIndex(tool: Tool): number {
   if (tool === 'hatchet') return 1;
-  if (tool === 'hammerstone') return 2;
-  if (tool === 'plan') return 3;
+  if (tool === 'axe') return 2;
+  if (tool === 'hammerstone') return 3;
+  if (tool === 'plan') return 4;
   return 0;
 }
 

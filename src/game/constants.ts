@@ -47,6 +47,17 @@ export const ROCK_RETURN_MINUTES = 1440;
 export const LOG_STRIPS = 4;
 /** A bark pot survives this many boils. */
 export const POT_BOILS = 3;
+/** Hafted stone axe: one flint flake, two wood, one cord. */
+export const AXE_FLAKES = 1;
+export const AXE_WOOD = 2;
+export const AXE_CORDAGE = 1;
+/** Chop progress per swing. A tree falls at 3. The axe bites 1.6 times as deep. */
+export const HATCHET_BITE = 1;
+export const AXE_BITE = 1.6;
+/** A wood bowl is carved from two lengths of wood. */
+export const BOWL_WOOD = 2;
+/** About one wet creek cobble in four cracks when it goes into the fire. A dry stone never does. */
+export const WET_BURST_CHANCE = 0.25;
 /** Raw water, when it sickens him, waits this long before it starts. Two game hours. */
 export const SICK_DELAY = 120;
 
