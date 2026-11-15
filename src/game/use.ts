@@ -294,32 +294,28 @@ export function resolveUse(state: GameState, feet: Feet): ResolvedUse {
 }
 
 function toolForTarget(state: GameState, feet: Feet): Tool {
-  const options: { d: number; kind: 'tree' | 'hammer' | 'hands' }[] = [];
+  const asHands = chooseTarget({ ...state, tool: 'hands' }, feet);
+  if (handsWork(asHands)) return 'hands';
+  const options: { d: number; tool: Tool }[] = [];
   const tree = nearestProp(feet, standingTrees(state), CHOP_REACH);
-  if (tree) options.push({ d: tree.d, kind: 'tree' });
+  if (tree) options.push({ d: tree.d, tool: state.inventory.axe ? 'axe' : 'hatchet' });
   if (state.inventory.hammerstone) {
     const struck = chooseTarget({ ...state, tool: 'hammerstone' }, feet);
     if (struck.action === 'knap' || struck.action === 'strike' || struck.action === 'upgrade') {
-      options.push({ d: choiceDistance(state, feet, struck), kind: 'hammer' });
+      options.push({ d: choiceDistance(state, feet, struck), tool: 'hammerstone' });
     }
   }
-  const hands = chooseTarget({ ...state, tool: 'hands' }, feet);
-  if (hands.action !== 'none') options.push({ d: choiceDistance(state, feet, hands), kind: 'hands' });
   if (options.length === 0) return state.tool;
   options.sort((a, b) => a.d - b.d);
-  const best = options[0].d;
-  const near = options.filter((option) => option.d <= best + 0.5);
-  if (near.some((option) => toolFits(state.tool, option.kind))) return state.tool;
-  const pick = near[0];
-  if (pick.kind === 'tree') return state.inventory.axe ? 'axe' : 'hatchet';
-  if (pick.kind === 'hammer') return 'hammerstone';
-  return 'hands';
+  return options[0].tool;
 }
 
-function toolFits(tool: Tool, kind: 'tree' | 'hammer' | 'hands'): boolean {
-  if (kind === 'tree') return tool === 'hatchet' || tool === 'axe';
-  if (kind === 'hammer') return tool === 'hammerstone';
-  return tool === 'hands';
+/** Drink, the fire, the creek, and forage outrank a chop. Those stay in his hands. */
+function handsWork(choice: UseChoice): boolean {
+  if (choice.action === 'none') {
+    return choice.message !== 'Nothing in these hands.';
+  }
+  return choice.action !== 'chop' && choice.action !== 'knap' && choice.action !== 'strike' && choice.action !== 'upgrade';
 }
 
 function choiceDistance(state: GameState, feet: Feet, choice: UseChoice): number {

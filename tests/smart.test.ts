@@ -33,6 +33,12 @@ describe('smart Use', () => {
     expect(held.swapped).toBe(false);
     expect(held.state.tool).toBe('axe');
     expect(held.choice.action).toBe('chop');
+
+    const prefer = resolveUse({ ...quiet, tool: 'hatchet' }, { x: quiet.x, y: quiet.y });
+    expect(prefer.swapped).toBe(true);
+    expect(prefer.state.tool).toBe('axe');
+    expect(prefer.name).toBe('Stone axe');
+    expect(prefer.choice.action).toBe('chop');
   });
 
   it('keeps empty hands for a peel, and swaps off the hatchet for a stick', () => {
@@ -43,8 +49,9 @@ describe('smart Use', () => {
     expect(peel.choice.action).toBe('peel');
 
     const chopping = resolveUse({ ...birch, tool: 'hatchet' }, { x: birch.x, y: birch.y });
-    expect(chopping.swapped).toBe(false);
-    expect(chopping.choice.action).toBe('chop');
+    expect(chopping.swapped).toBe(true);
+    expect(chopping.state.tool).toBe('hands');
+    expect(chopping.choice.action).toBe('peel');
 
     const stick = stand(5, 4, 'hatchet');
     const drop = resolveUse(stick, { x: stick.x, y: stick.y });
@@ -54,11 +61,44 @@ describe('smart Use', () => {
     expect(drop.choice.action).toBe('gather');
   });
 
+  it('drinks at a landing before it chops, and feeds a fire before it chops', () => {
+    const landing = stand(2, 9, 'hatchet');
+    const drink = resolveUse(
+      { ...landing, inventory: { ...emptyInventory(), axe: true } },
+      { x: landing.x, y: landing.y },
+    );
+    expect(drink.state.tool).toBe('hands');
+    expect(drink.choice.action).toBe('drink-creek');
+
+    const fire = stand(7, 4, 'axe');
+    const fed = resolveUse(
+      {
+        ...fire,
+        inventory: { ...emptyInventory(), axe: true, wood: 3 },
+        pieces: [{ kind: 'fire', tx: 7, ty: 4, edge: 'se', lit: true, fuel: 40 }],
+      },
+      { x: fire.x, y: fire.y },
+    );
+    expect(fed.state.tool).toBe('hands');
+    expect(fed.choice.action).toBe('feed');
+  });
+
   it('equips the hammerstone for a twig wall, and a flake does not take its place', () => {
     const here = stand(5, 3, 'hands');
+    const quiet = {
+      picked: Object.fromEntries(PROPS.filter((prop) => prop.gather).map((prop) => [prop.id, true as const])),
+      plants: Object.fromEntries(PROPS.filter((prop) => prop.kind === 'birch_tree').map((prop) => [prop.id, here.minutes])),
+      trees: Object.fromEntries(
+        PROPS.filter((prop) => prop.kind === 'pine_tree' || prop.kind === 'birch_tree').map((prop) => [
+          prop.id,
+          { hits: 3, felledAt: 1 },
+        ]),
+      ),
+    };
     const owned = resolveUse(
       {
         ...here,
+        ...quiet,
         inventory: { ...emptyInventory(), hammerstone: true, stone: 8 },
         pieces: [{ kind: 'wall', tx: 5, ty: 3, edge: 'se', material: 'twig' }],
       },
