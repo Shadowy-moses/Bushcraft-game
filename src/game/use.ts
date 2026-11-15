@@ -1,5 +1,5 @@
 import { materialCost, pieceAnchor } from './build';
-import { LOG_STRIPS, NEED_DIRE } from './constants';
+import { FIRE_RADIUS, LOG_STRIPS, NEED_DIRE } from './constants';
 import { AXE_IDLE, HATCHET_IDLE } from './copy';
 import { isFiberCut } from './fiber';
 import { isFelled } from './trees';
@@ -7,16 +7,19 @@ import { tileToWorld } from './iso';
 import { PROPS } from './map';
 import { CHOP_REACH, REACH } from './move';
 import { canBoil, besideCreek } from './food';
-import { nearLitFire } from './fire';
+import { nearestFire, nearLitFire } from './fire';
 import { pieceHealth } from './weather';
 import { CORE_KNAPS, ROCK_HITS } from './stone';
 import type { GameState, Piece, Prop } from './types';
 
 export type UseChoice =
   | { action: 'gather' | 'knap' | 'chop' | 'strike' | 'peel'; prop: Prop }
-  | { action: 'upgrade' | 'repair'; piece: Piece }
+  | { action: 'upgrade' | 'repair' | 'feed' | 'blow' | 'drill'; piece: Piece }
   | { action: 'scoop' | 'scoop-bowl' | 'boil' | 'heat' | 'quench' | 'drink' | 'drink-bowl' | 'drink-creek' }
   | { action: 'none'; message: string };
+
+/** A birch one tile off still counts as "at the tree" when a stick is underfoot. */
+const BIRCH_SLACK = 22;
 
 interface Feet {
   x: number;
@@ -131,18 +134,29 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
     return options[0]?.choice ?? { action: 'none', message: 'Nothing to strike.' };
   }
   if (state.tool !== 'hands') return { action: 'none', message: 'Nothing in these hands.' };
+  return handsChoice(state, feet);
+}
+
+/** Empty hands. The nearest real target wins, and a boiled pot beats feeding that fire. */
+function handsChoice(state: GameState, feet: Feet): UseChoice {
+  const seated = seatedPot(state, feet);
+  if (seated) return seated;
+  const here = { ...state, x: feet.x, y: feet.y };
+  if (canBoil(here)) return { action: 'boil' };
 
   const water = waterChoice(state, feet);
   if (water) return water;
 
   const pickup = nearestProp(feet, handsPickups(state));
   const birch = nearestProp(feet, liveBirches(state));
-  const underfoot = (d: number) => d <= 16;
-  if (pickup && underfoot(pickup.d) && (!birch || pickup.d <= birch.d)) return { action: 'gather', prop: pickup.prop };
-  if (birch && underfoot(birch.d)) return { action: 'peel', prop: birch.prop };
-  const here = { ...state, x: feet.x, y: feet.y };
-  if (canBoil(here)) return { action: 'boil' };
-  if (state.hotStone === 'hot' && state.inventory.bowl && state.bowlWater === 'raw') return { action: 'quench' };
+  const loose = pickup != null && isLoose(pickup.prop);
+  if (birch && (!pickup || birch.d <= pickup.d || (loose && birch.d <= pickup.d + BIRCH_SLACK))) {
+    return { action: 'peel', prop: birch.prop };
+  }
+
+  if (state.hotStone === 'hot' && state.inventory.bowl && state.bowlWater === 'raw' && nearLitFire(here)) {
+    return { action: 'quench' };
+  }
   if (
     state.inventory.bowl &&
     state.bowlWater === 'raw' &&
@@ -152,15 +166,79 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
   ) {
     return { action: 'heat' };
   }
-  if (pickup && (!birch || pickup.d <= birch.d)) return { action: 'gather', prop: pickup.prop };
-  if (birch) return { action: 'peel', prop: birch.prop };
-  if (state.cupWater === 'boiled') return { action: 'drink' };
+
+  const fire = nearestFire(state, feet);
+  const fireAt = fire ? tileToWorld(fire.tx, fire.ty) : null;
+  const fireD = fireAt ? distTo(feet, fireAt.x, fireAt.y) : Infinity;
+  if (fire && fireD <= (pickup?.d ?? Infinity)) {
+    const hot = fire.lit === true || (fire.coalsUntil != null && state.minutes < fire.coalsUntil);
+    if (hot && state.inventory.wood > 0) return { action: 'feed', piece: fire };
+    if (hot) {
+      return {
+        action: 'none',
+        message: fire.lit ? 'Need 1 more wood.' : 'The coals are fading. A length of wood would catch.',
+      };
+    }
+    if (fire.ember === 'smoke' || (state.inventory.coal > 0 && !fire.lit)) return { action: 'blow', piece: fire };
+    if (state.inventory.bowdrill && !fire.lit) return { action: 'drill', piece: fire };
+    if (!fire.lit) return { action: 'none', message: 'The lay is cold. A bow drill could wake a coal.' };
+  }
+
+  if (pickup) return { action: 'gather', prop: pickup.prop };
+  if (!state.potSeat && state.cupWater === 'boiled') return { action: 'drink' };
   if (state.bowlWater === 'boiled') return { action: 'drink-bowl' };
   if (state.cupWater === 'raw' && state.thirst < NEED_DIRE) return { action: 'drink' };
   if (state.cupWater === 'raw') return { action: 'none', message: 'Set it on the coals.' };
   const worn = nearestWorn(state, feet);
   if (worn) return { action: 'repair', piece: worn.piece };
   return { action: 'none', message: 'Nothing in these hands.' };
+}
+
+function isLoose(prop: Prop): boolean {
+  return (
+    prop.gather === 'sticks' ||
+    prop.gather === 'stones' ||
+    prop.gather === 'leaves' ||
+    prop.gather === 'rocks' ||
+    prop.gather === 'cobble'
+  );
+}
+
+function seatedPot(state: GameState, feet: Feet): UseChoice | null {
+  if (state.cupWater !== 'boiled' || !state.potSeat) return null;
+  const at = tileToWorld(state.potSeat.tx, state.potSeat.ty);
+  if (distTo(feet, at.x, at.y) > FIRE_RADIUS) return null;
+  return { action: 'drink' };
+}
+
+/** The short line for whatever Use will do right now. Empty when Use has nothing to do. */
+export function actionLabel(choice: UseChoice): string {
+  if (choice.action === 'drink' || choice.action === 'drink-bowl' || choice.action === 'drink-creek') return 'Drink';
+  if (choice.action === 'scoop') return 'Fill pot';
+  if (choice.action === 'scoop-bowl') return 'Fill bowl';
+  if (choice.action === 'boil') return 'Boil';
+  if (choice.action === 'heat') return 'Heat a stone';
+  if (choice.action === 'quench') return 'Drop the stone';
+  if (choice.action === 'peel') return 'Peel bark';
+  if (choice.action === 'feed') return 'Feed the fire';
+  if (choice.action === 'blow') return 'Blow';
+  if (choice.action === 'drill') return 'Hold';
+  if (choice.action === 'chop') return 'Chop';
+  if (choice.action === 'repair') return 'Repair (1 wood)';
+  if (choice.action === 'upgrade') return 'Upgrade to stone';
+  if (choice.action === 'knap') return 'Knap';
+  if (choice.action === 'strike') return 'Strike';
+  if (choice.action === 'gather') {
+    if (choice.prop.kind === 'birch_log' || choice.prop.gather === 'bark') return 'Peel bark';
+    if (choice.prop.kind === 'cattails') return 'Pull cattail';
+    return 'Gather';
+  }
+  return '';
+}
+
+/** Hint and Use both read this. It follows the nearest thing from where he stands. */
+export function usePrompt(state: GameState, feet: Feet): string {
+  return actionLabel(chooseUse(state, feet));
 }
 
 /** At the water, fill an empty pot or bowl. Otherwise drink. This beats forage. */
@@ -171,13 +249,11 @@ export function waterChoice(state: GameState, feet: Feet): UseChoice | null {
   return { action: 'drink-creek' };
 }
 
-/** The Use button reads Drink while a mouthful of creek is what Use will do. */
+/** The Use button reads Drink while a mouthful of water is what Use will do. */
 export function drinkPrompt(state: GameState, feet: Feet): string | null {
-  const water = waterChoice(state, feet);
-  if (!water) return null;
-  if (water.action === 'scoop') return 'Fill pot';
-  if (water.action === 'scoop-bowl') return 'Fill bowl';
-  return 'Drink';
+  const line = usePrompt(state, feet);
+  if (line === 'Drink' || line === 'Fill pot' || line === 'Fill bowl') return line;
+  return null;
 }
 
 /** Shown when a damaged twig piece is in reach. One length of wood patches it. */

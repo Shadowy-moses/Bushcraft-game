@@ -45,6 +45,8 @@ export const SICK_HEALTH_PER_HOUR = 4;
 export const ROCK_RETURN_MINUTES = 1440;
 /** A fallen birch log gives this many strips, then it is spent. */
 export const LOG_STRIPS = 4;
+/** Strips one Use takes from a birch, live or fallen. A live birch still peels only once a day. */
+export const BARK_STRIPS = 2;
 /** A bark pot survives this many boils. */
 export const POT_BOILS = 3;
 /** Hafted stone axe: one creek cobble, two wood, one cord. */

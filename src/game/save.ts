@@ -52,6 +52,13 @@ function countOf(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+function seatOf(value: unknown): { tx: number; ty: number } | null {
+  if (!value || typeof value !== 'object') return null;
+  const seat = value as { tx?: unknown; ty?: unknown };
+  if (typeof seat.tx !== 'number' || typeof seat.ty !== 'number') return null;
+  return { tx: seat.tx, ty: seat.ty };
+}
+
 function keepNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -132,6 +139,7 @@ export function parseSave(raw: string): GameState | null {
       cupWater?: unknown;
       bowlWater?: unknown;
       hotStone?: unknown;
+      potSeat?: unknown;
       rockGone?: unknown;
       rocks?: unknown;
       cores?: unknown;
@@ -183,6 +191,7 @@ export function parseSave(raw: string): GameState | null {
         cupWater: save.cupWater === 'raw' || save.cupWater === 'boiled' ? save.cupWater : 'empty',
         bowlWater: save.bowlWater === 'raw' || save.bowlWater === 'boiled' ? save.bowlWater : 'empty',
         hotStone: save.hotStone === 'hot' ? 'hot' : 'none',
+        potSeat: seatOf(save.potSeat),
         tx: save.tx,
         ty: save.ty,
         x,

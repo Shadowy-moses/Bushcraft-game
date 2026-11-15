@@ -228,6 +228,15 @@ export interface DrillStep {
   result: 'going' | 'fail' | 'coal';
 }
 
+/** Shown when a bow-drill hold ends before the coal forms. */
+export const DRILL_FIZZLE = 'Too soon. The coal fizzles.';
+
+/** A short hold, even one that never reached a frame, fails out loud. */
+export function abandonDrill(progress: number): string | null {
+  if (progress >= 1) return null;
+  return DRILL_FIZZLE;
+}
+
 /** Holding the bow. Letting go early fails the coal. A full hold makes one. */
 export function stepDrill(progress: number, dt: number, holding: boolean, energy: number): DrillStep {
   if (!holding) {

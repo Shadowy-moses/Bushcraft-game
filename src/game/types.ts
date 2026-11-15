@@ -102,6 +102,8 @@ export interface GameState {
   tip: string;
   /** 0 to 100. Rain soaks him, and he stays wet after it stops. */
   damp: number;
+  /** Tile where the bark pot is sitting. Null while it is in the pack. */
+  potSeat: { tx: number; ty: number } | null;
 }
 
 export interface Tile {

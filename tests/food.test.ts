@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BOIL_METHOD } from '../src/game/boil';
-import { HUNGER_PER_HOUR, LOG_STRIPS, NEED_DIRE, NEED_LOW, POT_BOILS, SICK_DELAY, SICK_MINUTES, START_MINUTES, THIRST_PER_HOUR } from '../src/game/constants';
+import { BARK_STRIPS, HUNGER_PER_HOUR, LOG_STRIPS, NEED_DIRE, NEED_LOW, POT_BOILS, SICK_DELAY, SICK_MINUTES, START_MINUTES, THIRST_PER_HOUR } from '../src/game/constants';
 import { besideCreek, drinkCup, finishBoil, plantFrame, rainEndsBetween, regrowRocks, scoopCreek } from '../src/game/food';
+import { fiberFromPlant } from '../src/game/fiber';
 import { tileToWorld } from '../src/game/iso';
 import { PROPS } from '../src/game/map';
 import { craftPot, gather, initialState, needRegen, peelBirch, restEnergyPerSecond, tick } from '../src/game/rules';
@@ -44,6 +45,8 @@ describe('food and water', () => {
     const root = gather(stand(reed!.tx, reed!.ty), reed!.id);
     expect(root.ok).toBe(true);
     expect(root.state.inventory.roots).toBe(1);
+    expect(root.state.inventory.fiber).toBe(fiberFromPlant(reed!.id));
+    expect(root.message).toMatch(/root/);
     const later = tick(picked.state, 1440);
     expect(gather({ ...later, ...tileToWorld(berry!.tx, berry!.ty), tx: berry!.tx, ty: berry!.ty, tool: 'hands' }, berry!.id).ok).toBe(true);
   });
@@ -98,7 +101,8 @@ describe('food and water', () => {
     const here = stand(birch!.tx, birch!.ty);
     const strip = peelBirch(here, birch!.id);
     expect(strip.ok).toBe(true);
-    expect(strip.popup).toBe('+1 Bark');
+    expect(strip.popup).toBe(`+${BARK_STRIPS} Bark`);
+    expect(strip.state.inventory.bark).toBe(BARK_STRIPS);
     expect(plantFrame('birch_tree', {}, birch!.id, here.minutes)).toBe('birch_tree');
     expect(plantFrame('birch_tree', strip.state.plants, birch!.id, strip.state.minutes)).toBe('birch_tree_peeled');
     expect(plantFrame('birch_tree', strip.state.plants, birch!.id, strip.state.minutes + 1440)).toBe('birch_tree');

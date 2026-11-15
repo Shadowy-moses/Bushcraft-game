@@ -11,6 +11,7 @@ import {
   HUNGER_PER_HOUR,
   NEED_DIRE,
   NEED_LOW,
+  BARK_STRIPS,
   LOG_STRIPS,
   POT_BOILS,
   SICK_ENERGY_PER_HOUR,
@@ -107,6 +108,7 @@ export function initialState(): GameState {
     outcome: 'playing',
     tip: OPENING_TIP,
     damp: 0,
+    potSeat: null,
   };
 }
 
@@ -346,18 +348,20 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     );
   }
   if (node.gather === 'bark') {
-    const taken = (state.logStrips[id] ?? 0) + 1;
+    const have = state.logStrips[id] ?? 0;
+    const take = Math.min(BARK_STRIPS, LOG_STRIPS - have);
+    const taken = have + take;
     const done = taken >= LOG_STRIPS;
     return ok(
       {
         ...state,
         energy,
-        inventory: { ...state.inventory, bark: state.inventory.bark + 1 },
+        inventory: { ...state.inventory, bark: state.inventory.bark + take },
         logStrips: { ...state.logStrips, [id]: taken },
         picked: done ? picked : state.picked,
       },
-      done ? 'The last strip. The log is spent.' : 'A strip of birch bark.',
-      '+1 Bark',
+      done ? 'The last strips. The log is spent.' : 'Two strips of birch bark.',
+      `+${take} Bark`,
     );
   }
   if (node.gather === 'berries' || node.gather === 'cattail') {
@@ -366,12 +370,13 @@ export function gather(state: GameState, id: string, free = false): ActionResult
     }
     const berries = node.gather === 'berries';
     const gained = berries ? BERRIES_PER_BUSH : 1;
+    const fiber = berries ? 0 : fiberFromPlant(id);
     const inventory = berries
       ? { ...state.inventory, berries: state.inventory.berries + gained }
-      : { ...state.inventory, roots: state.inventory.roots + gained };
+      : { ...state.inventory, roots: state.inventory.roots + gained, fiber: state.inventory.fiber + fiber };
     return ok(
       { ...state, energy, inventory, plants: { ...state.plants, [id]: state.minutes } },
-      berries ? 'A handful of berries.' : 'A cattail root, pulled from the bank.',
+      berries ? 'A handful of berries.' : 'A cattail root, and fiber from the stems.',
       berries ? `+${gained} berries` : '+1 root',
     );
   }
@@ -419,7 +424,7 @@ export function gather(state: GameState, id: string, free = false): ActionResult
   );
 }
 
-/** One strip from a living birch. It stays peeled for a day. */
+/** Two strips from a living birch. It stays peeled for a day. */
 export function peelBirch(state: GameState, id: string): ActionResult {
   const node = propById(id);
   if (!node || node.kind !== 'birch_tree') return fail(state, 'That is not a birch.');
@@ -432,11 +437,11 @@ export function peelBirch(state: GameState, id: string): ActionResult {
     {
       ...state,
       energy: state.energy - GATHER_ENERGY,
-      inventory: { ...state.inventory, bark: state.inventory.bark + 1 },
+      inventory: { ...state.inventory, bark: state.inventory.bark + BARK_STRIPS },
       plants: { ...state.plants, [id]: state.minutes },
     },
-    'A strip of birch bark.',
-    '+1 Bark',
+    'Two strips of birch bark.',
+    `+${BARK_STRIPS} Bark`,
   );
 }
 

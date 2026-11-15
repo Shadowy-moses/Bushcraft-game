@@ -9,7 +9,7 @@ import {
   PLAY_MINUTES_PER_SECOND,
   START_MINUTES,
 } from '../src/game/constants';
-import { addFirewood, stepDrill, tendFires } from '../src/game/fire';
+import { abandonDrill, addFirewood, DRILL_FIZZLE, stepDrill, tendFires } from '../src/game/fire';
 import { tileToWorld } from '../src/game/iso';
 import { RUN_SPEED, stickDirection, travelSpeed } from '../src/game/move';
 import { coverTripod, decayBuildings, initialState, minutesThisFrame, repairPiece, tick, warmthPerGameHour } from '../src/game/rules';
@@ -130,6 +130,9 @@ describe('round 8 weather, cover, wear, and coals', () => {
   it('fails an early drill release, and warmth rises beside the fire', () => {
     expect(stepDrill(0.4, 0.1, false, 50).result).toBe('fail');
     expect(stepDrill(0, 0.1, false, 50).result).toBe('going');
+    expect(abandonDrill(0)).toBe(DRILL_FIZZLE);
+    expect(abandonDrill(0.2)).toMatch(/fizzles/);
+    expect(abandonDrill(1)).toBeNull();
     const feet = tileToWorld(8, 4);
     const near = {
       ...initialState(),

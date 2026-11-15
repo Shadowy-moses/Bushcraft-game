@@ -116,6 +116,7 @@ export function drinkCup(
       state: {
         ...state,
         cupWater: 'empty',
+        potSeat: null,
         thirst: clampNeed(state.thirst + BOILED_THIRST),
         tip: 'Cool enough. The thirst eases.',
       },
@@ -129,11 +130,22 @@ export function drinkCup(
     state: {
       ...state,
       cupWater: 'empty',
+      potSeat: null,
       sips,
       thirst: clampNeed(state.thirst + RAW_THIRST),
       sickAt: sickens ? state.minutes + SICK_DELAY : state.sickAt,
       tip: sickens ? 'You drink it raw.' : 'You drink it raw. It sits all right.',
     },
+  };
+}
+
+/** Take the pot off the coals. The water and the remaining boils stay with it. */
+export function liftPot(state: GameState): { state: GameState; ok: boolean; message: string } {
+  if (!state.potSeat) return { state, ok: false, message: 'The pot is already in the pack.' };
+  return {
+    ok: true,
+    message: 'The bark pot comes off the coals.',
+    state: { ...state, potSeat: null, tip: 'The bark pot comes off the coals.' },
   };
 }
 
