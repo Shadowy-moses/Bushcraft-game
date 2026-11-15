@@ -74,6 +74,7 @@ export class Hud {
         <p id="tip" aria-live="polite"></p>
         <p id="nudge"></p>
         <p id="saved-tick" hidden>Saved</p>
+        <p id="tool-pop" hidden></p>
         <div class="place-actions" id="place-actions" hidden></div>
       </footer>
       <div id="stick" hidden aria-label="Move"><div id="stick-run"></div><div id="stick-knob"></div></div>
@@ -497,6 +498,19 @@ export class Hud {
   private fill(id: string, value: number): void {
     const node = document.getElementById(id);
     if (node) node.style.width = `${Math.max(0, Math.min(100, value))}%`;
+  }
+
+  private toolPopTimer = 0;
+
+  announceTool(name: string): void {
+    const node = document.getElementById('tool-pop');
+    if (!node) return;
+    node.textContent = name;
+    node.hidden = false;
+    window.clearTimeout(this.toolPopTimer);
+    this.toolPopTimer = window.setTimeout(() => {
+      node.hidden = true;
+    }, 1500);
   }
 
   flashSaved(): void {

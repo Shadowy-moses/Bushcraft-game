@@ -76,6 +76,7 @@ import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
 import { hotbarSlots } from '../craft';
+import { CANT_HOLD, heldIcon, holdSlot } from '../hold';
 import { chooseTarget, upgradePrompt, waterChoice, type UseChoice } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { BOIL_METHOD } from '../boil';
@@ -182,6 +183,7 @@ export class GameScene extends Phaser.Scene {
   private hidden = false;
   private hud!: Hud;
   private player!: Phaser.GameObjects.Sprite;
+  private heldItem: Phaser.GameObjects.Sprite | null = null;
   private ground = new Map<string, Phaser.GameObjects.Sprite>();
   private propViews: PropView[] = [];
   private shaded = new Set<string>();
@@ -601,6 +603,7 @@ export class GameScene extends Phaser.Scene {
         this.state = { ...this.state, tip: 'Rested. On your feet.' };
       }
     }
+    this.syncHeld();
     this.applyTints();
     this.markReach();
     this.hudBank += dt;
@@ -1366,6 +1369,44 @@ export class GameScene extends Phaser.Scene {
     if (this.textures.get('world').has(clip.key)) this.applyAtlas(this.player, clip.key);
   }
 
+  private syncHeld(): void {
+    if (!this.player) return;
+    const icon = heldIcon(this.state.tool, this.state.inventory.axe, this.state.inventory.hammerstone);
+    const working = this.pose === 'chop' || this.pose === 'strike' || this.pose === 'gather';
+    if (!icon.frame || working) {
+      this.heldItem?.setVisible(false);
+      return;
+    }
+    const key = icon.frame === 'hatchet' ? this.hatchetTexture() : icon.frame;
+    if (key !== 'held-hatchet' && !this.textures.get('world').has(key)) {
+      this.heldItem?.setVisible(false);
+      return;
+    }
+    if (!this.heldItem) {
+      this.heldItem = this.add.sprite(this.px, this.py, key === 'held-hatchet' ? 'held-hatchet' : 'world', key === 'held-hatchet' ? undefined : key);
+    }
+    if (key === 'held-hatchet') this.heldItem.setTexture('held-hatchet');
+    else this.applyAtlas(this.heldItem, key);
+    const side = this.state.facing === 'sw' || this.state.facing === 'nw' ? -1 : 1;
+    this.heldItem.setPosition(Math.round(this.px + side * 11), Math.round(this.py - 12));
+    this.heldItem.setDepth(this.player.depth + 1);
+    this.heldItem.setVisible(true);
+  }
+
+  private hatchetTexture(): string {
+    if (this.textures.exists('held-hatchet')) return 'held-hatchet';
+    const canvas = this.textures.createCanvas('held-hatchet', 16, 16);
+    const ctx = canvas?.getContext();
+    if (!canvas || !ctx) return 'held-hatchet';
+    ctx.clearRect(0, 0, 16, 16);
+    ctx.fillStyle = '#c4b8a4';
+    ctx.fillRect(3, 2, 8, 3);
+    ctx.fillStyle = '#6b4428';
+    ctx.fillRect(7, 4, 2, 10);
+    canvas.refresh();
+    return 'held-hatchet';
+  }
+
   private showIdle(): void {
     this.showPose('idle');
   }
@@ -1492,32 +1533,13 @@ export class GameScene extends Phaser.Scene {
         }
         return;
       }
-      if (index === 0) this.state = { ...this.state, tool: 'hands' };
-      if (index === 1) this.state = { ...this.state, tool: 'hatchet' };
-      if (index === 2) {
-        if (!this.state.inventory.axe) {
-          this.setTip('Haft a stone axe first.');
-          return;
-        }
-        this.state = { ...this.state, tool: 'axe' };
-        this.paintHud(false);
-        return;
-      }
-      if (index === 3) {
-        if (!this.state.inventory.hammerstone) {
-          this.setTip('Knap a hammerstone first.');
-          return;
-        }
-        this.state = { ...this.state, tool: 'hammerstone' };
-        this.paintHud(false);
-        return;
-      }
-      if (index === 4) {
-        this.state = { ...this.state, tool: 'plan' };
-        this.openCraft();
-        return;
-      }
+      const held = holdSlot(this.state, index);
+      this.state = held.state;
+      if (held.message === CANT_HOLD) this.setTip(CANT_HOLD);
+      else if (held.changed) this.hud.announceTool(held.message);
       this.paintHud(false);
+      this.syncHeld();
+      if (held.openCraft) this.openCraft();
       return;
     }
     if (id === 'pack' || id === 'craft') {
