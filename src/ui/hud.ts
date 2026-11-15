@@ -1,4 +1,4 @@
-import { CRAFT_CATEGORIES, type CraftCategory, type Recipe } from '../game/craft';
+import { CRAFT_CATEGORIES, allowCraftTap, type CraftCategory, type Recipe } from '../game/craft';
 import { UPGRADE_NOTE } from '../game/copy';
 import type { HudModel } from '../game/model';
 import type { Tool } from '../game/types';
@@ -44,6 +44,7 @@ export class Hud {
   private pouchSig = '';
   private placeKind = '';
   private sheetSig = '';
+  private lastCraftAt = 0;
   private frames = new Map<string, FrameRect>();
   private sheetSize = { w: 1, h: 1 };
   private stickId: number | null = null;
@@ -62,11 +63,13 @@ export class Hud {
         <div class="vital"><span class="vicon">${ICONS.health}</span><div class="bar health"><span id="health-fill"></span></div></div>
         <div class="vital"><span class="vicon">${ICONS.warmth}</span><div class="bar warmth"><span id="warmth-fill"></span></div></div>
         <div class="vital"><span class="vicon">${ICONS.energy}</span><div class="bar energy"><span id="energy-fill"></span></div></div>
+        <p id="warmth-read"></p>
         <p id="status"></p>
         <button type="button" id="rest-button" data-action="rest">Rest</button>
       </div>
       <footer id="bottom-bar">
         <p id="tip" aria-live="polite"></p>
+        <p id="nudge"></p>
         <div class="place-actions" id="place-actions" hidden></div>
       </footer>
       <div id="stick" hidden aria-label="Move"><div id="stick-run"></div><div id="stick-knob"></div></div>
@@ -198,7 +201,7 @@ export class Hud {
       const id = action.slice(5);
       const recipe = this.model?.recipes.find((item) => item.id === id);
       if (id === this.recipeId && recipe?.enabled && recipe.action) {
-        this.handlers.onAction(recipe.action);
+        this.craftOnce(recipe);
         return;
       }
       this.recipeId = id;
@@ -215,7 +218,7 @@ export class Hud {
     }
     if (action === 'craft-go') {
       const recipe = this.currentRecipe();
-      if (recipe?.enabled && recipe.action) this.handlers.onAction(recipe.action);
+      if (recipe?.enabled && recipe.action) this.craftOnce(recipe);
       return;
     }
     if (action === 'reset-ask' || action === 'reset-cancel') {
@@ -231,8 +234,12 @@ export class Hud {
     const model = this.model;
     if (!model) return;
     this.text('time', model.clock);
-    this.text('daypart', model.daypart);
+    this.text('daypart', `${model.daypart} · ${model.weather}`);
+    this.text('warmth-read', model.dampLabel ? `${model.warmthLabel} · ${model.dampLabel}` : model.warmthLabel);
+    this.text('nudge', model.prompt);
     this.text('status', model.status);
+    const act = document.querySelector('#act .act-label');
+    if (act) act.textContent = model.useLabel;
     this.text('tip', model.tip);
     this.fill('health-fill', model.health);
     this.fill('warmth-fill', model.warmth);
@@ -266,6 +273,14 @@ export class Hud {
     this.paintQty();
     this.paintCraftGo();
     this.drawMinimap();
+  }
+
+  private craftOnce(recipe: Recipe): void {
+    const now = performance.now();
+    if (!allowCraftTap(now, this.lastCraftAt, this.qty)) return;
+    this.lastCraftAt = now;
+    const times = Math.max(1, this.qty);
+    for (let i = 0; i < times; i++) this.handlers.onAction(recipe.action);
   }
 
   private paintCraftGo(): void {

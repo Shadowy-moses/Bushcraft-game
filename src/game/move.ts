@@ -85,6 +85,16 @@ export function offIsland(x: number, y: number): boolean {
   return !inBounds(tile.tx, tile.ty);
 }
 
+/**
+ * A held stick matches the keys. Past the dead zone it is a full step,
+ * the same vector a single WASD key produces.
+ */
+export function stickDirection(x: number, y: number): { x: number; y: number } {
+  const mag = Math.hypot(x, y);
+  if (mag < 0.15) return { x: 0, y: 0 };
+  return { x: x / mag, y: y / mag };
+}
+
 /** Partial stick walks. A push at the rim runs. Magnitude is 0–1 after the stick is normalised. */
 export function travelSpeed(magnitude: number): { speed: number; running: boolean } {
   const mag = Math.min(1, Math.max(0, magnitude));

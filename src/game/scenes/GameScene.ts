@@ -21,7 +21,6 @@ import {
   COLS,
   FOLLOW_MAX_H,
   FOLLOW_MAX_W,
-  PLAY_MINUTES_PER_SECOND,
   REST_MINUTES_PER_SECOND,
   ROWS,
   TRIPOD_CORDAGE,
@@ -45,6 +44,7 @@ import {
   reachFor,
   resolveMove,
   segmentsFor,
+  stickDirection,
   travelSpeed,
 } from '../move';
 import {
@@ -54,9 +54,13 @@ import {
   finishCordage,
   gainEnergy,
   gather,
+  coverTripod,
   initialState,
   knapFlint,
+  minutesThisFrame,
+  nearestBareTripod,
   placePiece,
+  repairPiece,
   restEnergyPerSecond,
   strikeRock,
   tick,
@@ -67,6 +71,7 @@ import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
 import { chooseUse, upgradePrompt } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
+import { weatherAt } from '../weather';
 import { facingFromVector, mirrorFacing, poseClip, poseName } from '../woodsman';
 import { Hud } from '../../ui/hud';
 
@@ -195,6 +200,11 @@ export class GameScene extends Phaser.Scene {
   private approachStill = 0;
   private walkTo: { x: number; y: number; id: string } | null = null;
   private drill: { tx: number; ty: number; progress: number } | null = null;
+  private rain: Phaser.GameObjects.Sprite[] = [];
+  private puddles: Phaser.GameObjects.Sprite[] = [];
+  private splashes: Phaser.GameObjects.Sprite[] = [];
+  private fireGlows = new Map<string, Phaser.GameObjects.Sprite>();
+  private warmthRing: Phaser.GameObjects.Sprite | null = null;
   private holdingDrill = false;
   private fx: Phaser.GameObjects.Sprite | null = null;
   private fxUntil = 0;
@@ -510,18 +520,17 @@ export class GameScene extends Phaser.Scene {
     this.stepFloaters(dt);
     this.stepChips(dt);
     this.stepCraft();
+    this.stepAtmosphere();
     this.fadeOccluders();
     if (this.started && !this.hidden && this.sheet === 'none' && !this.placing && this.state.outcome === 'playing') {
-      let rate: number = PLAY_MINUTES_PER_SECOND;
       if (this.resting) {
-        rate = REST_MINUTES_PER_SECOND;
         const sheltered = besideTripod(this.state);
         this.state = gainEnergy(this.state, dt * restEnergyPerSecond(this.state));
         this.rested += dt * REST_MINUTES_PER_SECOND;
         const tip = restingTip(this.rested, sheltered);
         if (this.state.tip !== tip) this.state = { ...this.state, tip };
       }
-      this.minuteBank += dt * rate;
+      this.minuteBank += this.resting ? dt * REST_MINUTES_PER_SECOND : minutesThisFrame(dt);
       if (this.minuteBank >= 0.2) {
         const minutes = this.minuteBank;
         this.minuteBank = 0;
@@ -899,13 +908,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private useFire(piece: Piece): boolean {
-    if (piece.lit || (piece.fuel ?? 0) > 0 && this.state.inventory.wood > 0 && piece.lit) {
+    const hot = piece.lit || (piece.coalsUntil != null && this.state.minutes < piece.coalsUntil);
+    if (hot && this.state.inventory.wood > 0) {
       const result = addFirewood(this.state, piece);
       if (!result.ok) this.setTip(result.message);
       else {
         this.state = result.state;
         this.afterChange();
       }
+      return true;
+    }
+    if (hot) {
+      this.setTip(piece.lit ? 'Need 1 more wood.' : 'The coals are fading. A length of wood would catch.');
       return true;
     }
     if (piece.ember === 'smoke' || (this.state.inventory.coal > 0 && !piece.lit)) {
@@ -1056,6 +1070,16 @@ export class GameScene extends Phaser.Scene {
       this.upgradeAt(choice.piece);
       return;
     }
+    if (choice.action === 'repair') {
+      const result = repairPiece(this.state, choice.piece);
+      if (!result.ok) this.setTip(result.message);
+      else {
+        this.state = result.state;
+        this.playPose('gather');
+        this.afterChange();
+      }
+      return;
+    }
     if (choice.action === 'none') this.setTip(choice.message);
   }
 
@@ -1079,10 +1103,10 @@ export class GameScene extends Phaser.Scene {
     }
     let dx = 0;
     let dy = 0;
-    const stick = Math.hypot(this.stickX, this.stickY);
-    if (stick >= 0.15) {
-      dx = this.stickX;
-      dy = this.stickY;
+    const held = stickDirection(this.stickX, this.stickY);
+    if (held.x !== 0 || held.y !== 0) {
+      dx = held.x;
+      dy = held.y;
     } else {
       if (this.keys.has('arrowright') || this.keys.has('d')) dx += 1;
       if (this.keys.has('arrowleft') || this.keys.has('a')) dx -= 1;
@@ -1316,6 +1340,25 @@ export class GameScene extends Phaser.Scene {
       this.openCraft();
       return;
     }
+    if (id === 'cover-boughs' || id === 'cover-bark') {
+      const tripod = nearestBareTripod(this.state);
+      if (!tripod) {
+        this.setTip('Lash a tripod first.');
+        return;
+      }
+      if (!inReach(this.px, this.py, tripod.tx, tripod.ty, 54)) {
+        this.setTip('Walk up to the tripod.');
+        return;
+      }
+      const result = coverTripod(this.state, tripod, id === 'cover-boughs' ? 'boughs' : 'bark');
+      if (!result.ok) this.setTip(result.message);
+      else {
+        this.state = result.state;
+        this.playPose('gather');
+        this.afterChange();
+      }
+      return;
+    }
     if (id === 'craft-tinder' || id === 'craft-kindling' || id === 'craft-bowdrill') {
       const result =
         id === 'craft-tinder' ? craftTinder(this.state) : id === 'craft-kindling' ? craftKindling(this.state) : craftBowdrill(this.state);
@@ -1505,8 +1548,13 @@ export class GameScene extends Phaser.Scene {
       sprite.setPosition(Math.round(pose.x), Math.round(pose.y));
       sprite.setDepth(depthFor(pose.y, pose.bias));
       sprite.setVisible(true);
+      const embers = piece.kind === 'fire' && !piece.lit && piece.coalsUntil != null && this.state.minutes < piece.coalsUntil;
       if (piece.kind === 'fire' && piece.lit) {
         if (sprite.anims.currentAnim?.key !== 'fire_tipi_lit') sprite.play('fire_tipi_lit');
+        sprite.setDepth(Math.max(sprite.depth, depthFor(pose.y, 24)));
+      } else if (embers) {
+        if (sprite.anims.currentAnim?.key !== 'fire_tipi_embers') sprite.play('fire_tipi_embers');
+        sprite.setDepth(Math.max(sprite.depth, depthFor(pose.y, 24)));
       } else {
         if (sprite.anims.isPlaying) sprite.anims.stop();
         if (sprite.frame.name !== pose.key) sprite.setTexture('world', pose.key);
@@ -1817,11 +1865,27 @@ export class GameScene extends Phaser.Scene {
 
   private piecePose(
     kind: PieceKind,
-    at: { tx: number; ty: number; edge: EdgeName; material?: Material },
+    at: {
+      tx: number;
+      ty: number;
+      edge: EdgeName;
+      material?: Material;
+      health?: number;
+      cover?: 'boughs' | 'bark';
+      lit?: boolean;
+      coalsUntil?: number;
+    },
     ghost: 'ok' | 'bad' | null,
   ): { x: number; y: number; key: string; ox: number; oy: number; tall: boolean; bias: number } {
     const material = ghost ? this.placingMaterial : (at.material ?? 'twig');
-    const key = pieceFrame(kind, at.edge, ghost, material);
+    const worn = !ghost && material === 'twig' && typeof at.health === 'number' && at.health <= 50 && at.health > 0;
+    let key = pieceFrame(kind, at.edge, ghost, material, worn);
+    if (!ghost && kind === 'tripod') {
+      key = at.cover === 'boughs' ? 'tripod_boughs' : at.cover === 'bark' ? 'tripod_bark' : 'lashed_tripod';
+    }
+    if (!ghost && kind === 'fire' && !at.lit && at.coalsUntil != null && this.state.minutes < at.coalsUntil) {
+      key = 'fire_tipi_embers_0';
+    }
     const origin = frameOrigin(key);
     const pos = tileToWorld(at.tx, at.ty);
     if (kind === 'wall' || kind === 'doorway') {
@@ -1980,6 +2044,93 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Rain streaks, puddles, the fire's ground glow, and the warmth ring. */
+  private stepAtmosphere(): void {
+    const raining = weatherAt(this.state.minutes) === 'rain';
+    if (this.rain.length === 0 && this.textures.exists('world')) {
+      for (let i = 0; i < 22; i++) {
+        const drop = this.add.sprite(0, 0, 'world', 'rain_drop');
+        drop.setScrollFactor(0);
+        drop.setDepth(45000);
+        drop.setData('fall', 80 + (i % 5) * 18);
+        drop.setData('drift', (i % 4) - 1.5);
+        this.rain.push(drop);
+      }
+      for (let i = 0; i < 5; i++) {
+        const puddle = this.add.sprite(0, 0, 'world', 'puddle');
+        puddle.setAlpha(0.72);
+        puddle.setDepth(2);
+        this.puddles.push(puddle);
+        const splash = this.add.sprite(0, 0, 'world', 'rain_splash_0');
+        splash.setDepth(3);
+        this.splashes.push(splash);
+      }
+    }
+    const view = this.cameras.main;
+    this.rain.forEach((drop, i) => {
+      drop.setVisible(raining);
+      if (!raining) return;
+      let y = drop.y + Number(drop.getData('fall')) * 0.016;
+      let x = drop.x + Number(drop.getData('drift'));
+      if (y > view.height + 8 || drop.x === 0) {
+        x = (i * 47) % Math.max(view.width, 1);
+        y = -((i * 13) % 40);
+      }
+      if (x > view.width) x = 0;
+      drop.setPosition(x, y);
+    });
+    const origin = view.getWorldPoint(view.width / 2, view.height / 2);
+    this.puddles.forEach((puddle, i) => {
+      puddle.setVisible(raining);
+      this.splashes[i]?.setVisible(raining);
+      if (!raining) return;
+      const angle = (i / this.puddles.length) * Math.PI * 2;
+      puddle.setPosition(origin.x + Math.cos(angle) * 28, origin.y + Math.sin(angle) * 14);
+      puddle.setDepth(depthFor(puddle.y, 0));
+      const splash = this.splashes[i];
+      if (!splash) return;
+      splash.setPosition(puddle.x, puddle.y + 2);
+      splash.setDepth(depthFor(puddle.y, 1));
+      splash.setTexture('world', Math.floor(this.time.now / 220 + i) % 2 === 0 ? 'rain_splash_0' : 'rain_splash_1');
+    });
+
+    const seen = new Set<string>();
+    let ringAt: { x: number; y: number } | null = null;
+    for (const piece of this.state.pieces) {
+      if (piece.kind !== 'fire') continue;
+      const lit = piece.lit === true;
+      const embers = !lit && piece.coalsUntil != null && this.state.minutes < piece.coalsUntil;
+      if (!lit && !embers) continue;
+      const key = `${piece.tx},${piece.ty}`;
+      seen.add(key);
+      let glow = this.fireGlows.get(key);
+      if (!glow) {
+        glow = this.add.sprite(0, 0, 'world', 'firelight_0');
+        glow.setBlendMode(Phaser.BlendModes.ADD);
+        glow.setAlpha(0.5);
+        this.fireGlows.set(key, glow);
+      }
+      const at = tileToWorld(piece.tx, piece.ty);
+      glow.setTexture('world', Math.floor(this.time.now / 180) % 2 === 0 ? 'firelight_0' : 'firelight_1');
+      glow.setOrigin(0.5, 0.5);
+      glow.setPosition(at.x, at.y);
+      glow.setDepth(depthFor(at.y, 1));
+      glow.setVisible(true);
+      glow.setAlpha(lit ? 0.5 : 0.28);
+      if (lit && Math.hypot(at.x - this.px, at.y - this.py) <= 56) ringAt = at;
+    }
+    for (const [key, glow] of this.fireGlows) {
+      if (!seen.has(key)) glow.setVisible(false);
+    }
+    if (ringAt) {
+      if (!this.warmthRing) this.warmthRing = this.add.sprite(0, 0, 'world', 'warmth_ring');
+      this.warmthRing.setPosition(ringAt.x, ringAt.y);
+      this.warmthRing.setOrigin(0.5, 0.5);
+      this.warmthRing.setDepth(depthFor(ringAt.y, 2));
+      this.warmthRing.setVisible(true);
+    } else if (this.warmthRing) this.warmthRing.setVisible(false);
+  }
+
   /** Walls and the roof in front of him fade, and his outline is drawn back on top. */
   private fadeOccluders(): void {
     const player = this.player;
@@ -2004,6 +2155,20 @@ export class GameScene extends Phaser.Scene {
       top = Math.max(top, sprite.depth);
     }
     if (covered) player.setDepth(top + 2);
+    for (const piece of this.state.pieces) {
+      if (piece.kind !== 'fire' || (!piece.lit && !(piece.coalsUntil != null && this.state.minutes < piece.coalsUntil))) continue;
+      const flame = this.buildings.get(pieceKey(piece));
+      if (!flame) continue;
+      const flameBox = flame.getBounds();
+      if (Phaser.Geom.Intersects.RectangleToRectangle(flameBox, body)) {
+        flame.setDepth(Math.max(flame.depth, player.depth + 2));
+      }
+      for (const view of this.propViews) {
+        if (view.prop.kind !== 'pine_tree' && view.prop.kind !== 'birch_tree') continue;
+        const over = view.sprite.visible && Phaser.Geom.Intersects.RectangleToRectangle(view.sprite.getBounds(), flameBox) && view.sprite.depth > flame.depth;
+        view.sprite.setAlpha(over ? 0.35 : 1);
+      }
+    }
   }
 
   private popup(message: string, tx: number, ty: number): void {

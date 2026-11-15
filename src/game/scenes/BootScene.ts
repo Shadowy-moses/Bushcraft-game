@@ -35,6 +35,12 @@ export class BootScene extends Phaser.Scene {
         repeat: -1,
       });
     }
+    this.anims.create({
+      key: 'fire_tipi_embers',
+      frames: ['fire_tipi_embers_0', 'fire_tipi_embers_1'].map((frame) => ({ key: 'world', frame })),
+      frameRate: 3,
+      repeat: -1,
+    });
     this.scene.start('game');
   }
 }

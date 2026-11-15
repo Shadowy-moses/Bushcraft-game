@@ -68,6 +68,38 @@ export const FIRE_WARMTH_PER_HOUR = 60;
 /** Hold the bow this many real seconds or the coal dusts out. */
 export const DRILL_SECONDS = 5;
 export const DRILL_STAMINA_PER_SECOND = 2;
+/** Glowing coals after the fuel is gone. 48 game minutes is about two real minutes. */
+export const EMBER_MINUTES = 48;
+/** Open rain cuts the coal bed in half. */
+export const EMBER_RAIN_MINUTES = 24;
+/** A little warmth from the coals, much less than a flame. */
+export const EMBER_WARMTH_PER_HOUR = 18;
+/** An uncovered teepee in the rain eats wood twice as fast. */
+export const RAIN_BURN_MULT = 2;
+/** Pine boughs leak. The fire under them burns a little faster, not twice as fast. */
+export const BOUGH_BURN_MULT = 1.4;
+/** Share of the rain that still gets through a bough cover. Bark lets none through. */
+export const BOUGH_LEAK = 0.4;
+/** Extra warmth lost per game hour while standing in the rain, or in the wind. */
+export const RAIN_WARMTH_PER_HOUR = 12;
+export const WIND_WARMTH_PER_HOUR = 6;
+/** Damp builds in open rain and lingers after it. Full damp is another small drain. */
+export const DAMP_PER_HOUR = 20;
+export const DAMP_DRY_PER_HOUR = 40;
+export const DAMP_WARMTH_PER_HOUR = 8;
+/** Twig on the ground wears faster than a wall. Open rain doubles it. Stone does not wear. */
+export const WALL_DECAY_PER_HOUR = 2;
+export const GROUND_DECAY_PER_HOUR = 4;
+/** One length of wood patches a worn piece. It is not a new wall. */
+export const REPAIR_HEALTH = 40;
+export const WORN_AT = 50;
+/** A quick cover. Grass fiber bundled over the frame. It leaks. */
+export const BOUGH_FIBER = 4;
+/** Bark strips, lashed on. Costs more, and the rain stays outside. */
+export const BARK_WOOD = 4;
+export const BARK_CORDAGE = 2;
+/** A second tap this soon does not craft again, unless a quantity was chosen. */
+export const CRAFT_TAP_GAP_MS = 400;
 
 /**
  * Game minutes that pass each real second while you are up and working.

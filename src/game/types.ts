@@ -17,6 +17,12 @@ export interface Piece {
   lit?: boolean;
   /** First blow of a coal into the tinder bundle. */
   ember?: 'none' | 'smoke';
+  /** Game minute a spent teepee stops glowing. Missing means the lay is cold. */
+  coalsUntil?: number;
+  /** Missing means sound. Twig wears. Stone does not. */
+  health?: number;
+  /** A cover on a lashed tripod. Boughs leak. Bark does not. */
+  cover?: 'boughs' | 'bark';
 }
 
 export interface Inventory {
@@ -63,6 +69,8 @@ export interface GameState {
   picked: Record<string, true>;
   outcome: Outcome;
   tip: string;
+  /** 0 to 100. Rain soaks him, and he stays wet after it stops. */
+  damp: number;
 }
 
 export interface Tile {

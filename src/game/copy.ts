@@ -5,7 +5,7 @@ export const UPGRADE_NOTE =
 export const HATCHET_IDLE = 'The hatchet wants a trunk.';
 
 export const OPENING_TIP =
-  'Push the stick to walk, and all the way out to run. Stand by a tree and tap it, or tap Use. The hatchet is already in your hand.';
+  'Push the stick to move. It keeps the same pace as the keys. Stand by a tree and tap it, or tap Use. The hatchet is already in your hand.';
 
 export const REST_TIP = 'Sit a minute. The work can wait. Warmth is only a reading now.';
 

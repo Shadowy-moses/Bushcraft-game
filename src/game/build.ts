@@ -260,16 +260,18 @@ export function pieceFrame(
   edge: EdgeName,
   ghost: 'ok' | 'bad' | null = null,
   material: Material = 'twig',
+  worn = false,
 ): string {
   if (kind === 'tripod') return 'lashed_tripod';
   if (kind === 'fire') return 'fire_tipi_unlit';
   const suffix = ghost === 'ok' ? '_ghost_ok' : ghost === 'bad' ? '_ghost_bad' : '';
   const family = material === 'stone' ? 'stone' : 'twig';
-  if (kind === 'foundation') return `${family}_foundation${suffix}`;
-  if (kind === 'floor') return `${family}_floor${suffix}`;
+  const wear = worn && family === 'twig' && !ghost ? '_worn' : '';
+  if (kind === 'foundation') return `${family}_foundation${wear}${suffix}`;
+  if (kind === 'floor') return `${family}_floor${wear}${suffix}`;
   const face = edge === 'sw' || edge === 'ne' ? 'ne' : 'nw';
   const part = kind === 'doorway' ? 'door' : 'wall';
-  return `${family}_${part}_${face}${suffix}`;
+  return `${family}_${part}_${face}${wear}${suffix}`;
 }
 
 /** Screen art for an edge. The two diagonals use different drawings. */

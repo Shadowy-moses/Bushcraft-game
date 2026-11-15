@@ -4,18 +4,24 @@ import {
   BUILD_ENERGY,
   DRILL_SECONDS,
   DRILL_STAMINA_PER_SECOND,
+  EMBER_MINUTES,
+  EMBER_RAIN_MINUTES,
+  EMBER_WARMTH_PER_HOUR,
   FIRE_FUEL_PER_WOOD,
   FIRE_KINDLING,
   FIRE_RADIUS,
   FIRE_TINDER,
   FIRE_WARMTH_PER_HOUR,
   FIRE_WOOD,
+  RAIN_BURN_MULT,
+  BOUGH_BURN_MULT,
   KINDLING_OUT,
   KINDLING_WOOD,
   TINDER_FIBER,
 } from './constants';
 import { clamp, tileToWorld } from './iso';
 import type { ActionResult, GameState, Piece } from './types';
+import { fireLeak, isEmbers, weatherAt } from './weather';
 
 export function emptyFirePack(): Pick<GameState['inventory'], 'tinder' | 'kindling' | 'coal' | 'bowdrill'> {
   return { tinder: 0, kindling: 0, coal: 0, bowdrill: false };
@@ -69,7 +75,7 @@ export function craftBowdrill(state: GameState): ActionResult {
         bowdrill: true,
       },
     },
-    'A bow drill of dry softwood, strung with cord.',
+    '4 wood (dry, from dead branches), strung with cord.',
   );
 }
 
@@ -139,20 +145,59 @@ export function nearLitFire(state: GameState): boolean {
   return false;
 }
 
-/** Warmth from a lit teepee, added to the hour's drift. Fuel burns down. */
+export function nearEmberFire(state: GameState): boolean {
+  for (const piece of state.pieces) {
+    if (!isEmbers(piece, state.minutes)) continue;
+    const at = tileToWorld(piece.tx, piece.ty);
+    if (Math.hypot(at.x - state.x, at.y - state.y) <= FIRE_RADIUS) return true;
+  }
+  return false;
+}
+
+function burnMult(pieces: Piece[], fire: Piece, minutes: number): number {
+  if (weatherAt(minutes) !== 'rain') return 1;
+  const leak = fireLeak(pieces, fire);
+  if (leak <= 0) return 1;
+  if (leak < 1) return BOUGH_BURN_MULT;
+  return RAIN_BURN_MULT;
+}
+
+function emberWindow(pieces: Piece[], fire: Piece, minutes: number): number {
+  if (weatherAt(minutes) !== 'rain') return EMBER_MINUTES;
+  const leak = fireLeak(pieces, fire);
+  return EMBER_RAIN_MINUTES + (EMBER_MINUTES - EMBER_RAIN_MINUTES) * (1 - leak);
+}
+
+/** Warmth from a lit teepee or its coals. Fuel burns down, faster in open rain. */
 export function tendFires(state: GameState, gameMinutes: number): GameState {
   if (gameMinutes <= 0) return state;
   let warmth = state.warmth;
-  if (nearLitFire(state)) {
-    warmth = clamp(warmth + FIRE_WARMTH_PER_HOUR * (gameMinutes / 60), 0, 100);
-  }
+  if (nearLitFire(state)) warmth = clamp(warmth + FIRE_WARMTH_PER_HOUR * (gameMinutes / 60), 0, 100);
+  else if (nearEmberFire(state)) warmth = clamp(warmth + EMBER_WARMTH_PER_HOUR * (gameMinutes / 60), 0, 100);
   let changed = false;
   const pieces = state.pieces.map((piece) => {
-    if (piece.kind !== 'fire' || !piece.lit) return piece;
-    const fuel = (piece.fuel ?? 0) - gameMinutes;
-    changed = true;
-    if (fuel <= 0) return { ...piece, lit: false, fuel: 0, ember: 'none' as const };
-    return { ...piece, fuel };
+    if (piece.kind !== 'fire') return piece;
+    if (piece.lit) {
+      changed = true;
+      const fuel = (piece.fuel ?? 0) - gameMinutes * burnMult(state.pieces, piece, state.minutes);
+      if (fuel <= 0) {
+        return {
+          ...piece,
+          lit: false,
+          fuel: 0,
+          ember: 'none' as const,
+          coalsUntil: state.minutes + emberWindow(state.pieces, piece, state.minutes),
+        };
+      }
+      return { ...piece, fuel };
+    }
+    if (piece.coalsUntil != null && state.minutes >= piece.coalsUntil) {
+      changed = true;
+      const cold = { ...piece };
+      delete cold.coalsUntil;
+      return cold;
+    }
+    return piece;
   });
   if (!changed && warmth === state.warmth) return state;
   return { ...state, warmth, pieces };
@@ -161,14 +206,19 @@ export function tendFires(state: GameState, gameMinutes: number): GameState {
 export function addFirewood(state: GameState, piece: Piece): ActionResult {
   if (piece.kind !== 'fire') return fail(state, 'That is not a fire lay.');
   if (state.inventory.wood < 1) return fail(state, 'Need 1 more wood.');
-  const pieces = state.pieces.map((item) =>
-    item === piece || (item.kind === 'fire' && item.tx === piece.tx && item.ty === piece.ty)
-      ? { ...item, fuel: (item.fuel ?? 0) + FIRE_FUEL_PER_WOOD }
-      : item,
-  );
+  const hot = isEmbers(piece, state.minutes);
+  const pieces = state.pieces.map((item) => {
+    if (!(item === piece || (item.kind === 'fire' && item.tx === piece.tx && item.ty === piece.ty))) return item;
+    if (hot) {
+      const next = { ...item, lit: true, fuel: FIRE_FUEL_PER_WOOD, ember: 'none' as const };
+      delete next.coalsUntil;
+      return next;
+    }
+    return { ...item, fuel: (item.fuel ?? 0) + FIRE_FUEL_PER_WOOD };
+  });
   return ok(
     { ...state, inventory: { ...state.inventory, wood: state.inventory.wood - 1 }, pieces },
-    'Another length on the teepee.',
+    hot ? 'The embers catch the wood.' : 'Another length on the teepee.',
   );
 }
 
