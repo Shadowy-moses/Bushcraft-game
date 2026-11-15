@@ -99,7 +99,7 @@ export interface Tile {
   ty: number;
 }
 
-export type GroundId = 'grass' | 'dirt' | 'forest_floor' | 'creek_water' | 'creek_edge_stones';
+export type GroundId = 'grass' | 'dirt' | 'forest_floor' | 'creek_water' | 'creek_edge_stones' | 'creek_gravel';
 
 export type PropKind =
   | 'pine_tree'

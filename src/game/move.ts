@@ -79,12 +79,14 @@ export function blockedGround(x: number, y: number): boolean {
 
 /** True when this point is off the island or his body would hang into the void. */
 export function offIsland(x: number, y: number): boolean {
+  const tile = worldToTile(x, y);
+  if (!inBounds(tile.tx, tile.ty)) return true;
+  if (groundAt(tile.tx, tile.ty) === 'creek_gravel') return false;
   const ftx = (x / (TILE_W / 2) + y / (TILE_H / 2)) / 2;
   const fty = (y / (TILE_H / 2) - x / (TILE_W / 2)) / 2;
   const max = COLS - 1 - ISLAND_MARGIN;
   if (ftx < ISLAND_MARGIN || fty < ISLAND_MARGIN || ftx > max || fty > max) return true;
-  const tile = worldToTile(x, y);
-  return !inBounds(tile.tx, tile.ty);
+  return false;
 }
 
 /**

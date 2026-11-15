@@ -2272,7 +2272,7 @@
     "y": 31
    }
   },
-  "woodsman_idle": {
+  "woodsman_se_axe_0": {
    "frame": {
     "x": 272,
     "y": 176,
@@ -2304,7 +2304,7 @@
     "y": 31
    }
   },
-  "woodsman_walk_0": {
+  "woodsman_sw_axe_0": {
    "frame": {
     "x": 306,
     "y": 176,
@@ -2336,7 +2336,7 @@
     "y": 31
    }
   },
-  "woodsman_walk_1": {
+  "woodsman_ne_axe_0": {
    "frame": {
     "x": 340,
     "y": 176,
@@ -2368,10 +2368,266 @@
     "y": 31
    }
   },
-  "twig_foundation": {
+  "woodsman_nw_axe_0": {
    "frame": {
     "x": 374,
     "y": 176,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_se_axe_1": {
+   "frame": {
+    "x": 408,
+    "y": 176,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_sw_axe_1": {
+   "frame": {
+    "x": 442,
+    "y": 176,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_ne_axe_1": {
+   "frame": {
+    "x": 476,
+    "y": 176,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_nw_axe_1": {
+   "frame": {
+    "x": 0,
+    "y": 210,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_idle": {
+   "frame": {
+    "x": 34,
+    "y": 210,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_walk_0": {
+   "frame": {
+    "x": 68,
+    "y": 210,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "woodsman_walk_1": {
+   "frame": {
+    "x": 102,
+    "y": 210,
+    "w": 32,
+    "h": 32
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 32
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.96875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 31
+   }
+  },
+  "twig_foundation": {
+   "frame": {
+    "x": 136,
+    "y": 210,
     "w": 38,
     "h": 30
    },
@@ -2402,8 +2658,8 @@
   },
   "twig_foundation_ghost_ok": {
    "frame": {
-    "x": 414,
-    "y": 176,
+    "x": 176,
+    "y": 210,
     "w": 38,
     "h": 30
    },
@@ -2434,8 +2690,8 @@
   },
   "twig_foundation_ghost_bad": {
    "frame": {
-    "x": 454,
-    "y": 176,
+    "x": 216,
+    "y": 210,
     "w": 38,
     "h": 30
    },
@@ -2466,7 +2722,7 @@
   },
   "twig_wall_ne": {
    "frame": {
-    "x": 0,
+    "x": 256,
     "y": 210,
     "w": 31,
     "h": 39
@@ -2498,7 +2754,7 @@
   },
   "twig_wall_ne_ghost_ok": {
    "frame": {
-    "x": 33,
+    "x": 289,
     "y": 210,
     "w": 31,
     "h": 39
@@ -2530,7 +2786,7 @@
   },
   "twig_wall_ne_ghost_bad": {
    "frame": {
-    "x": 66,
+    "x": 322,
     "y": 210,
     "w": 31,
     "h": 39
@@ -2562,7 +2818,7 @@
   },
   "twig_wall_nw": {
    "frame": {
-    "x": 99,
+    "x": 355,
     "y": 210,
     "w": 25,
     "h": 39
@@ -2594,7 +2850,7 @@
   },
   "twig_wall_nw_ghost_ok": {
    "frame": {
-    "x": 126,
+    "x": 382,
     "y": 210,
     "w": 25,
     "h": 39
@@ -2626,7 +2882,7 @@
   },
   "twig_wall_nw_ghost_bad": {
    "frame": {
-    "x": 153,
+    "x": 409,
     "y": 210,
     "w": 25,
     "h": 39
@@ -2658,7 +2914,7 @@
   },
   "twig_door_ne": {
    "frame": {
-    "x": 180,
+    "x": 436,
     "y": 210,
     "w": 31,
     "h": 39
@@ -2690,7 +2946,7 @@
   },
   "twig_door_ne_ghost_ok": {
    "frame": {
-    "x": 213,
+    "x": 469,
     "y": 210,
     "w": 31,
     "h": 39
@@ -2722,8 +2978,8 @@
   },
   "twig_door_ne_ghost_bad": {
    "frame": {
-    "x": 246,
-    "y": 210,
+    "x": 0,
+    "y": 251,
     "w": 31,
     "h": 39
    },
@@ -2754,8 +3010,8 @@
   },
   "twig_door_nw": {
    "frame": {
-    "x": 279,
-    "y": 210,
+    "x": 33,
+    "y": 251,
     "w": 25,
     "h": 39
    },
@@ -2786,8 +3042,8 @@
   },
   "twig_door_nw_ghost_ok": {
    "frame": {
-    "x": 306,
-    "y": 210,
+    "x": 60,
+    "y": 251,
     "w": 25,
     "h": 39
    },
@@ -2818,8 +3074,8 @@
   },
   "twig_door_nw_ghost_bad": {
    "frame": {
-    "x": 333,
-    "y": 210,
+    "x": 87,
+    "y": 251,
     "w": 25,
     "h": 39
    },
@@ -2850,8 +3106,8 @@
   },
   "twig_floor": {
    "frame": {
-    "x": 360,
-    "y": 210,
+    "x": 114,
+    "y": 251,
     "w": 36,
     "h": 22
    },
@@ -2882,8 +3138,8 @@
   },
   "twig_floor_ghost_ok": {
    "frame": {
-    "x": 398,
-    "y": 210,
+    "x": 152,
+    "y": 251,
     "w": 36,
     "h": 22
    },
@@ -2914,8 +3170,8 @@
   },
   "twig_floor_ghost_bad": {
    "frame": {
-    "x": 436,
-    "y": 210,
+    "x": 190,
+    "y": 251,
     "w": 36,
     "h": 22
    },
@@ -2946,8 +3202,8 @@
   },
   "stone_foundation": {
    "frame": {
-    "x": 474,
-    "y": 210,
+    "x": 228,
+    "y": 251,
     "w": 38,
     "h": 30
    },
@@ -2978,7 +3234,7 @@
   },
   "stone_foundation_ghost_ok": {
    "frame": {
-    "x": 0,
+    "x": 268,
     "y": 251,
     "w": 38,
     "h": 30
@@ -3010,7 +3266,7 @@
   },
   "stone_foundation_ghost_bad": {
    "frame": {
-    "x": 40,
+    "x": 308,
     "y": 251,
     "w": 38,
     "h": 30
@@ -3042,7 +3298,7 @@
   },
   "stone_wall_ne": {
    "frame": {
-    "x": 80,
+    "x": 348,
     "y": 251,
     "w": 31,
     "h": 39
@@ -3074,7 +3330,7 @@
   },
   "stone_wall_ne_ghost_ok": {
    "frame": {
-    "x": 113,
+    "x": 381,
     "y": 251,
     "w": 31,
     "h": 39
@@ -3106,7 +3362,7 @@
   },
   "stone_wall_ne_ghost_bad": {
    "frame": {
-    "x": 146,
+    "x": 414,
     "y": 251,
     "w": 31,
     "h": 39
@@ -3138,7 +3394,7 @@
   },
   "stone_wall_nw": {
    "frame": {
-    "x": 179,
+    "x": 447,
     "y": 251,
     "w": 25,
     "h": 39
@@ -3170,7 +3426,7 @@
   },
   "stone_wall_nw_ghost_ok": {
    "frame": {
-    "x": 206,
+    "x": 474,
     "y": 251,
     "w": 25,
     "h": 39
@@ -3202,8 +3458,8 @@
   },
   "stone_wall_nw_ghost_bad": {
    "frame": {
-    "x": 233,
-    "y": 251,
+    "x": 0,
+    "y": 292,
     "w": 25,
     "h": 39
    },
@@ -3234,8 +3490,8 @@
   },
   "stone_door_ne": {
    "frame": {
-    "x": 260,
-    "y": 251,
+    "x": 27,
+    "y": 292,
     "w": 31,
     "h": 39
    },
@@ -3266,8 +3522,8 @@
   },
   "stone_door_ne_ghost_ok": {
    "frame": {
-    "x": 293,
-    "y": 251,
+    "x": 60,
+    "y": 292,
     "w": 31,
     "h": 39
    },
@@ -3298,8 +3554,8 @@
   },
   "stone_door_ne_ghost_bad": {
    "frame": {
-    "x": 326,
-    "y": 251,
+    "x": 93,
+    "y": 292,
     "w": 31,
     "h": 39
    },
@@ -3330,8 +3586,8 @@
   },
   "stone_door_nw": {
    "frame": {
-    "x": 359,
-    "y": 251,
+    "x": 126,
+    "y": 292,
     "w": 25,
     "h": 39
    },
@@ -3362,8 +3618,8 @@
   },
   "stone_door_nw_ghost_ok": {
    "frame": {
-    "x": 386,
-    "y": 251,
+    "x": 153,
+    "y": 292,
     "w": 25,
     "h": 39
    },
@@ -3394,8 +3650,8 @@
   },
   "stone_door_nw_ghost_bad": {
    "frame": {
-    "x": 413,
-    "y": 251,
+    "x": 180,
+    "y": 292,
     "w": 25,
     "h": 39
    },
@@ -3426,8 +3682,8 @@
   },
   "stone_floor": {
    "frame": {
-    "x": 440,
-    "y": 251,
+    "x": 207,
+    "y": 292,
     "w": 36,
     "h": 22
    },
@@ -3458,7 +3714,7 @@
   },
   "stone_floor_ghost_ok": {
    "frame": {
-    "x": 0,
+    "x": 245,
     "y": 292,
     "w": 36,
     "h": 22
@@ -3490,7 +3746,7 @@
   },
   "stone_floor_ghost_bad": {
    "frame": {
-    "x": 38,
+    "x": 283,
     "y": 292,
     "w": 36,
     "h": 22
@@ -3522,7 +3778,7 @@
   },
   "rock_node_0": {
    "frame": {
-    "x": 76,
+    "x": 321,
     "y": 292,
     "w": 24,
     "h": 20
@@ -3554,7 +3810,7 @@
   },
   "rock_node_1": {
    "frame": {
-    "x": 102,
+    "x": 347,
     "y": 292,
     "w": 24,
     "h": 20
@@ -3586,7 +3842,7 @@
   },
   "rock_node_2": {
    "frame": {
-    "x": 128,
+    "x": 373,
     "y": 292,
     "w": 24,
     "h": 20
@@ -3618,7 +3874,7 @@
   },
   "rock_node_rubble": {
    "frame": {
-    "x": 154,
+    "x": 399,
     "y": 292,
     "w": 24,
     "h": 20
@@ -3650,7 +3906,7 @@
   },
   "item_hammerstone": {
    "frame": {
-    "x": 180,
+    "x": 425,
     "y": 292,
     "w": 16,
     "h": 16
@@ -3682,7 +3938,7 @@
   },
   "item_flake": {
    "frame": {
-    "x": 198,
+    "x": 443,
     "y": 292,
     "w": 16,
     "h": 16
@@ -3714,7 +3970,7 @@
   },
   "item_rock": {
    "frame": {
-    "x": 216,
+    "x": 461,
     "y": 292,
     "w": 16,
     "h": 16
@@ -3746,7 +4002,7 @@
   },
   "flint_core_0": {
    "frame": {
-    "x": 234,
+    "x": 479,
     "y": 292,
     "w": 20,
     "h": 16
@@ -3778,8 +4034,8 @@
   },
   "flint_core_1": {
    "frame": {
-    "x": 256,
-    "y": 292,
+    "x": 0,
+    "y": 333,
     "w": 20,
     "h": 16
    },
@@ -3810,8 +4066,8 @@
   },
   "flint_core_2": {
    "frame": {
-    "x": 278,
-    "y": 292,
+    "x": 22,
+    "y": 333,
     "w": 20,
     "h": 16
    },
@@ -3842,8 +4098,8 @@
   },
   "river_cobbles": {
    "frame": {
-    "x": 300,
-    "y": 292,
+    "x": 44,
+    "y": 333,
     "w": 24,
     "h": 14
    },
@@ -3874,8 +4130,8 @@
   },
   "item_flint_core": {
    "frame": {
-    "x": 326,
-    "y": 292,
+    "x": 70,
+    "y": 333,
     "w": 16,
     "h": 16
    },
@@ -3906,8 +4162,8 @@
   },
   "bush_fiber_cut": {
    "frame": {
-    "x": 344,
-    "y": 292,
+    "x": 88,
+    "y": 333,
     "w": 20,
     "h": 24
    },
@@ -3938,8 +4194,8 @@
   },
   "lashed_tripod": {
    "frame": {
-    "x": 366,
-    "y": 292,
+    "x": 110,
+    "y": 333,
     "w": 36,
     "h": 44
    },
@@ -3970,8 +4226,8 @@
   },
   "bowdrill_0": {
    "frame": {
-    "x": 404,
-    "y": 292,
+    "x": 148,
+    "y": 333,
     "w": 28,
     "h": 24
    },
@@ -4002,8 +4258,8 @@
   },
   "bowdrill_1": {
    "frame": {
-    "x": 434,
-    "y": 292,
+    "x": 178,
+    "y": 333,
     "w": 28,
     "h": 24
    },
@@ -4034,8 +4290,8 @@
   },
   "bowdrill_coal": {
    "frame": {
-    "x": 464,
-    "y": 292,
+    "x": 208,
+    "y": 333,
     "w": 28,
     "h": 24
    },
@@ -4066,8 +4322,8 @@
   },
   "item_bowdrill_kit": {
    "frame": {
-    "x": 494,
-    "y": 292,
+    "x": 238,
+    "y": 333,
     "w": 16,
     "h": 16
    },
@@ -4098,8 +4354,8 @@
   },
   "item_tinder": {
    "frame": {
-    "x": 0,
-    "y": 338,
+    "x": 256,
+    "y": 333,
     "w": 16,
     "h": 16
    },
@@ -4130,8 +4386,8 @@
   },
   "item_tinder_lit_0": {
    "frame": {
-    "x": 18,
-    "y": 338,
+    "x": 274,
+    "y": 333,
     "w": 16,
     "h": 16
    },
@@ -4162,8 +4418,8 @@
   },
   "item_tinder_lit_1": {
    "frame": {
-    "x": 36,
-    "y": 338,
+    "x": 292,
+    "y": 333,
     "w": 16,
     "h": 16
    },
@@ -4194,8 +4450,8 @@
   },
   "item_kindling": {
    "frame": {
-    "x": 54,
-    "y": 338,
+    "x": 310,
+    "y": 333,
     "w": 16,
     "h": 16
    },
@@ -4226,8 +4482,8 @@
   },
   "item_coal": {
    "frame": {
-    "x": 72,
-    "y": 338,
+    "x": 328,
+    "y": 333,
     "w": 16,
     "h": 16
    },
@@ -4258,8 +4514,8 @@
   },
   "fire_tipi_embers_0": {
    "frame": {
-    "x": 90,
-    "y": 338,
+    "x": 346,
+    "y": 333,
     "w": 32,
     "h": 40
    },
@@ -4290,8 +4546,8 @@
   },
   "fire_tipi_embers_1": {
    "frame": {
-    "x": 124,
-    "y": 338,
+    "x": 380,
+    "y": 333,
     "w": 32,
     "h": 40
    },
@@ -4322,8 +4578,8 @@
   },
   "tripod_boughs": {
    "frame": {
-    "x": 158,
-    "y": 338,
+    "x": 414,
+    "y": 333,
     "w": 36,
     "h": 44
    },
@@ -4354,8 +4610,8 @@
   },
   "tripod_bark": {
    "frame": {
-    "x": 196,
-    "y": 338,
+    "x": 452,
+    "y": 333,
     "w": 36,
     "h": 44
    },
@@ -4386,8 +4642,8 @@
   },
   "twig_foundation_worn": {
    "frame": {
-    "x": 234,
-    "y": 338,
+    "x": 0,
+    "y": 379,
     "w": 38,
     "h": 30
    },
@@ -4418,8 +4674,8 @@
   },
   "twig_wall_ne_worn": {
    "frame": {
-    "x": 274,
-    "y": 338,
+    "x": 40,
+    "y": 379,
     "w": 31,
     "h": 39
    },
@@ -4450,8 +4706,8 @@
   },
   "twig_wall_nw_worn": {
    "frame": {
-    "x": 307,
-    "y": 338,
+    "x": 73,
+    "y": 379,
     "w": 25,
     "h": 39
    },
@@ -4482,8 +4738,8 @@
   },
   "twig_door_ne_worn": {
    "frame": {
-    "x": 334,
-    "y": 338,
+    "x": 100,
+    "y": 379,
     "w": 31,
     "h": 39
    },
@@ -4514,8 +4770,8 @@
   },
   "twig_door_nw_worn": {
    "frame": {
-    "x": 367,
-    "y": 338,
+    "x": 133,
+    "y": 379,
     "w": 25,
     "h": 39
    },
@@ -4546,8 +4802,8 @@
   },
   "twig_floor_worn": {
    "frame": {
-    "x": 394,
-    "y": 338,
+    "x": 160,
+    "y": 379,
     "w": 36,
     "h": 22
    },
@@ -4578,8 +4834,8 @@
   },
   "rain_drop": {
    "frame": {
-    "x": 432,
-    "y": 338,
+    "x": 198,
+    "y": 379,
     "w": 4,
     "h": 10
    },
@@ -4610,8 +4866,8 @@
   },
   "rain_splash_0": {
    "frame": {
-    "x": 438,
-    "y": 338,
+    "x": 204,
+    "y": 379,
     "w": 10,
     "h": 6
    },
@@ -4642,8 +4898,8 @@
   },
   "rain_splash_1": {
    "frame": {
-    "x": 450,
-    "y": 338,
+    "x": 216,
+    "y": 379,
     "w": 10,
     "h": 6
    },
@@ -4674,8 +4930,8 @@
   },
   "puddle": {
    "frame": {
-    "x": 462,
-    "y": 338,
+    "x": 228,
+    "y": 379,
     "w": 28,
     "h": 12
    },
@@ -4706,8 +4962,8 @@
   },
   "firelight_0": {
    "frame": {
-    "x": 0,
-    "y": 384,
+    "x": 258,
+    "y": 379,
     "w": 96,
     "h": 48
    },
@@ -4738,8 +4994,8 @@
   },
   "firelight_1": {
    "frame": {
-    "x": 98,
-    "y": 384,
+    "x": 356,
+    "y": 379,
     "w": 96,
     "h": 48
    },
@@ -4770,8 +5026,8 @@
   },
   "warmth_ring": {
    "frame": {
-    "x": 196,
-    "y": 384,
+    "x": 0,
+    "y": 429,
     "w": 116,
     "h": 60
    },
@@ -4802,8 +5058,8 @@
   },
   "berry_bush_ripe": {
    "frame": {
-    "x": 314,
-    "y": 384,
+    "x": 118,
+    "y": 429,
     "w": 28,
     "h": 22
    },
@@ -4834,8 +5090,8 @@
   },
   "berry_bush_picked": {
    "frame": {
-    "x": 344,
-    "y": 384,
+    "x": 148,
+    "y": 429,
     "w": 28,
     "h": 22
    },
@@ -4866,8 +5122,8 @@
   },
   "cattails_0": {
    "frame": {
-    "x": 374,
-    "y": 384,
+    "x": 178,
+    "y": 429,
     "w": 20,
     "h": 30
    },
@@ -4898,8 +5154,8 @@
   },
   "cattails_1": {
    "frame": {
-    "x": 396,
-    "y": 384,
+    "x": 200,
+    "y": 429,
     "w": 20,
     "h": 30
    },
@@ -4930,8 +5186,8 @@
   },
   "item_berries": {
    "frame": {
-    "x": 418,
-    "y": 384,
+    "x": 222,
+    "y": 429,
     "w": 16,
     "h": 16
    },
@@ -4962,8 +5218,8 @@
   },
   "item_cattail_root": {
    "frame": {
-    "x": 436,
-    "y": 384,
+    "x": 240,
+    "y": 429,
     "w": 16,
     "h": 16
    },
@@ -4994,8 +5250,8 @@
   },
   "item_bark_cup": {
    "frame": {
-    "x": 454,
-    "y": 384,
+    "x": 258,
+    "y": 429,
     "w": 16,
     "h": 16
    },
@@ -5026,8 +5282,8 @@
   },
   "item_bark_cup_water": {
    "frame": {
-    "x": 472,
-    "y": 384,
+    "x": 276,
+    "y": 429,
     "w": 16,
     "h": 16
    },
@@ -5058,8 +5314,8 @@
   },
   "steam_0": {
    "frame": {
-    "x": 490,
-    "y": 384,
+    "x": 294,
+    "y": 429,
     "w": 10,
     "h": 14
    },
@@ -5090,8 +5346,8 @@
   },
   "steam_1": {
    "frame": {
-    "x": 502,
-    "y": 384,
+    "x": 306,
+    "y": 429,
     "w": 10,
     "h": 14
    },
@@ -5122,8 +5378,8 @@
   },
   "item_birch_bark": {
    "frame": {
-    "x": 0,
-    "y": 446,
+    "x": 318,
+    "y": 429,
     "w": 16,
     "h": 16
    },
@@ -5154,8 +5410,8 @@
   },
   "item_bark_cup_worn": {
    "frame": {
-    "x": 18,
-    "y": 446,
+    "x": 336,
+    "y": 429,
     "w": 16,
     "h": 16
    },
@@ -5186,8 +5442,8 @@
   },
   "bark_pot_coals": {
    "frame": {
-    "x": 36,
-    "y": 446,
+    "x": 354,
+    "y": 429,
     "w": 22,
     "h": 18
    },
@@ -5218,8 +5474,8 @@
   },
   "bark_pot_coals_boil": {
    "frame": {
-    "x": 60,
-    "y": 446,
+    "x": 378,
+    "y": 429,
     "w": 22,
     "h": 18
    },
@@ -5250,8 +5506,8 @@
   },
   "birch_tree_peeled": {
    "frame": {
-    "x": 84,
-    "y": 446,
+    "x": 402,
+    "y": 429,
     "w": 32,
     "h": 56
    },
@@ -5282,8 +5538,8 @@
   },
   "birch_log": {
    "frame": {
-    "x": 118,
-    "y": 446,
+    "x": 436,
+    "y": 429,
     "w": 48,
     "h": 24
    },
@@ -5310,6 +5566,262 @@
    "anchorPx": {
     "x": 24,
     "y": 18
+   }
+  },
+  "item_stone_axe": {
+   "frame": {
+    "x": 486,
+    "y": 429,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_wood_bowl": {
+   "frame": {
+    "x": 0,
+    "y": 491,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_wood_bowl_water": {
+   "frame": {
+    "x": 18,
+    "y": 491,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_wood_bowl_boil": {
+   "frame": {
+    "x": 36,
+    "y": 491,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_hot_stone_0": {
+   "frame": {
+    "x": 54,
+    "y": 491,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_hot_stone_1": {
+   "frame": {
+    "x": 72,
+    "y": 491,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_cobble_cracked": {
+   "frame": {
+    "x": 90,
+    "y": 491,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "creek_gravel": {
+   "frame": {
+    "x": 108,
+    "y": 491,
+    "w": 32,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.5
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 8
    }
   }
  },
@@ -5340,6 +5852,10 @@
    "woodsman_se_strike_0",
    "woodsman_se_strike_1"
   ],
+  "woodsman_se_axe": [
+   "woodsman_se_axe_0",
+   "woodsman_se_axe_1"
+  ],
   "woodsman_sw_idle": [
    "woodsman_sw_idle_0",
    "woodsman_sw_idle_1"
@@ -5357,6 +5873,10 @@
   "woodsman_sw_strike": [
    "woodsman_sw_strike_0",
    "woodsman_sw_strike_1"
+  ],
+  "woodsman_sw_axe": [
+   "woodsman_sw_axe_0",
+   "woodsman_sw_axe_1"
   ],
   "woodsman_ne_idle": [
    "woodsman_ne_idle_0",
@@ -5376,6 +5896,10 @@
    "woodsman_ne_strike_0",
    "woodsman_ne_strike_1"
   ],
+  "woodsman_ne_axe": [
+   "woodsman_ne_axe_0",
+   "woodsman_ne_axe_1"
+  ],
   "woodsman_nw_idle": [
    "woodsman_nw_idle_0",
    "woodsman_nw_idle_1"
@@ -5393,6 +5917,10 @@
   "woodsman_nw_strike": [
    "woodsman_nw_strike_0",
    "woodsman_nw_strike_1"
+  ],
+  "woodsman_nw_axe": [
+   "woodsman_nw_axe_0",
+   "woodsman_nw_axe_1"
   ],
   "woodsman_se_gather": [
    "woodsman_se_gather_0"
@@ -5416,7 +5944,7 @@
   "format": "RGBA8888",
   "size": {
    "w": 512,
-   "h": 502
+   "h": 507
   },
   "scale": "1",
   "note": "anchor = footprint center (ground contact) normalized; use sprite.setOrigin(anchor.x, anchor.y). Ground tile 32x16 2:1 iso."

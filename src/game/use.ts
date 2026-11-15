@@ -151,6 +151,12 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
   return { action: 'none', message: 'Nothing in these hands.' };
 }
 
+/** Shown when a damaged twig piece is in reach. One length of wood patches it. */
+export function repairPrompt(state: GameState, feet: Feet): string | null {
+  if (!nearestWorn(state, feet)) return null;
+  return 'Repair (1 wood)';
+}
+
 /** Line while he stands next to twig he can afford to turn to stone. */
 export function upgradePrompt(state: GameState, feet: Feet): string | null {
   if (!state.inventory.hammerstone) return null;

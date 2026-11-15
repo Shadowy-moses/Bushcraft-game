@@ -48,6 +48,7 @@ export const ATLAS_FRAMES = [
   'forest_floor',
   'creek_water',
   'creek_edge_stones',
+  'creek_gravel',
   'pine_tree',
   'birch_tree',
   'rock',

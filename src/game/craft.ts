@@ -288,20 +288,20 @@ export function recipesFor(state: GameState): Recipe[] {
       id: 'boughs',
       category: 'construction',
       name: 'Bough cover',
-      blurb: 'Pine boughs over the lashed frame. Quick and cheap. Rain still drips through.',
+      blurb: 'Pine boughs over the lashed frame. Quick and cheap. Rain still drips through. A new cover replaces the old one, and nothing is refunded.',
       frame: 'tripod_boughs',
       ingredients: [{ name: 'Fiber', have: state.inventory.fiber, need: BOUGH_FIBER }],
       seconds: 0,
       timeLabel: 'On a lashed tripod',
       action: 'cover-boughs',
-      enabled: state.inventory.fiber >= BOUGH_FIBER && state.pieces.some((piece) => piece.kind === 'tripod' && !piece.cover),
+      enabled: state.inventory.fiber >= BOUGH_FIBER && state.pieces.some((piece) => piece.kind === 'tripod' && piece.cover !== 'boughs'),
       done: false,
     },
     {
       id: 'bark',
       category: 'construction',
       name: 'Bark cover',
-      blurb: 'Bark strips lashed over the frame. Costs more than boughs, and it sheds the rain.',
+      blurb: 'Bark strips lashed over the frame. Costs more than boughs, and it sheds the rain. A new cover replaces the old one, and nothing is refunded.',
       frame: 'tripod_bark',
       ingredients: [
         { name: 'Wood', have: state.inventory.wood, need: BARK_WOOD },
@@ -313,7 +313,7 @@ export function recipesFor(state: GameState): Recipe[] {
       enabled:
         state.inventory.wood >= BARK_WOOD &&
         state.inventory.cordage >= BARK_CORDAGE &&
-        state.pieces.some((piece) => piece.kind === 'tripod' && !piece.cover),
+        state.pieces.some((piece) => piece.kind === 'tripod' && piece.cover !== 'bark'),
       done: false,
     },
     {
