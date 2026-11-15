@@ -14,7 +14,7 @@ function stand(tx: number, ty: number, tool: 'hands' | 'hatchet' | 'axe' | 'hamm
 describe('what Use reaches for', () => {
   it('picks up a river cobble with empty hands and leaves the tool alone', () => {
     const state = stand(2, 8, 'hands');
-    expect(chooseUse(state, { x: state.x, y: state.y }).action).toBe('drink-creek');
+    expect(chooseUse(state, { x: state.x, y: state.y }).action).toBe('gather');
     const taken = gather(state, 'river_cobbles-2-8');
     expect(taken.ok).toBe(true);
     expect(taken.message).toBe('A hard, round cobble. Good hammerstone.');
@@ -52,7 +52,7 @@ describe('what Use reaches for', () => {
       ...stand(3, 9, 'hands'),
       inventory: { ...initialState().inventory, hammerstone: true },
     };
-    expect(chooseUse(owned, { x: owned.x, y: owned.y }).action).toBe('drink-creek');
+    expect(chooseUse(owned, { x: owned.x, y: owned.y }).action).toBe('gather');
     const scooped = gather(owned, 'river_cobbles-3-9');
     expect(scooped.ok).toBe(true);
     expect(scooped.state.inventory.wetCobble).toBe(1);
@@ -62,7 +62,8 @@ describe('what Use reaches for', () => {
       inventory: { ...owned.inventory, wetCobble: 1 },
     };
     const skipped = chooseUse(full, { x: full.x, y: full.y });
-    if (skipped.action === 'gather') expect(skipped.prop.kind).not.toBe('river_cobbles');
+    expect(skipped.action).toBe('gather');
+    if (skipped.action === 'gather') expect(skipped.prop.kind).toBe('river_cobbles');
     const axe = chooseUse(stand(2, 8, 'axe'), { x: byCobble.x, y: byCobble.y });
     expect(axe.action).toBe('chop');
   });

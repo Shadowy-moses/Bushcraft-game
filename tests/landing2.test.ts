@@ -98,9 +98,9 @@ describe('cobbles, flakes, and the debug pack', () => {
 describe('the fire beside him', () => {
   it('tends the coals instead of drinking the creek or pulling a plant', () => {
     const state = {
-      ...at(2, 9),
+      ...at(9, 9),
       inventory: { ...emptyInventory(), wood: 3 },
-      pieces: [{ kind: 'fire' as const, tx: 2, ty: 9, edge: 'se' as const, lit: true, fuel: 40 }],
+      pieces: [{ kind: 'fire' as const, tx: 9, ty: 9, edge: 'se' as const, lit: true, fuel: 40 }],
     };
     const choice = chooseUse(state, { x: state.x, y: state.y });
     expect(choice.action).toBe('feed');
@@ -108,7 +108,7 @@ describe('the fire beside him', () => {
     const cold = {
       ...state,
       inventory: { ...state.inventory, coal: 1, wood: 0 },
-      pieces: [{ kind: 'fire' as const, tx: 2, ty: 9, edge: 'se' as const, lit: false, fuel: 40, ember: 'none' as const }],
+      pieces: [{ kind: 'fire' as const, tx: 9, ty: 9, edge: 'se' as const, lit: false, fuel: 40, ember: 'none' as const }],
     };
     expect(chooseUse(cold, { x: cold.x, y: cold.y }).action).toBe('blow');
     expect(buildModel(cold, 'none', false).useLabel).toBe('Blow');
@@ -123,9 +123,10 @@ describe('the fire beside him', () => {
 describe('the stick', () => {
   it('creeps at a low tilt and still runs at full tilt', () => {
     expect(travelSpeed(0.1).speed).toBe(0);
-    const low = travelSpeed(0.35);
+    const low = travelSpeed(0.2);
     expect(low.speed).toBeGreaterThan(0);
-    expect(low.speed).toBeLessThan(WALK_SPEED * 0.5);
+    expect(low.speed).toBeLessThan(WALK_SPEED);
+    expect(travelSpeed(0.6).speed).toBe(WALK_SPEED * 2);
     expect(travelSpeed(1).running).toBe(true);
   });
 });

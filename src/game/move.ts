@@ -17,7 +17,8 @@ export const TRIPOD_RADIUS = 9;
 export const WALK_SPEED = 52;
 /** Full deflection. About twice a walk, so a hard push reads as a run. */
 export const RUN_SPEED = 104;
-export const RUN_STICK = 0.85;
+/** Full speed by about 60% tilt. The last of the push stays at the same run. */
+export const RUN_STICK = 0.6;
 /** Kept for anything that still wants a single pace. A full push uses RUN_SPEED. */
 export const MOVE_SPEED = WALK_SPEED;
 /**
@@ -103,8 +104,8 @@ export function stickDirection(x: number, y: number): { x: number; y: number } {
 }
 
 /**
- * Partial stick walks. Just past the dead zone he creeps. A push at the rim
- * still runs at RUN_SPEED. Magnitude is the raw stick tilt, 0–1.
+ * Partial stick creeps. By about 60% tilt he is already at RUN_SPEED, and a
+ * full push stays there. Magnitude is the raw stick tilt, 0–1.
  */
 export function travelSpeed(magnitude: number): { speed: number; running: boolean } {
   const mag = Math.min(1, Math.max(0, magnitude));
@@ -112,7 +113,8 @@ export function travelSpeed(magnitude: number): { speed: number; running: boolea
   if (mag >= RUN_STICK) return { speed: RUN_SPEED, running: true };
   const t = (mag - STICK_DEAD) / (RUN_STICK - STICK_DEAD);
   const eased = t * t * (3 - 2 * t);
-  return { speed: WALK_SPEED * (0.18 + 0.82 * eased), running: false };
+  const creep = WALK_SPEED * 0.18;
+  return { speed: creep + (RUN_SPEED - creep) * eased, running: false };
 }
 
 export function bodiesFor(

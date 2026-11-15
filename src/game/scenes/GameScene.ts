@@ -63,20 +63,21 @@ import {
   debugInventory,
   initialState,
   knapFlint,
-  minutesThisFrame,
   nearestBareTripod,
   placePiece,
   repairPiece,
   restEnergyPerSecond,
+  stepPlayClock,
   strikeRock,
   tick,
   upgradePiece,
+  wearNearby,
 } from '../rules';
 import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
-import { hotbarSlots } from '../craft';
-import { chooseTarget, upgradePrompt, waterChoice, type UseChoice } from '../use';
+import { hotbarSlots, packTap } from '../craft';
+import { chooseTarget, rankedActions, upgradePrompt, waterChoice, type UseChoice } from '../use';
 import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { BOIL_METHOD } from '../boil';
 import { drinkBowl, drinkCreek, drinkCup, eat, finishBoil, liftPot, plantFrame, scoopBowl, scoopCreek } from '../food';
@@ -542,7 +543,11 @@ export class GameScene extends Phaser.Scene {
     if (this.walkTo) this.stepWalk(dt);
     else if (this.approach) this.stepApproach(dt);
     else this.stepFree(dt);
-    this.stepDrillFrame(dt);
+    try {
+      this.stepDrillFrame(dt);
+    } catch (err) {
+      console.error(err);
+    }
     this.stepGhostShove();
     this.expirePose();
     this.expireLogs();
@@ -561,19 +566,18 @@ export class GameScene extends Phaser.Scene {
         const tip = restingTip(this.rested, sheltered);
         if (this.state.tip !== tip) this.state = { ...this.state, tip };
       }
-      this.minuteBank += this.resting ? dt * REST_MINUTES_PER_SECOND : minutesThisFrame(dt);
-      if (this.minuteBank >= 0.2) {
-        const minutes = this.minuteBank;
-        this.minuteBank = 0;
-        const beforeTrees = this.state.trees;
-        const beforePlants = this.state.plants;
-        const beforeRocks = this.state.rocks;
-        const beforePicked = this.state.picked;
-        const beforeFires = this.state.pieces
-          .filter((piece) => piece.kind === 'fire')
-          .map((piece) => `${piece.tx},${piece.ty}:${piece.lit}:${piece.fuel}`)
-          .join('|');
-        this.state = tick(this.state, minutes);
+      const beforeTrees = this.state.trees;
+      const beforePlants = this.state.plants;
+      const beforeRocks = this.state.rocks;
+      const beforePicked = this.state.picked;
+      const beforeFires = this.state.pieces
+        .filter((piece) => piece.kind === 'fire')
+        .map((piece) => `${piece.tx},${piece.ty}:${piece.lit}:${piece.fuel}`)
+        .join('|');
+      const clock = stepPlayClock(this.state, this.minuteBank, dt, this.resting);
+      this.minuteBank = clock.bank;
+      if (clock.state !== this.state) {
+        this.state = clock.state;
         if (this.state.trees !== beforeTrees) {
           this.syncProps();
           this.syncStumps();
@@ -680,7 +684,19 @@ export class GameScene extends Phaser.Scene {
     this.showIdle();
   }
 
+  private layoutLock = false;
+
   private layoutCamera(): void {
+    if (this.layoutLock) return;
+    this.layoutLock = true;
+    try {
+      this.applyLayout();
+    } finally {
+      this.layoutLock = false;
+    }
+  }
+
+  private applyLayout(): void {
     const cam = this.cameras.main;
     const parentW = Math.max(1, this.scale.width);
     const parentH = Math.max(1, this.scale.height);
@@ -1106,8 +1122,37 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private useNearest(): void {
-    this.performChoice(chooseTarget(this.state, { x: this.px, y: this.py }));
+  private usePack(slotId: string): void {
+    const tap = packTap(this.state, slotId);
+    if (tap.kind === 'drink') {
+      this.handsFood('drink');
+      return;
+    }
+    if (tap.kind === 'drink-bowl') {
+      this.handsFood('drink-bowl');
+      return;
+    }
+    if (tap.kind === 'eat') {
+      const result = eat(this.state, tap.food);
+      if (!result.ok) this.setTip(result.message);
+      else {
+        this.state = result.state;
+        this.playPose('gather');
+        this.afterChange();
+      }
+      return;
+    }
+    if (tap.kind === 'equip') {
+      this.state = { ...this.state, tool: tap.tool };
+      this.paintHud(false);
+      return;
+    }
+    if (tap.kind === 'open-plan') {
+      this.state = { ...this.state, tool: 'plan' };
+      this.openCraft();
+      return;
+    }
+    if (tap.message) this.setTip(tap.message);
   }
 
   private performChoice(choice: UseChoice): void {
@@ -1404,12 +1449,14 @@ export class GameScene extends Phaser.Scene {
   private handleAction(id: string): void {
     if (id === 'debug-eight' || id === 'debug-rain') {
       if (!this.debugMode) return;
+      saveGame(this.state);
       this.state = { ...this.state, minutes: 20 * 60 };
       this.afterChange();
       return;
     }
     if (id === 'debug-hour') {
       if (!this.debugMode) return;
+      saveGame(this.state);
       this.state = tick(this.state, 60);
       this.afterChange();
       return;
@@ -1422,15 +1469,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (id === 'debug-wear') {
       if (!this.debugMode) return;
-      this.state = {
-        ...this.state,
-        pieces: this.state.pieces.map((piece) => {
-          if (piece.kind === 'fire' || piece.kind === 'tripod') return piece;
-          if ((piece.material ?? 'twig') === 'stone') return piece;
-          const near = Math.max(Math.abs(piece.tx - this.state.tx), Math.abs(piece.ty - this.state.ty)) <= 3;
-          return near ? { ...piece, health: 50 } : piece;
-        }),
-      };
+      this.state = wearNearby(this.state).state;
       this.afterChange();
       return;
     }
@@ -1461,50 +1500,8 @@ export class GameScene extends Phaser.Scene {
     if (id.startsWith('slot-')) {
       const index = Number(id.slice(5));
       const slot = hotbarSlots(this.state)[index];
-      if (slot?.id === 'pot') {
-        if (this.state.cupWater === 'boiled') {
-          this.handsFood('drink');
-          return;
-        }
-        if (this.state.cupWater === 'raw') this.setTip(this.state.potSeat ? 'It is on the coals.' : 'Set it on the coals.');
-        return;
-      }
-      if (slot?.id === 'berries' || slot?.id === 'roots') {
-        const result = eat(this.state, slot.id === 'berries' ? 'berries' : 'roots');
-        if (!result.ok) this.setTip(result.message);
-        else {
-          this.state = result.state;
-          this.playPose('gather');
-          this.afterChange();
-        }
-        return;
-      }
-      if (index === 0) this.state = { ...this.state, tool: 'hands' };
-      if (index === 1) this.state = { ...this.state, tool: 'hatchet' };
-      if (index === 2) {
-        if (!this.state.inventory.axe) {
-          this.setTip('Haft a stone axe first.');
-          return;
-        }
-        this.state = { ...this.state, tool: 'axe' };
-        this.paintHud(false);
-        return;
-      }
-      if (index === 3) {
-        if (!this.state.inventory.hammerstone) {
-          this.setTip('Knap a hammerstone first.');
-          return;
-        }
-        this.state = { ...this.state, tool: 'hammerstone' };
-        this.paintHud(false);
-        return;
-      }
-      if (index === 4) {
-        this.state = { ...this.state, tool: 'plan' };
-        this.openCraft();
-        return;
-      }
-      this.paintHud(false);
+      if (!slot) return;
+      this.usePack(slot.id);
       return;
     }
     if (id === 'pack' || id === 'craft') {
@@ -1602,9 +1599,15 @@ export class GameScene extends Phaser.Scene {
       this.confirmPlace();
       return;
     }
-    if (id === 'use') {
+    if (id === 'use' || id === 'use-next') {
       if (!this.started || this.state.outcome !== 'playing' || this.sheet !== 'none' || this.placing) return;
-      this.useNearest();
+      const ranked = rankedActions(this.state, { x: this.px, y: this.py });
+      const choice = id === 'use-next' ? ranked.next : ranked.primary;
+      if (choice) this.performChoice(choice);
+      return;
+    }
+    if (id.startsWith('pack-')) {
+      this.usePack(id.slice(5));
       return;
     }
     if (id === 'rest') {

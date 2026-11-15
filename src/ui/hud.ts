@@ -1,8 +1,9 @@
-import { CRAFT_CATEGORIES, allowCraftTap, type CraftCategory, type Recipe } from '../game/craft';
+import { CRAFT_CATEGORIES, allowCraftTap, shownHave, type CraftCategory, type Recipe } from '../game/craft';
 import { UPGRADE_NOTE } from '../game/copy';
 import type { HudModel } from '../game/model';
 import type { Tool } from '../game/types';
 import { ICONS } from './icons';
+import { MESSAGE_LINES, MESSAGE_SLOT } from './message';
 
 export interface HudHandlers {
   onAction: (id: string) => void;
@@ -79,7 +80,10 @@ export class Hud {
       <div id="right-dock">
         <button type="button" id="bag" data-action="craft" aria-label="Inventory">${ICONS.bag}</button>
         <div class="hotbar" id="hotbar"></div>
-        <button type="button" id="act" data-action="use" aria-label="Use" hidden><span class="act-icon">${ICONS.hatchet}</span><span class="act-label">Use</span></button>
+        <div id="act-row">
+          <button type="button" id="act-next" data-action="use-next" aria-label="Also" hidden><span class="act-label">Also</span></button>
+          <button type="button" id="act" data-action="use" aria-label="Use" hidden><span class="act-icon">${ICONS.hatchet}</span><span class="act-label">Use</span></button>
+        </div>
       </div>
       <div id="debug-panel" hidden>
         <button type="button" data-action="debug-eight">8:00 rain</button>
@@ -90,6 +94,15 @@ export class Hud {
       </div>
       <div id="overlay" hidden></div>
     `;
+    const tip = this.root.querySelector<HTMLElement>('#tip');
+    if (tip) {
+      tip.style.height = MESSAGE_SLOT;
+      tip.style.minHeight = MESSAGE_SLOT;
+      tip.style.maxHeight = MESSAGE_SLOT;
+      tip.style.overflow = 'hidden';
+      tip.style.setProperty('-webkit-line-clamp', String(MESSAGE_LINES));
+      tip.style.setProperty('line-clamp', String(MESSAGE_LINES));
+    }
     this.onClick = (event) => this.handleClick(event);
     this.root.addEventListener('click', this.onClick);
     this.bindStick();
@@ -251,6 +264,12 @@ export class Hud {
     this.text('status', model.status);
     const act = document.querySelector('#act .act-label');
     if (act) act.textContent = model.useLabel;
+    const next = document.getElementById('act-next');
+    if (next) {
+      const label = next.querySelector('.act-label');
+      if (label) label.textContent = model.secondLabel || 'Also';
+      next.setAttribute('aria-label', model.secondLabel || 'Also');
+    }
     this.text('tip', model.tip);
     this.fill('health-fill', model.health);
     this.fill('warmth-fill', model.warmth);
@@ -284,7 +303,9 @@ export class Hud {
       stick.toggleAttribute('hidden', !stickOn);
       if (wasShown && !stickOn) this.releaseStick();
     }
-    document.getElementById('act')?.toggleAttribute('hidden', !(stickOn && !model.place));
+    const showAct = stickOn && !model.place;
+    document.getElementById('act')?.toggleAttribute('hidden', !showAct);
+    document.getElementById('act-next')?.toggleAttribute('hidden', !(showAct && model.secondLabel));
     this.paintHotbar(model);
     this.paintPouch(model);
     this.paintDock(model);
@@ -401,10 +422,10 @@ export class Hud {
       pouch.innerHTML = resources
         .map(
           (slot) => `
-            <span class="chip" aria-label="${esc(slot.name)} ${slot.count}">
+            <button type="button" class="chip" data-action="pack-${slot.id}" aria-label="${esc(slot.name)} ${slot.count}">
               ${this.iconHtml(slot.frame, false, 16)}
               <span class="n" data-slot="${slot.id}">${slot.count}</span>
-            </span>
+            </button>
           `,
         )
         .join('');
@@ -451,7 +472,8 @@ export class Hud {
     document.querySelectorAll<HTMLElement>('[data-have]').forEach((node) => {
       const name = node.dataset.have ?? '';
       const need = Number(node.dataset.need ?? 0);
-      const have = counts.get(name) ?? 0;
+      const fromRecipe = shownHave(model.recipes, name);
+      const have = fromRecipe > 0 ? fromRecipe : (counts.get(name) ?? 0);
       const text = `${have}/${need}`;
       if (node.textContent !== text) node.textContent = text;
       node.classList.toggle('ok', have >= need);

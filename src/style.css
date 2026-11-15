@@ -53,7 +53,7 @@ html, body {
 
 [hidden] { display: none !important; }
 
-#overlay, button, .clock, .slot, #stick, #act { pointer-events: auto; }
+#overlay, button, .clock, .slot, #stick, #act, #act-next, .chip { pointer-events: auto; }
 #top-bar, #bottom-bar, #right-dock, .hotbar, .place-actions, #vitals, #minimap, #pouch { pointer-events: none; }
 
 .panel {
@@ -185,6 +185,12 @@ html, body {
   border-radius: 2px;
 }
 
+button.chip {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
 .chip .n {
   font-size: 11px;
   letter-spacing: 0.04em;
@@ -207,7 +213,14 @@ html, body {
 #tip {
   margin: 0 auto 8px;
   max-width: min(360px, 100%);
-  min-height: 0;
+  height: calc(17px * 1.35 * 2);
+  min-height: calc(17px * 1.35 * 2);
+  max-height: calc(17px * 1.35 * 2);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   color: var(--cream);
   font-size: 17px;
   font-weight: 600;
@@ -297,6 +310,33 @@ html, body {
   flex-direction: column;
   align-items: center;
   gap: 6px;
+}
+
+#act-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+#act-next {
+  width: 64px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(18, 16, 14, 0.82);
+  border: 2px solid rgba(214, 204, 180, 0.55);
+  color: var(--cream);
+}
+
+#act-next .act-label {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.15;
 }
 
 #right-dock .hotbar { gap: 6px; }
@@ -724,5 +764,6 @@ h3 { font-size: 16px; margin: 6px 0; }
   #stick-knob { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
   #stick-run { width: 56px; height: 56px; margin: -28px 0 0 -28px; }
   #act { width: 72px; height: 72px; min-width: 72px; min-height: 72px; }
+  #act-next { min-width: 44px; min-height: 44px; }
   #minimap { width: 120px; height: 120px; }
 }

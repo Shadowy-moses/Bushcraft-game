@@ -28,7 +28,7 @@ describe('the bank, a fresh fiber plant, and empty hands', () => {
     expect(planRoute(PLAYER_START, 5, 7, blockedFor(initialState()))).not.toBeNull();
     const state = stand(2, 8);
     expect(canStand(state.x, state.y, bodiesFor(state), [])).toBe(true);
-    expect(chooseUse(state, { x: state.x, y: state.y }).action).toBe('drink-creek');
+    expect(chooseUse(state, { x: state.x, y: state.y }).action).toBe('gather');
     const cobble = PROPS.find((prop) => prop.id === 'river_cobbles-2-8');
     expect(cobble).toBeTruthy();
     expect(reachFor(cobble!)).toBeGreaterThan(54);
