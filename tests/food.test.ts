@@ -71,22 +71,23 @@ describe('food and water', () => {
     const safe = drinkCup(boiled);
     expect(safe.state.thirst).toBeGreaterThan(bank.thirst);
     expect(safe.state.sick).toBe(0);
-    let rawDrink = { ...made.state, cupWater: 'raw' as const, thirst: 40 };
-    const first = drinkCup(rawDrink);
-    const second = drinkCup(first.state.cupWater === 'empty' ? { ...first.state, cupWater: 'raw' } : first.state);
-    expect(first.state.sickAt).toBe(0);
-    expect(second.state.sickAt).toBe(0);
-    const third = drinkCup({ ...second.state, cupWater: 'raw' });
-    expect(third.state.sick).toBe(0);
-    expect(third.state.sickAt).toBe(third.state.minutes + SICK_DELAY);
-    const waiting = tick(third.state, 60);
+    const rawCup = { ...made.state, cupWater: 'raw' as const, thirst: 40 };
+    const fine = drinkCup(rawCup, () => 1);
+    expect(fine.state.sick).toBe(0);
+    expect(fine.state.sickAt).toBe(0);
+    expect(fine.message).toMatch(/sits all right/);
+    const risky = drinkCup(rawCup, () => 0);
+    expect(risky.state.sick).toBe(0);
+    expect(risky.state.sickAt).toBe(risky.state.minutes + SICK_DELAY);
+    expect(risky.message).not.toMatch(/stomach/);
+    const waiting = tick(risky.state, 60);
     expect(waiting.sick).toBe(0);
     expect(waiting.tip).not.toMatch(/stomach/);
-    const started = tick(third.state, SICK_DELAY + 60);
+    const started = tick(risky.state, SICK_DELAY + 60);
     expect(started.sick).toBeGreaterThan(0);
     expect(started.sick).toBeLessThanOrEqual(SICK_MINUTES);
     expect(started.tip).toMatch(/stomach/);
-    expect(started.health).toBeLessThan(third.state.health);
+    expect(started.health).toBeLessThan(risky.state.health);
   });
 
   it('peels a living birch once a day, and a fallen log four times', () => {

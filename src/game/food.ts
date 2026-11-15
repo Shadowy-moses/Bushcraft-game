@@ -67,7 +67,13 @@ export function finishBoil(state: GameState): GameState {
   };
 }
 
-export function drinkCup(state: GameState): { state: GameState; ok: boolean; message: string } {
+/** About one raw drink in three. Tests pass their own roll so the outcome is fixed. */
+const RAW_SICK_CHANCE = 1 / 3;
+
+export function drinkCup(
+  state: GameState,
+  random: () => number = Math.random,
+): { state: GameState; ok: boolean; message: string } {
   if (state.cupWater === 'empty') return { state, ok: false, message: 'The pot is empty.' };
   if (state.cupWater === 'boiled') {
     return {
@@ -82,7 +88,7 @@ export function drinkCup(state: GameState): { state: GameState; ok: boolean; mes
     };
   }
   const sips = (state.sips ?? 0) + 1;
-  const sickens = sips % 3 === 0;
+  const sickens = random() < RAW_SICK_CHANCE;
   return {
     ok: true,
     message: sickens ? 'You drink it raw.' : 'You drink it raw. It sits all right.',
