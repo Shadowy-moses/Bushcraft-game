@@ -52,6 +52,10 @@ function countOf(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+function keepNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
 function outcomeOk(value: unknown): value is Outcome {
   return value === 'playing' || value === 'won' || value === 'lost';
 }
@@ -109,7 +113,21 @@ export function parseSave(raw: string): GameState | null {
         kindling?: unknown;
         coal?: unknown;
         bowdrill?: unknown;
+        berries?: unknown;
+        roots?: unknown;
+        bark?: unknown;
+        pot?: unknown;
+        cup?: unknown;
       };
+      health?: unknown;
+      hunger?: unknown;
+      thirst?: unknown;
+      sick?: unknown;
+      sickAt?: unknown;
+      sips?: unknown;
+      logStrips?: unknown;
+      cupWater?: unknown;
+      rockGone?: unknown;
       rocks?: unknown;
       cores?: unknown;
       plants?: unknown;
@@ -151,6 +169,13 @@ export function parseSave(raw: string): GameState | null {
         minutes: save.minutes,
         warmth: save.warmth,
         energy: save.energy,
+        health: keepNumber(save.health, fresh.health),
+        hunger: keepNumber(save.hunger, fresh.hunger),
+        thirst: keepNumber(save.thirst, fresh.thirst),
+        sick: keepNumber(save.sick, 0),
+        sickAt: keepNumber(save.sickAt, 0),
+        sips: keepNumber(save.sips, 0),
+        cupWater: save.cupWater === 'raw' || save.cupWater === 'boiled' ? save.cupWater : 'empty',
         tx: save.tx,
         ty: save.ty,
         x,
@@ -169,10 +194,16 @@ export function parseSave(raw: string): GameState | null {
         kindling: countOf(save.inventory.kindling),
         coal: countOf(save.inventory.coal),
         bowdrill: save.inventory.bowdrill === true,
+        berries: countOf(save.inventory.berries),
+        roots: countOf(save.inventory.roots),
+        bark: countOf(save.inventory.bark),
+        pot: typeof save.inventory.pot === 'number' ? save.inventory.pot : save.inventory.cup === true ? 3 : 0,
       },
       pieces: save.pieces.map((piece) => restorePiece(piece as Piece)),
       trees: save.trees,
       rocks: (save.rocks as Record<string, number> | undefined) ?? {},
+      rockGone: (save.rockGone as Record<string, number> | undefined) ?? {},
+      logStrips: (save.logStrips as Record<string, number> | undefined) ?? {},
       cores: (save.cores as Record<string, number> | undefined) ?? {},
       plants: save.version === 6 ? ((save.plants as Record<string, number> | undefined) ?? {}) : {},
       picked: freshPicked(save.picked),

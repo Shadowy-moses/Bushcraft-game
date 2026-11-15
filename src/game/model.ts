@@ -1,6 +1,6 @@
 import { hotbarSlots, recipesFor, statusLine, type HotbarSlot, type Recipe } from './craft';
 import { clockParts, energyWord, warmthWord } from './copy';
-import { nearestFire } from './fire';
+import { nearestFire, nearLitFire } from './fire';
 import { PROPS } from './map';
 import { warmthPerGameHour } from './rules';
 import { isFelled } from './trees';
@@ -28,7 +28,15 @@ export interface HudModel {
   health: number;
   warmth: number;
   energy: number;
+  hunger: number;
+  thirst: number;
+  hungerLabel: string;
+  thirstLabel: string;
+  lowHunger: boolean;
+  lowThirst: boolean;
   warmthLabel: string;
+  warming: boolean;
+  debug: boolean;
   energyLabel: string;
   weather: string;
   dampLabel: string;
@@ -58,19 +66,31 @@ export function buildModel(
   resting: boolean,
   place: PlaceModel | null = null,
   queue: { label: string; progress: number } | null = null,
+  debug = false,
 ): HudModel {
   const perHour = warmthPerGameHour(state);
   const face = clockParts(state.minutes);
   const feet = { x: state.x, y: state.y };
   const fire = nearestFire(state, feet, 56);
+  const warming = nearLitFire(state);
   const hold = Boolean(state.inventory.bowdrill && fire && !fire.lit && !(fire.coalsUntil != null && state.minutes < fire.coalsUntil));
   return {
     clock: face.clock,
     daypart: face.daypart,
-    health: 100,
+    health: state.health,
     warmth: state.warmth,
     energy: state.energy,
-    warmthLabel: `${Math.round(state.warmth)} · ${warmthWord(perHour)}`,
+    hunger: state.hunger,
+    thirst: state.thirst,
+    hungerLabel: 'Hunger',
+    thirstLabel: 'Thirst',
+    lowHunger: state.hunger < 30,
+    lowThirst: state.thirst < 30,
+    warmthLabel: warming
+      ? `${Math.round(state.warmth)} · warming`
+      : `${Math.round(state.warmth)} · ${warmthWord(perHour)}`,
+    warming,
+    debug,
     weather: weatherWord(weatherAt(state.minutes)),
     dampLabel: (state.damp ?? 0) >= 10 ? 'Damp' : '',
     prompt: upgradePrompt(state, feet) ?? '',

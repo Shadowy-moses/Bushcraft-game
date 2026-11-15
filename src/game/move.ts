@@ -25,6 +25,8 @@ export const MOVE_SPEED = WALK_SPEED;
  * Wide enough that the tree you are standing against — the one the ring is on — is the one Use hits.
  */
 export const REACH = 54;
+/** A trunk is tall. Standing beside the one in front of him is close enough to chop. */
+export const CHOP_REACH = 96;
 /** A ghost this close can be confirmed. Same test the preview uses. */
 export const BUILD_REACH = 78;
 /** Sticks and stones inside this radius are picked up by walking over them. */
@@ -121,7 +123,7 @@ export function bodiesFor(
       });
       continue;
     }
-    if (prop.kind === 'bush_fiber') {
+    if (prop.kind === 'bush_fiber' || prop.kind === 'berry_bush') {
       if (isFiberCut(state.plants ?? {}, prop.id, state.minutes ?? 0)) continue;
       bodies.push({ x: at.x, y: at.y, r: ROCK_RADIUS, id: prop.id });
       continue;
@@ -231,9 +233,45 @@ export function resolveMove(
       cy += sy;
       continue;
     }
+    const px = -sy;
+    const py = sx;
+    if (canStand(cx + px, cy + py, bodies, walls)) {
+      cx += px;
+      cy += py;
+      continue;
+    }
+    if (canStand(cx - px, cy - py, bodies, walls)) {
+      cx -= px;
+      cy -= py;
+      continue;
+    }
     break;
   }
+  if (!canStand(cx, cy, bodies, walls)) {
+    const free = nearestFree(cx, cy, bodies, walls);
+    if (free) return free;
+  }
   return { x: cx, y: cy };
+}
+
+function nearestFree(x: number, y: number, bodies: Body[], walls: WallSeg[]): { x: number; y: number } | null {
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (let ring = 2; ring <= 14; ring += 2) {
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const nx = x + Math.cos(angle) * ring;
+      const ny = y + Math.sin(angle) * ring;
+      if (!canStand(nx, ny, bodies, walls)) continue;
+      const d = Math.hypot(nx - x, ny - y);
+      if (d < bestD) {
+        best = { x: nx, y: ny };
+        bestD = d;
+      }
+    }
+    if (best) return best;
+  }
+  return null;
 }
 
 export function reachFor(node: { kind: string }): number {

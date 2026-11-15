@@ -2,17 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { UPGRADE_NOTE } from '../src/game/copy';
 import { recipesFor } from '../src/game/craft';
 import { tileToWorld } from '../src/game/iso';
+import { CHOP_REACH, REACH } from '../src/game/move';
 import { PROPS } from '../src/game/map';
 import { emptyInventory, gather, initialState, knapFlint } from '../src/game/rules';
 import { chooseUse, upgradePrompt } from '../src/game/use';
 
-function stand(tx: number, ty: number, tool: 'hatchet' | 'hammerstone' = 'hatchet') {
+function stand(tx: number, ty: number, tool: 'hands' | 'hatchet' | 'hammerstone' = 'hands') {
   return { ...initialState(), ...tileToWorld(tx, ty), tx, ty, tool, energy: 100 };
 }
 
 describe('what Use reaches for', () => {
-  it('picks up a river cobble with the hatchet out, even when a leaf is closer', () => {
-    const state = stand(5, 8);
+  it('picks up a river cobble with empty hands and leaves the tool alone', () => {
+    const state = stand(2, 8, 'hands');
     const choice = chooseUse(state, { x: state.x, y: state.y });
     expect(choice.action).toBe('gather');
     if (choice.action !== 'gather') return;
@@ -21,26 +22,52 @@ describe('what Use reaches for', () => {
     expect(taken.ok).toBe(true);
     expect(taken.message).toBe('A hard, round cobble. Good hammerstone.');
     expect(taken.state.inventory.hammerstone).toBe(true);
-    expect(taken.message).not.toMatch(/hatchet wants a trunk/);
+    expect(taken.state.tool).toBe('hands');
+    const hatchet = chooseUse(stand(5, 8, 'hatchet'), { x: state.x, y: state.y });
+    expect(hatchet.action).not.toBe('gather');
   });
 
-  it('harvests fiber and offers a flint core without the hatchet blocking them', () => {
-    const fiber = stand(10, 5);
+  it('lets empty hands take fiber, and the hammerstone knap a core', () => {
+    const fiber = stand(9, 5, 'hands');
     const plant = chooseUse(fiber, { x: fiber.x, y: fiber.y });
     expect(plant.action).toBe('gather');
     if (plant.action === 'gather') expect(plant.prop.kind).toBe('bush_fiber');
+    expect(chooseUse(stand(9, 5, 'hatchet'), { x: fiber.x, y: fiber.y }).action).toBe('chop');
 
-    const core = stand(10, 7);
-    const knap = chooseUse(core, { x: core.x, y: core.y });
+    const core = stand(9, 7, 'hammerstone');
+    const knap = chooseUse({ ...core, inventory: { ...emptyInventory(), hammerstone: true } }, { x: core.x, y: core.y });
     expect(knap.action).toBe('knap');
     if (knap.action !== 'knap') return;
-    expect(knapFlint(core, knap.prop.id).message).toBe('You need a hammerstone.');
     const withStone = knapFlint(
       { ...core, inventory: { ...emptyInventory(), hammerstone: true } },
       knap.prop.id,
     );
     expect(withStone.ok).toBe(true);
     expect(withStone.popup).toMatch(/flake/);
+    expect(chooseUse(stand(10, 7, 'hands'), { x: core.x, y: core.y }).action).not.toBe('knap');
+  });
+
+  it('chops a nearby trunk with the hatchet and ignores a second hammerstone', () => {
+    const byCobble = stand(2, 8, 'hatchet');
+    const chop = chooseUse(byCobble, { x: byCobble.x, y: byCobble.y });
+    expect(chop.action).toBe('chop');
+    const owned = {
+      ...stand(3, 9, 'hands'),
+      inventory: { ...initialState().inventory, hammerstone: true },
+    };
+    const choice = chooseUse(owned, { x: owned.x, y: owned.y });
+    if (choice.action === 'gather') expect(choice.prop.kind).not.toBe('river_cobbles');
+  });
+
+  it('chops a trunk from beside it, past the pickup reach', () => {
+    const feet = stand(6, 5, 'hatchet');
+    const choice = chooseUse(feet, { x: feet.x, y: feet.y });
+    expect(choice.action).toBe('chop');
+    if (choice.action !== 'chop') return;
+    const at = tileToWorld(choice.prop.tx, choice.prop.ty);
+    const dist = Math.hypot(at.x - feet.x, at.y - feet.y);
+    expect(dist).toBeGreaterThan(REACH);
+    expect(dist).toBeLessThanOrEqual(CHOP_REACH);
   });
 
   it('saves the hatchet line for when nothing usable is in reach', () => {
@@ -60,7 +87,7 @@ describe('what Use reaches for', () => {
       if (prop.kind === 'flint_core') cores[prop.id] = 2;
     }
     const bare = {
-      ...stand(7, 5),
+      ...stand(7, 5, 'hatchet'),
       inventory: { ...emptyInventory(), hammerstone: true },
       picked,
       trees,

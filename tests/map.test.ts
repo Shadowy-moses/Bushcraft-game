@@ -44,7 +44,7 @@ describe('the patch of woods', () => {
     }
   });
 
-  it('has seven rock nodes, enough stone for one hut, and they stay mined', () => {
+  it('has seven rock nodes, enough stone for one hut, and a mined node stays until its turn', () => {
     const nodes = PROPS.filter((prop) => prop.kind === 'rock_node');
     expect(nodes).toHaveLength(7);
     const perNode = [1, 2, 3, 4, 5].reduce((sum, hit) => sum + stoneFromStrike(hit), 0);
@@ -56,7 +56,8 @@ describe('the patch of woods', () => {
       materialCost('floor', 'stone');
     expect(hut).toBe(38);
     expect(nodes.length * perNode).toBeGreaterThanOrEqual(hut);
-    const mined = { ...initialState(), rocks: { 'rock_node-1-8': 5 } };
-    expect(tick(mined, 4000).rocks['rock_node-1-8']).toBe(5);
+    const mined = { ...initialState(), rocks: { 'rock_node-1-8': 5 }, rockGone: { 'rock_node-1-8': initialState().minutes } };
+    expect(tick(mined, 180).rocks['rock_node-1-8']).toBe(5);
+    expect(tick(mined, 1440).rocks['rock_node-1-8']).toBe(0);
   });
 });

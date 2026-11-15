@@ -11,7 +11,7 @@ function stand(tx: number, ty: number) {
 
 describe('wood and the hatchet', () => {
   it('turns a stick into a little wood and sets other pickups aside', () => {
-    const beside = stand(8, 4);
+    const beside = { ...stand(8, 4), tool: 'hands' as const };
     const sticks = gather(beside, 'item_sticks-8-3');
     expect(sticks.ok).toBe(true);
     expect(sticks.popup).toBe('+1 Wood');

@@ -24,12 +24,13 @@ export function allowCraftTap(now: number, last: number, qty: number): boolean {
   return now - last >= CRAFT_TAP_GAP_MS;
 }
 
-export type CraftCategory = 'tools' | 'resources' | 'construction';
+export type CraftCategory = 'tools' | 'resources' | 'construction' | 'fire';
 
 export const CRAFT_CATEGORIES: { id: CraftCategory; label: string }[] = [
   { id: 'tools', label: 'Tools' },
   { id: 'resources', label: 'Resources' },
   { id: 'construction', label: 'Construction' },
+  { id: 'fire', label: 'Fire' },
 ];
 
 export interface Ingredient {
@@ -57,6 +58,8 @@ export interface HotbarSlot {
   name: string;
   count: number;
   frame: string;
+  /** Shown in the pouch instead of the count. The bark pot uses this for 2/3. */
+  text?: string;
 }
 
 const PIECES: { id: PieceKind; name: string; blurb: string; time: string }[] = [
@@ -108,10 +111,32 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
     { id: 'tinder', name: 'Tinder', count: state.inventory.tinder, frame: 'item_tinder' },
     { id: 'kindling', name: 'Kindling', count: state.inventory.kindling, frame: 'item_kindling' },
     { id: 'coal', name: 'Coal', count: state.inventory.coal, frame: 'item_coal' },
+    { id: 'berries', name: 'Berries', count: state.inventory.berries, frame: 'item_berries' },
+    { id: 'roots', name: 'Cattail root', count: state.inventory.roots, frame: 'item_cattail_root' },
+    { id: 'bark', name: 'Bark', count: state.inventory.bark, frame: 'item_birch_bark' },
+    ...(state.inventory.pot > 0 || state.cupWater !== 'empty'
+      ? [
+          {
+            id: 'pot',
+            name: `Bark pot ${state.inventory.pot}/3`,
+            count: 1,
+            text: `${state.inventory.pot}/3`,
+            frame:
+              state.inventory.pot === 1
+                ? 'item_bark_cup_worn'
+                : state.cupWater === 'empty'
+                  ? 'item_bark_cup'
+                  : 'item_bark_cup_water',
+          },
+        ]
+      : []),
   ];
 }
 
 export function statusLine(state: GameState): string {
+  if ((state.sick ?? 0) > 0) return 'Queasy';
+  if (state.thirst < 30) return 'Thirsty';
+  if (state.hunger < 30) return 'Hungry';
   if (state.warmth < 30) return 'Cold';
   if (state.energy < 25) return 'Tired';
   if (state.pieces.some((piece) => piece.kind === 'floor')) return 'Under a roof';
@@ -292,8 +317,24 @@ export function recipesFor(state: GameState): Recipe[] {
       done: false,
     },
     {
+      id: 'bark-pot',
+      category: 'fire',
+      name: 'Bark pot',
+      blurb: 'One strip of birch bark and a length of cord. It holds creek water and takes three boils on the coals.',
+      frame: 'item_bark_cup',
+      ingredients: [
+        { name: 'Bark', have: state.inventory.bark, need: 1 },
+        { name: 'Cordage', have: state.inventory.cordage, need: 1 },
+      ],
+      seconds: 0,
+      timeLabel: 'In the hands',
+      action: 'craft-pot',
+      enabled: state.inventory.pot <= 0 && state.inventory.bark >= 1 && state.inventory.cordage >= 1,
+      done: state.inventory.pot > 0,
+    },
+    {
       id: 'fire',
-      category: 'construction',
+      category: 'fire',
       name: 'Teepee fire lay',
       blurb:
         'Tinder in the center, kindling leaned over it, fuel wood outside. Unlit until a coal is blown into flame and set in the heart.',

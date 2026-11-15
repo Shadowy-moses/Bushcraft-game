@@ -37,6 +37,7 @@ describe('the building plan', () => {
       'tripod',
       'boughs',
       'bark',
+      'bark-pot',
       'fire',
     ]);
     expect(broke.find((recipe) => recipe.id === 'cordage')).toMatchObject({

@@ -5,8 +5,8 @@ import { ATLAS_FRAMES, frameOrigin, installAtlas, type AtlasFile } from '../src/
 
 describe('artist atlas', () => {
   it('has every frame the game asks for, with a ground anchor', () => {
-    expect(Object.keys(atlas.frames)).toHaveLength(150);
-    expect(atlas.meta.size).toEqual({ w: 512, h: 444 });
+    expect(Object.keys(atlas.frames)).toHaveLength(166);
+    expect(atlas.meta.size).toEqual({ w: 512, h: 502 });
     expect(atlas.meta.image).toBe('spritesheet.png');
     for (const name of ATLAS_FRAMES) {
       const frame = atlas.frames[name as keyof typeof atlas.frames];
@@ -114,6 +114,32 @@ describe('artist atlas', () => {
     expect(atlas.frames.twig_wall_ne_worn.frame).toMatchObject({ w: 31, h: 39 });
     expect(atlas.frames.rain_drop.frame).toMatchObject({ w: 4, h: 10 });
     expect(atlas.frames.puddle.anchorPx).toEqual({ x: 14, y: 6 });
+    expect(atlas.frames.berry_bush_ripe.frame).toMatchObject({ w: 28, h: 22 });
+    expect(atlas.frames.berry_bush_ripe.anchorPx).toEqual({ x: 14, y: 20 });
+    expect(atlas.frames.berry_bush_picked.anchorPx).toEqual({ x: 14, y: 20 });
+    expect(atlas.frames.cattails_0.frame).toMatchObject({ w: 20, h: 30 });
+    expect(atlas.frames.cattails_0.anchorPx).toEqual({ x: 10, y: 28 });
+    expect(atlas.frames.cattails_1.anchorPx).toEqual({ x: 10, y: 28 });
+    expect(atlas.frames.item_berries.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_cattail_root.frame).toMatchObject({ w: 16, h: 16 });
+    expect(atlas.frames.item_bark_cup.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_bark_cup_water.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.steam_0.frame).toMatchObject({ w: 10, h: 14 });
+    expect(atlas.frames.steam_0.anchorPx).toEqual({ x: 5, y: 13 });
+    expect(atlas.frames.steam_1.anchorPx).toEqual({ x: 5, y: 13 });
+    expect(atlas.frames.item_birch_bark.frame).toMatchObject({ w: 16, h: 16 });
+    expect(atlas.frames.item_birch_bark.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.item_bark_cup_worn.anchorPx).toEqual({ x: 8, y: 12 });
+    expect(atlas.frames.bark_pot_coals.frame).toMatchObject({ w: 22, h: 18 });
+    expect(atlas.frames.bark_pot_coals.anchorPx).toEqual({ x: 11, y: 15 });
+    expect(atlas.frames.bark_pot_coals_boil.anchorPx).toEqual({ x: 11, y: 15 });
+    expect(atlas.frames.birch_tree.frame).toMatchObject({ w: 32, h: 56 });
+    expect(atlas.frames.birch_tree.anchorPx).toEqual({ x: 16, y: 49 });
+    expect(atlas.frames.birch_tree_peeled.frame).toMatchObject({ w: 32, h: 56 });
+    expect(atlas.frames.birch_tree_peeled.anchorPx).toEqual({ x: 16, y: 49 });
+    expect(atlas.frames.birch_log.frame).toMatchObject({ w: 48, h: 24 });
+    expect(atlas.frames.birch_log.anchorPx).toEqual({ x: 24, y: 18 });
+    expect(atlas.frames.felled_log.anchorPx).toEqual({ x: 24, y: 18 });
   });
 
   it('reads the woodsman feet from the atlas instead of a fixed offset', () => {

@@ -1,17 +1,20 @@
 import { materialCost, pieceAnchor } from './build';
-import { COBBLE_REACH } from './constants';
+import { LOG_STRIPS, NEED_DIRE } from './constants';
 import { HATCHET_IDLE } from './copy';
 import { isFiberCut } from './fiber';
+import { isFelled } from './trees';
 import { tileToWorld } from './iso';
 import { PROPS } from './map';
-import { REACH } from './move';
+import { CHOP_REACH, REACH } from './move';
+import { canBoil, besideCreek } from './food';
 import { pieceHealth } from './weather';
 import { CORE_KNAPS, ROCK_HITS } from './stone';
 import type { GameState, Piece, Prop } from './types';
 
 export type UseChoice =
-  | { action: 'gather' | 'knap' | 'chop' | 'strike'; prop: Prop }
+  | { action: 'gather' | 'knap' | 'chop' | 'strike' | 'peel'; prop: Prop }
   | { action: 'upgrade' | 'repair'; piece: Piece }
+  | { action: 'scoop' | 'boil' | 'drink' | 'eat' }
   | { action: 'none'; message: string };
 
 interface Feet {
@@ -52,26 +55,32 @@ function nearestProp(feet: Feet, props: Prop[], reach = REACH): { prop: Prop; d:
   return best;
 }
 
-function liveCobbles(state: GameState): Prop[] {
-  return PROPS.filter((prop) => prop.kind === 'river_cobbles' && !state.picked[prop.id]);
+function handsPickups(state: GameState): Prop[] {
+  return PROPS.filter((prop) => {
+    if (state.picked[prop.id]) return false;
+    if (prop.gather === 'cobble' && state.inventory.hammerstone) return false;
+    if (prop.gather === 'sticks' || prop.gather === 'stones' || prop.gather === 'leaves' || prop.gather === 'rocks' || prop.gather === 'cobble') {
+      return true;
+    }
+    if (prop.kind === 'bush_fiber' || prop.kind === 'berry_bush' || prop.kind === 'cattails') {
+      return !isFiberCut(state.plants, prop.id, state.minutes);
+    }
+    if (prop.kind === 'birch_log') return (state.logStrips?.[prop.id] ?? 0) < LOG_STRIPS;
+    return false;
+  });
 }
 
-function liveFiber(state: GameState): Prop[] {
+function liveBirches(state: GameState): Prop[] {
   return PROPS.filter(
-    (prop) => prop.kind === 'bush_fiber' && !isFiberCut(state.plants, prop.id, state.minutes),
+    (prop) =>
+      prop.kind === 'birch_tree' &&
+      !isFelled(state.trees, prop.id) &&
+      !isFiberCut(state.plants, prop.id, state.minutes),
   );
 }
 
 function liveCores(state: GameState): Prop[] {
   return PROPS.filter((prop) => prop.kind === 'flint_core' && (state.cores[prop.id] ?? 0) < CORE_KNAPS);
-}
-
-function loosePickups(state: GameState): Prop[] {
-  return PROPS.filter(
-    (prop) =>
-      !state.picked[prop.id] &&
-      (prop.gather === 'sticks' || prop.gather === 'stones' || prop.gather === 'leaves' || prop.gather === 'rocks'),
-  );
 }
 
 function standingTrees(state: GameState): Prop[] {
@@ -99,47 +108,47 @@ function nearestUpgrade(state: GameState, feet: Feet): { piece: Piece; d: number
 }
 
 /**
- * What Use does from here.
- * A river cobble, fiber plant, or flint core in reach is taken even if a tree is closer,
- * and even if the hatchet is what he's holding. Loose stones and leaves do not count as
- * that, so they can't swallow the cobble and then blame the hatchet.
+ * Use follows the tool in his hand.
+ * The hatchet chops. Empty hands pick things up and peel bark. The hammerstone knaps and strikes.
+ * Nothing here changes which tool that is.
  */
 export function chooseUse(state: GameState, feet: Feet): UseChoice {
-  if (!state.inventory.hammerstone) {
-    const cobble = nearestProp(feet, liveCobbles(state), COBBLE_REACH);
-    if (cobble) return { action: 'gather', prop: cobble.prop };
+  if (state.tool === 'hatchet') {
+    const tree = nearestProp(feet, standingTrees(state), CHOP_REACH);
+    if (tree) return { action: 'chop', prop: tree.prop };
+    return { action: 'none', message: HATCHET_IDLE };
   }
+  if (state.tool === 'hammerstone') {
+    const rock = nearestProp(feet, liveRocks(state));
+    const core = nearestProp(feet, liveCores(state));
+    const upgrade = nearestUpgrade(state, feet);
+    const options: { d: number; choice: UseChoice }[] = [];
+    if (rock) options.push({ d: rock.d, choice: { action: 'strike', prop: rock.prop } });
+    if (core) options.push({ d: core.d, choice: { action: 'knap', prop: core.prop } });
+    if (upgrade) options.push({ d: upgrade.d, choice: { action: 'upgrade', piece: upgrade.piece } });
+    options.sort((a, b) => a.d - b.d);
+    return options[0]?.choice ?? { action: 'none', message: 'Nothing to strike.' };
+  }
+  if (state.tool !== 'hands') return { action: 'none', message: 'Nothing in these hands.' };
 
-  const specials = nearestProp(feet, [...liveFiber(state), ...liveCores(state), ...liveCobbles(state)]);
-  const rock = state.tool === 'hammerstone' ? nearestProp(feet, liveRocks(state)) : null;
-  const upgrade = state.tool === 'hammerstone' ? nearestUpgrade(state, feet) : null;
-  let work: UseChoice | null = null;
-  let workD = Infinity;
-  if (rock) {
-    work = { action: 'strike', prop: rock.prop };
-    workD = rock.d;
-  }
-  if (upgrade && upgrade.d < workD) {
-    work = { action: 'upgrade', piece: upgrade.piece };
-    workD = upgrade.d;
-  }
-  const worn = state.tool === 'hands' ? nearestWorn(state, feet) : null;
-  if (worn && (!specials || worn.d < specials.d)) return { action: 'repair', piece: worn.piece };
-  if (specials && (state.tool !== 'hammerstone' || specials.d <= workD)) {
-    const prop = specials.prop;
-    if (prop.kind === 'flint_core') return { action: 'knap', prop };
-    return { action: 'gather', prop };
-  }
-  if (work?.action === 'strike' && work.prop) return work;
-  if (work?.action === 'upgrade' && work.piece) return work;
-
-  const piles = nearestProp(feet, loosePickups(state));
-  const tree = state.tool === 'hatchet' ? nearestProp(feet, standingTrees(state)) : null;
-  if (piles && (!tree || piles.d <= tree.d)) return { action: 'gather', prop: piles.prop };
-  if (tree) return { action: 'chop', prop: tree.prop };
-  if (state.tool === 'hammerstone') return { action: 'none', message: 'Nothing to strike.' };
-  if (state.tool === 'hands') return { action: 'none', message: 'Nothing in these hands.' };
-  return { action: 'none', message: HATCHET_IDLE };
+  const pickup = nearestProp(feet, handsPickups(state));
+  const birch = nearestProp(feet, liveBirches(state));
+  const underfoot = (d: number) => d <= 16;
+  if (pickup && underfoot(pickup.d) && (!birch || pickup.d <= birch.d)) return { action: 'gather', prop: pickup.prop };
+  if (birch && underfoot(birch.d)) return { action: 'peel', prop: birch.prop };
+  const here = { ...state, x: feet.x, y: feet.y };
+  if (canBoil(here)) return { action: 'boil' };
+  if (state.inventory.pot > 0 && state.cupWater === 'empty' && besideCreek(feet.x, feet.y)) return { action: 'scoop' };
+  if (pickup && (!birch || pickup.d <= birch.d)) return { action: 'gather', prop: pickup.prop };
+  if (birch) return { action: 'peel', prop: birch.prop };
+  if (state.cupWater === 'boiled') return { action: 'drink' };
+  if (state.cupWater === 'raw' && state.thirst < NEED_DIRE) return { action: 'drink' };
+  if (state.cupWater === 'raw') return { action: 'none', message: 'Set it on the coals.' };
+  const worn = nearestWorn(state, feet);
+  if (worn) return { action: 'repair', piece: worn.piece };
+  if (state.inventory.berries > 0) return { action: 'eat' };
+  if (state.inventory.roots > 0) return { action: 'eat' };
+  return { action: 'none', message: 'Nothing in these hands.' };
 }
 
 /** Line while he stands next to twig he can afford to turn to stone. */

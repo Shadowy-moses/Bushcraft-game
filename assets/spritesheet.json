@@ -4799,6 +4799,518 @@
     "x": 58,
     "y": 30
    }
+  },
+  "berry_bush_ripe": {
+   "frame": {
+    "x": 314,
+    "y": 384,
+    "w": 28,
+    "h": 22
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 28,
+    "h": 22
+   },
+   "sourceSize": {
+    "w": 28,
+    "h": 22
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.9090909090909091
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.9090909090909091
+   },
+   "anchorPx": {
+    "x": 14,
+    "y": 20
+   }
+  },
+  "berry_bush_picked": {
+   "frame": {
+    "x": 344,
+    "y": 384,
+    "w": 28,
+    "h": 22
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 28,
+    "h": 22
+   },
+   "sourceSize": {
+    "w": 28,
+    "h": 22
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.9090909090909091
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.9090909090909091
+   },
+   "anchorPx": {
+    "x": 14,
+    "y": 20
+   }
+  },
+  "cattails_0": {
+   "frame": {
+    "x": 374,
+    "y": 384,
+    "w": 20,
+    "h": 30
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 20,
+    "h": 30
+   },
+   "sourceSize": {
+    "w": 20,
+    "h": 30
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.9333333333333333
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.9333333333333333
+   },
+   "anchorPx": {
+    "x": 10,
+    "y": 28
+   }
+  },
+  "cattails_1": {
+   "frame": {
+    "x": 396,
+    "y": 384,
+    "w": 20,
+    "h": 30
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 20,
+    "h": 30
+   },
+   "sourceSize": {
+    "w": 20,
+    "h": 30
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.9333333333333333
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.9333333333333333
+   },
+   "anchorPx": {
+    "x": 10,
+    "y": 28
+   }
+  },
+  "item_berries": {
+   "frame": {
+    "x": 418,
+    "y": 384,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_cattail_root": {
+   "frame": {
+    "x": 436,
+    "y": 384,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_bark_cup": {
+   "frame": {
+    "x": 454,
+    "y": 384,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_bark_cup_water": {
+   "frame": {
+    "x": 472,
+    "y": 384,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "steam_0": {
+   "frame": {
+    "x": 490,
+    "y": 384,
+    "w": 10,
+    "h": 14
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 10,
+    "h": 14
+   },
+   "sourceSize": {
+    "w": 10,
+    "h": 14
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.9285714285714286
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.9285714285714286
+   },
+   "anchorPx": {
+    "x": 5,
+    "y": 13
+   }
+  },
+  "steam_1": {
+   "frame": {
+    "x": 502,
+    "y": 384,
+    "w": 10,
+    "h": 14
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 10,
+    "h": 14
+   },
+   "sourceSize": {
+    "w": 10,
+    "h": 14
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.9285714285714286
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.9285714285714286
+   },
+   "anchorPx": {
+    "x": 5,
+    "y": 13
+   }
+  },
+  "item_birch_bark": {
+   "frame": {
+    "x": 0,
+    "y": 446,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "item_bark_cup_worn": {
+   "frame": {
+    "x": 18,
+    "y": 446,
+    "w": 16,
+    "h": 16
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   "sourceSize": {
+    "w": 16,
+    "h": 16
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 8,
+    "y": 12
+   }
+  },
+  "bark_pot_coals": {
+   "frame": {
+    "x": 36,
+    "y": 446,
+    "w": 22,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 22,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 22,
+    "h": 18
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "anchorPx": {
+    "x": 11,
+    "y": 15
+   }
+  },
+  "bark_pot_coals_boil": {
+   "frame": {
+    "x": 60,
+    "y": 446,
+    "w": 22,
+    "h": 18
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 22,
+    "h": 18
+   },
+   "sourceSize": {
+    "w": 22,
+    "h": 18
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.8333333333333334
+   },
+   "anchorPx": {
+    "x": 11,
+    "y": 15
+   }
+  },
+  "birch_tree_peeled": {
+   "frame": {
+    "x": 84,
+    "y": 446,
+    "w": 32,
+    "h": 56
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 56
+   },
+   "sourceSize": {
+    "w": 32,
+    "h": 56
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.875
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.875
+   },
+   "anchorPx": {
+    "x": 16,
+    "y": 49
+   }
+  },
+  "birch_log": {
+   "frame": {
+    "x": 118,
+    "y": 446,
+    "w": 48,
+    "h": 24
+   },
+   "rotated": false,
+   "trimmed": false,
+   "spriteSourceSize": {
+    "x": 0,
+    "y": 0,
+    "w": 48,
+    "h": 24
+   },
+   "sourceSize": {
+    "w": 48,
+    "h": 24
+   },
+   "anchor": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "pivot": {
+    "x": 0.5,
+    "y": 0.75
+   },
+   "anchorPx": {
+    "x": 24,
+    "y": 18
+   }
   }
  },
  "animations": {
@@ -4904,7 +5416,7 @@
   "format": "RGBA8888",
   "size": {
    "w": 512,
-   "h": 444
+   "h": 502
   },
   "scale": "1",
   "note": "anchor = footprint center (ground contact) normalized; use sprite.setOrigin(anchor.x, anchor.y). Ground tile 32x16 2:1 iso."
