@@ -10,6 +10,7 @@ import {
   pieceAnchor,
   pieceFrame,
   pieceKey,
+  materialShortMessage,
   pieceSpot,
   placementVerdict,
   rotateWall,
@@ -32,10 +33,11 @@ import { SHADOW_TINT, lightTint, multiplyTint, skyColor } from '../light';
 import { PROPS, groundAt, inBounds, propAt } from '../map';
 import { buildModel, type PlaceModel, type SheetId } from '../model';
 import { BUILD_REACH, bodiesFor, inReach, inReachOf, PICKUP_RADIUS, resolveMove, segmentsFor, travelSpeed } from '../move';
-import { chopTree, gainEnergy, gather, initialState, placePiece, tick } from '../rules';
+import { chopTree, gainEnergy, gather, initialState, knapFlint, placePiece, strikeRock, tick, upgradePiece } from '../rules';
+import { flintFrame, rockFrame } from '../stone';
 import { clearGame, loadGame, saveGame } from '../save';
 import { isFelled } from '../trees';
-import type { EdgeName, GameState, PieceKind, Prop, PropKind, Tile } from '../types';
+import type { EdgeName, GameState, Material, Piece, PieceKind, Prop, PropKind, Tile } from '../types';
 import { facingFromVector, mirrorFacing, poseClip, poseName } from '../woodsman';
 import { Hud } from '../../ui/hud';
 
@@ -76,7 +78,9 @@ interface Chip {
   sprite: Phaser.GameObjects.Sprite;
   vx: number;
   vy: number;
+  spin: number;
   life: number;
+  ground: number;
 }
 
 interface PendingPlace {
@@ -101,12 +105,13 @@ declare global {
       screenOf: (tx: number, ty: number) => { x: number; y: number };
       fill: () => void;
       beginPlace: (kind: PieceKind) => void;
-      ghost: () => { kind: PieceKind | null; tx: number; ty: number; edge: EdgeName; valid: boolean };
+      ghost: () => { kind: PieceKind | null; tx: number; ty: number; edge: EdgeName; valid: boolean; scale: number; marked: boolean };
       moveGhost: (tx: number, ty: number) => void;
       flipGhost: () => void;
       confirmPlace: () => void;
       occlude: () => { key: string; alpha: number }[];
       chips: () => number;
+      chipAt: () => { x: number; y: number; s: number; a: number; sx: number; sy: number }[];
       zoom: () => { zoom: number; viewW: number; viewH: number };
       hint: () => boolean;
       look: () => {
@@ -142,6 +147,7 @@ export class GameScene extends Phaser.Scene {
   private marker?: Phaser.GameObjects.Sprite;
   private ghost?: Phaser.GameObjects.Sprite;
   private placing: PieceKind | null = null;
+  private placingMaterial: Material = 'twig';
   private pending: PendingPlace | null = null;
   private ghostAnchor: Tile = { tx: 0, ty: 0 };
   private ghostEdge: EdgeName = 'se';
@@ -155,12 +161,13 @@ export class GameScene extends Phaser.Scene {
   private edgeMark?: Phaser.GameObjects.Graphics;
   private ghostHome = { x: 0, y: 0 };
   private shove = { x: 0, y: 0, until: 0 };
+  private ghostPulse = 0;
   private approach: { x: number; y: number; kind: PieceKind; tile: Tile; edge: EdgeName } | null = null;
   private approachStill = 0;
   private placeValid = false;
   private placeHint = '';
   private pointer = { x: 0, y: 0, down: false };
-  private pose: 'idle' | 'walk' | 'gather' | 'chop' = 'idle';
+  private pose: 'idle' | 'walk' | 'gather' | 'chop' | 'strike' = 'idle';
   private poseUntil = 0;
   /** Tree that stays standing until the felling swing finishes. */
   private chopTarget: string | null = null;
@@ -270,11 +277,11 @@ export class GameScene extends Phaser.Scene {
       const prevX = this.pointer.x;
       const prevY = this.pointer.y;
       this.pointer = { x: pointer.x, y: pointer.y, down: pointer.isDown };
-      if (!this.placing || !pointer.isDown) return;
+      const held = pointer.isDown || pointer.leftButtonDown();
+      if (!this.placing || !held) return;
       const sdx = pointer.x - prevX;
       const sdy = pointer.y - prevY;
       if (sdx === 0 && sdy === 0) return;
-      if (Math.hypot(pointer.x - this.dragX, pointer.y - this.dragY) < 6) return;
       this.draggingGhost = true;
       this.slideGhost(sdx, sdy);
     });
@@ -284,7 +291,7 @@ export class GameScene extends Phaser.Scene {
       this.pointer.down = false;
       this.draggingGhost = false;
       this.edgeHint?.setVisible(false);
-      this.edgeMark?.setVisible(false);
+      this.paintCurrentEdge();
       if (tap) this.tapGhost(pointer);
     });
     this.scale.on('resize', () => {
@@ -362,7 +369,7 @@ export class GameScene extends Phaser.Scene {
         return { x: rect.left + x, y: rect.top + y };
       },
       fill: () => {
-        this.state = { ...this.state, energy: 100, inventory: { wood: 200 } };
+        this.state = { ...this.state, energy: 100, inventory: { ...this.state.inventory, wood: 200 } };
         this.afterChange();
       },
       beginPlace: (kind) => this.beginPlace(kind),
@@ -380,12 +387,31 @@ export class GameScene extends Phaser.Scene {
         ty: this.ghostAnchor.ty,
         edge: this.ghostEdge,
         valid: this.placeValid,
+        scale: this.ghost?.scaleX ?? 1,
+        marked: Boolean(this.edgeMark?.visible),
       }),
       occlude: () =>
         [...this.buildings.entries()]
           .filter(([, sprite]) => sprite.alpha < 0.95)
           .map(([key, sprite]) => ({ key, alpha: sprite.alpha })),
       chips: () => this.chips.length,
+      chipAt: () => {
+        const camera = this.cameras.main;
+        const m = (camera as unknown as { matrix: { matrix: number[] } }).matrix.matrix;
+        const rect = this.game.canvas.getBoundingClientRect();
+        return this.chips.map((chip) => {
+          const x = (chip.sprite.x - camera.scrollX) * m[0] + (chip.sprite.y - camera.scrollY) * m[2] + m[4];
+          const y = (chip.sprite.x - camera.scrollX) * m[1] + (chip.sprite.y - camera.scrollY) * m[3] + m[5];
+          return {
+            x: Math.round(chip.sprite.x),
+            y: Math.round(chip.sprite.y),
+            s: chip.sprite.scaleX,
+            a: chip.sprite.alpha,
+            sx: Math.round(rect.left + x),
+            sy: Math.round(rect.top + y),
+          };
+        });
+      },
       zoom: () => ({
         zoom: this.cameras.main.zoom,
         viewW: this.cameras.main.width,
@@ -485,10 +511,18 @@ export class GameScene extends Phaser.Scene {
   private buildProps(): void {
     for (const prop of PROPS) {
       const pos = tileToWorld(prop.tx, prop.ty);
+      const frame =
+        prop.kind === 'rock_node'
+          ? 'rock_node_0'
+          : prop.kind === 'flint_core'
+            ? 'flint_core_0'
+            : prop.kind === 'river_cobbles'
+              ? 'river_cobbles'
+              : prop.kind;
       const sprite =
         prop.kind === 'leaf_pile'
           ? this.add.sprite(pos.x, pos.y, 'leaf_pile')
-          : this.add.sprite(pos.x, pos.y, 'world', prop.kind);
+          : this.add.sprite(pos.x, pos.y, 'world', frame);
       if (prop.kind === 'leaf_pile') {
         const origin = standinOrigin('leaf_pile');
         sprite.setOrigin(origin.x, origin.y);
@@ -555,6 +589,23 @@ export class GameScene extends Phaser.Scene {
     }
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const hits = this.propsAtPoint(world.x, world.y);
+    if (this.state.tool === 'hammerstone') {
+      const core = hits.find((prop) => prop.kind === 'flint_core' && inReach(this.px, this.py, prop.tx, prop.ty));
+      if (core) {
+        this.knapAt(core);
+        return;
+      }
+      const rock = hits.find((prop) => prop.kind === 'rock_node' && inReach(this.px, this.py, prop.tx, prop.ty));
+      if (rock) {
+        this.strikeAt(rock);
+        return;
+      }
+      const piece = this.pieceAtPoint(world.x, world.y);
+      if (piece && (piece.material ?? 'twig') === 'twig') {
+        this.upgradeAt(piece);
+        return;
+      }
+    }
     const near = hits
       .filter((prop) => this.actionable(prop) && inReach(this.px, this.py, prop.tx, prop.ty))
       .sort((a, b) => this.reachDist(a) - this.reachDist(b));
@@ -575,6 +626,19 @@ export class GameScene extends Phaser.Scene {
     const tile = worldToTile(x, y);
     if (!inBounds(tile.tx, tile.ty)) return null;
     return tile;
+  }
+
+  private pieceAtPoint(x: number, y: number): Piece | null {
+    let best: Piece | null = null;
+    let depth = -Infinity;
+    for (const piece of this.state.pieces) {
+      const sprite = this.buildings.get(pieceKey(piece));
+      if (!sprite?.visible || !this.opaqueHit(sprite, x, y)) continue;
+      if (sprite.depth < depth) continue;
+      depth = sprite.depth;
+      best = piece;
+    }
+    return best;
   }
 
   private propAtPoint(x: number, y: number): Prop | null {
@@ -631,7 +695,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private removable(kind: PropKind): boolean {
-    return kind === 'item_sticks' || kind === 'item_stone' || kind === 'leaf_pile';
+    return kind === 'item_sticks' || kind === 'item_stone' || kind === 'item_rock' || kind === 'river_cobbles' || kind === 'leaf_pile';
   }
 
   private actionable(prop: Prop): boolean {
@@ -645,6 +709,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private useProp(prop: Prop): void {
+    if (prop.kind === 'flint_core') {
+      this.knapAt(prop);
+      return;
+    }
+    if (prop.kind === 'rock_node') {
+      this.strikeAt(prop);
+      return;
+    }
     if (this.isTree(prop)) {
       this.swingAt(prop);
       return;
@@ -659,7 +731,7 @@ export class GameScene extends Phaser.Scene {
 
   private swingAt(prop: Prop): void {
     this.handHatchet();
-    if (this.pose === 'chop' && this.time.now < this.poseUntil) return;
+    if ((this.pose === 'chop' || this.pose === 'strike') && this.time.now < this.poseUntil) return;
     if (!inReach(this.px, this.py, prop.tx, prop.ty)) {
       this.setTip('Walk up to the trunk.');
       return;
@@ -674,7 +746,7 @@ export class GameScene extends Phaser.Scene {
     if (result.popup) this.chopTarget = prop.id;
     this.playPose('chop');
     const at = tileToWorld(prop.tx, prop.ty);
-    this.sprayChips(at.x, at.y - 14, 'wood');
+    this.sprayChips(at.x, at.y, 'wood');
     this.cameras.main.shake(120, 0.0028);
     if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
     this.afterChange();
@@ -701,7 +773,92 @@ export class GameScene extends Phaser.Scene {
     this.afterChange();
   }
 
+  private strikeAt(prop: Prop): void {
+    if ((this.pose === 'chop' || this.pose === 'strike') && this.time.now < this.poseUntil) return;
+    const result = strikeRock(this.state, prop.id);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.state = result.state;
+    this.faceTile(prop.tx, prop.ty);
+    this.playPose('strike');
+    const at = tileToWorld(prop.tx, prop.ty);
+    this.sprayChips(at.x, at.y, 'stone');
+    this.cameras.main.shake(90, 0.0022);
+    if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
+    this.afterChange();
+  }
+
+  private knapAt(prop: Prop): void {
+    if ((this.pose === 'chop' || this.pose === 'strike') && this.time.now < this.poseUntil) return;
+    const result = knapFlint(this.state, prop.id);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.state = result.state;
+    this.faceTile(prop.tx, prop.ty);
+    this.playPose('strike');
+    const at = tileToWorld(prop.tx, prop.ty);
+    this.sprayChips(at.x, at.y, 'stone');
+    if (result.popup) this.popup(result.popup, prop.tx, prop.ty);
+    this.afterChange();
+  }
+
+  private nearestTwig(): Piece | null {
+    let best: Piece | null = null;
+    let bestD = Infinity;
+    for (const piece of this.state.pieces) {
+      if ((piece.material ?? 'twig') !== 'twig') continue;
+      const at = pieceAnchor(piece.kind, piece, piece.edge);
+      if (!inReachOf(this.px, this.py, at)) continue;
+      const dist = Math.hypot(at.x - this.px, at.y - this.py);
+      if (dist < bestD) {
+        best = piece;
+        bestD = dist;
+      }
+    }
+    return best;
+  }
+
+  private upgradeAt(piece: Piece): void {
+    const result = upgradePiece(this.state, piece);
+    if (!result.ok) {
+      this.setTip(result.message);
+      return;
+    }
+    this.state = result.state;
+    this.faceTile(piece.tx, piece.ty);
+    this.playPose('strike');
+    this.afterChange();
+  }
+
   private useNearest(): void {
+    if (this.state.tool === 'hammerstone') {
+      const node = this.nearestInReach(false);
+      const core = PROPS.filter((prop) => prop.kind === 'flint_core' && (this.state.cores[prop.id] ?? 0) < 2)
+        .filter((prop) => inReach(this.px, this.py, prop.tx, prop.ty))
+        .sort((a, b) => this.reachDist(a) - this.reachDist(b))[0];
+      if (core) {
+        this.knapAt(core);
+        return;
+      }
+      const rock = PROPS.filter((prop) => prop.kind === 'rock_node' && (this.state.rocks[prop.id] ?? 0) < 5)
+        .filter((prop) => inReach(this.px, this.py, prop.tx, prop.ty))
+        .sort((a, b) => this.reachDist(a) - this.reachDist(b))[0];
+      if (rock) {
+        this.strikeAt(rock);
+        return;
+      }
+      const piece = this.nearestTwig();
+      if (piece) {
+        this.upgradeAt(piece);
+        return;
+      }
+      this.setTip(node ? 'The hammerstone wants a rock.' : 'Nothing to strike.');
+      return;
+    }
     const best = this.nearestInReach(false);
     if (!best) {
       const tree = this.nearestTree();
@@ -735,7 +892,7 @@ export class GameScene extends Phaser.Scene {
       this.parkWalk();
       return;
     }
-    if ((this.pose === 'chop' || this.pose === 'gather') && travel.speed > 0) {
+    if ((this.pose === 'chop' || this.pose === 'gather' || this.pose === 'strike') && travel.speed > 0) {
       this.poseUntil = 0;
       this.expirePose();
     }
@@ -828,7 +985,7 @@ export class GameScene extends Phaser.Scene {
     view?.sprite.setTint(0xffe7a0);
   }
 
-  private showPose(pose: 'idle' | 'walk' | 'gather' | 'chop'): void {
+  private showPose(pose: 'idle' | 'walk' | 'gather' | 'chop' | 'strike'): void {
     const clip = poseClip(
       this.state.facing,
       pose,
@@ -852,14 +1009,14 @@ export class GameScene extends Phaser.Scene {
     this.showPose('idle');
   }
 
-  private playPose(kind: 'gather' | 'chop'): void {
+  private playPose(kind: 'gather' | 'chop' | 'strike'): void {
     this.pose = kind;
     this.poseUntil = this.time.now + 900;
     this.showPose(kind);
   }
 
   private expirePose(): void {
-    if ((this.pose === 'gather' || this.pose === 'chop') && this.time.now >= this.poseUntil) {
+    if ((this.pose === 'gather' || this.pose === 'chop' || this.pose === 'strike') && this.time.now >= this.poseUntil) {
       const felledId = this.pose === 'chop' ? this.chopTarget : null;
       this.pose = 'idle';
       this.chopTarget = null;
@@ -926,6 +1083,15 @@ export class GameScene extends Phaser.Scene {
       const index = Number(id.slice(5));
       if (index === 0) this.state = { ...this.state, tool: 'hatchet' };
       if (index === 1) {
+        if (!this.state.inventory.hammerstone) {
+          this.setTip('Knap a hammerstone first.');
+          return;
+        }
+        this.state = { ...this.state, tool: 'hammerstone' };
+        this.paintHud(false);
+        return;
+      }
+      if (index === 2) {
         this.state = { ...this.state, tool: 'plan' };
         this.openCraft();
         return;
@@ -937,8 +1103,10 @@ export class GameScene extends Phaser.Scene {
       this.openCraft();
       return;
     }
-    if (id === 'place-foundation' || id === 'place-wall' || id === 'place-doorway' || id === 'place-floor') {
-      this.tryBeginPlace(id.slice('place-'.length) as PieceKind);
+    if (id.startsWith('place-')) {
+      const stone = id.startsWith('place-stone-');
+      const kind = (stone ? id.slice('place-stone-'.length) : id.slice('place-'.length)) as PieceKind;
+      this.tryBeginPlace(kind, stone ? 'stone' : 'twig');
       return;
     }
     if (id === 'flip') {
@@ -947,6 +1115,7 @@ export class GameScene extends Phaser.Scene {
       this.ghostAnchor = turned.tile;
       this.ghostEdge = turned.edge;
       this.aimFromGhost();
+      this.ghostPulse = 1;
       this.refreshGhost();
       return;
     }
@@ -1006,6 +1175,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.refreshShadows();
     this.syncProps();
+    this.syncRocks();
     this.syncStumps();
     this.syncBuildings();
     saveGame(this.state);
@@ -1026,6 +1196,19 @@ export class GameScene extends Phaser.Scene {
 
   private syncProps(): void {
     for (const view of this.propViews) view.sprite.setVisible(!this.isGone(view.prop));
+  }
+
+  private syncRocks(): void {
+    for (const view of this.propViews) {
+      if (view.prop.kind === 'rock_node') {
+        const frame = rockFrame(this.state.rocks[view.prop.id] ?? 0);
+        if (view.sprite.frame.name !== frame) this.applyAtlas(view.sprite, frame);
+      }
+      if (view.prop.kind === 'flint_core') {
+        const frame = flintFrame(this.state.cores[view.prop.id] ?? 0);
+        if (view.sprite.frame.name !== frame) this.applyAtlas(view.sprite, frame);
+      }
+    }
   }
 
   private syncStumps(): void {
@@ -1141,22 +1324,24 @@ export class GameScene extends Phaser.Scene {
     return { kind: this.placing, valid: this.placeValid, hint: this.placeHint };
   }
 
-  private tryBeginPlace(kind: PieceKind): void {
+  private tryBeginPlace(kind: PieceKind, material: Material = 'twig'): void {
     if (!this.started || this.state.outcome !== 'playing') return;
-    if (!canAfford(this.state, kind)) {
-      this.setTip(woodShortMessage(kind, this.state.inventory.wood));
+    if (!canAfford(this.state, kind, material)) {
+      const have = material === 'stone' ? this.state.inventory.stone : this.state.inventory.wood;
+      this.setTip(material === 'stone' ? materialShortMessage(kind, have, 'stone') : woodShortMessage(kind, have));
       return;
     }
-    this.beginPlace(kind);
+    this.beginPlace(kind, material);
   }
 
-  private beginPlace(kind: PieceKind): void {
+  private beginPlace(kind: PieceKind, material: Material = 'twig'): void {
     if (!this.started || this.state.outcome !== 'playing') return;
     this.resting = false;
     this.stopWalk();
     this.sheet = 'none';
     this.placing = kind;
-    const spot = suggestPiece(this.state, kind, { x: this.px, y: this.py });
+    this.placingMaterial = material;
+    const spot = suggestPiece(this.state, kind, { x: this.px, y: this.py }, material);
     this.ghostAnchor = spot.tile;
     this.ghostEdge = spot.edge;
     this.aimFromGhost();
@@ -1193,18 +1378,32 @@ export class GameScene extends Phaser.Scene {
     const step = dampStep(shifted.x - origin.x, shifted.y - origin.y, 0.45, 8);
     this.aimX += step.x;
     this.aimY += step.y;
-    const before = `${this.ghostAnchor.tx},${this.ghostAnchor.ty},${this.ghostEdge}`;
     this.snapAim();
-    const after = `${this.ghostAnchor.tx},${this.ghostAnchor.ty},${this.ghostEdge}`;
-    if (before === after && (this.placing === 'wall' || this.placing === 'doorway')) {
+    if (this.placing === 'wall' || this.placing === 'doorway') {
       const mag = Math.hypot(step.x, step.y) || 1;
-      this.shove = { x: (step.x / mag) * 5, y: (step.y / mag) * 5, until: this.time.now + 180 };
+      this.shove = { x: (step.x / mag) * 8, y: (step.y / mag) * 8, until: this.time.now + 220 };
+      this.ghostPulse = Math.max(this.ghostPulse, 0.7);
       this.showEdgeHint();
-    } else {
-      this.edgeHint?.setVisible(false);
-      this.edgeMark?.clear();
-      this.edgeMark?.setVisible(false);
+      this.paintCurrentEdge();
     }
+  }
+
+  /** Gold ring on the edge the ghost is actually sitting on, for the whole placement. */
+  private paintCurrentEdge(): void {
+    const mark = this.edgeMark;
+    if (!mark || (this.placing !== 'wall' && this.placing !== 'doorway')) {
+      mark?.clear();
+      mark?.setVisible(false);
+      return;
+    }
+    const at = pieceAnchor(this.placing, this.ghostAnchor, this.ghostEdge);
+    mark.clear();
+    mark.lineStyle(4, 0xffe08a, 1);
+    mark.strokeEllipse(at.x, at.y - 2, 36, 16);
+    mark.lineStyle(2, 0xfff6d0, 1);
+    mark.strokeEllipse(at.x, at.y - 2, 24, 10);
+    mark.setDepth(19980);
+    mark.setVisible(true);
   }
 
   /** Gold ghost on the edge this drag would snap to, before the snap actually happens. */
@@ -1224,24 +1423,20 @@ export class GameScene extends Phaser.Scene {
     hint.setAlpha(0.9);
     hint.setTint(0xffe08a);
     hint.setVisible(true);
-    const mark = this.edgeMark;
-    if (!mark) return;
-    mark.clear();
-    mark.lineStyle(4, 0xffe08a, 1);
-    mark.strokeEllipse(pose.x, pose.y - 2, 34, 16);
-    mark.lineStyle(2, 0xfff6d0, 1);
-    mark.strokeEllipse(pose.x, pose.y - 2, 22, 10);
-    mark.setDepth(19980);
-    mark.setVisible(true);
   }
 
   private stepGhostShove(): void {
     const ghost = this.ghost;
-    if (!ghost?.visible) return;
+    if (!ghost?.visible) {
+      if (ghost) ghost.setScale(1);
+      return;
+    }
     const left = this.shove.until - this.time.now;
-    if (left <= 0) return;
-    const t = Math.max(0, left / 180);
-    ghost.setPosition(this.ghostHome.x + this.shove.x * t, this.ghostHome.y + this.shove.y * t);
+    const shoveT = left > 0 ? Math.max(0, left / 220) : 0;
+    ghost.setPosition(this.ghostHome.x + this.shove.x * shoveT, this.ghostHome.y + this.shove.y * shoveT);
+    if (this.ghostPulse > 0) this.ghostPulse = Math.max(0, this.ghostPulse - 0.05);
+    const scale = 1 + 0.34 * this.ghostPulse;
+    ghost.setScale(scale);
   }
 
   private willWalkCloser(kind: PieceKind, tile: Tile, edge: EdgeName, reason: string): boolean {
@@ -1346,10 +1541,11 @@ export class GameScene extends Phaser.Scene {
 
   private piecePose(
     kind: PieceKind,
-    at: { tx: number; ty: number; edge: EdgeName },
+    at: { tx: number; ty: number; edge: EdgeName; material?: Material },
     ghost: 'ok' | 'bad' | null,
   ): { x: number; y: number; key: string; ox: number; oy: number; tall: boolean; bias: number } {
-    const key = pieceFrame(kind, at.edge, ghost);
+    const material = ghost ? this.placingMaterial : (at.material ?? 'twig');
+    const key = pieceFrame(kind, at.edge, ghost, material);
     const origin = frameOrigin(key);
     const pos = tileToWorld(at.tx, at.ty);
     if (kind === 'wall' || kind === 'doorway') {
@@ -1362,7 +1558,7 @@ export class GameScene extends Phaser.Scene {
 
   private ghostPose(): { x: number; y: number; key: string; ox: number; oy: number; tall: boolean } {
     if (!this.placing) return { x: 0, y: 0, key: 'twig_foundation_ghost_ok', ox: 0.5, oy: 0.73, tall: false };
-    const spot = placementVerdict(this.placing, this.ghostAnchor, this.ghostEdge, this.state, { x: this.px, y: this.py });
+    const spot = placementVerdict(this.placing, this.ghostAnchor, this.ghostEdge, this.state, { x: this.px, y: this.py }, this.placingMaterial);
     const walk = this.willWalkCloser(this.placing, this.ghostAnchor, this.ghostEdge, spot.reason);
     const ghost = spot.ok || walk ? 'ok' : 'bad';
     const pose = this.piecePose(this.placing, { tx: this.ghostAnchor.tx, ty: this.ghostAnchor.ty, edge: this.ghostEdge }, ghost);
@@ -1372,7 +1568,7 @@ export class GameScene extends Phaser.Scene {
   private refreshGhost(): void {
     const sprite = this.ghost;
     if (!sprite || !this.placing) return;
-    const spot = placementVerdict(this.placing, this.ghostAnchor, this.ghostEdge, this.state, { x: this.px, y: this.py });
+    const spot = placementVerdict(this.placing, this.ghostAnchor, this.ghostEdge, this.state, { x: this.px, y: this.py }, this.placingMaterial);
     const walk = this.willWalkCloser(this.placing, this.ghostAnchor, this.ghostEdge, spot.reason);
     const pose = this.ghostPose();
     sprite.setTexture('world', pose.key);
@@ -1384,6 +1580,7 @@ export class GameScene extends Phaser.Scene {
     this.ghostHome = { x: sprite.x, y: sprite.y };
     sprite.setDepth(20000);
     sprite.setVisible(true);
+    this.paintCurrentEdge();
     this.keepGhostInView(pose, pose.tall);
     this.placeValid = spot.ok || walk;
     this.placeHint = walk ? "He'll walk closer. Tap Confirm." : spot.reason;
@@ -1396,7 +1593,7 @@ export class GameScene extends Phaser.Scene {
     const kind = this.placing;
     const tile = { tx: this.ghostAnchor.tx, ty: this.ghostAnchor.ty };
     const edge = this.ghostEdge;
-    const spot = placementVerdict(kind, tile, edge, this.state, { x: this.px, y: this.py });
+    const spot = placementVerdict(kind, tile, edge, this.state, { x: this.px, y: this.py }, this.placingMaterial);
     if (!spot.ok) {
       if (this.willWalkCloser(kind, tile, edge, spot.reason) && !this.approach) {
         const anchor = pieceAnchor(kind, tile, edge);
@@ -1430,7 +1627,7 @@ export class GameScene extends Phaser.Scene {
       this.setTip(spot.reason);
       return;
     }
-    const result = placePiece(this.state, job.kind, job.tile.tx, job.tile.ty, job.edge);
+    const result = placePiece(this.state, job.kind, job.tile.tx, job.tile.ty, job.edge, this.placingMaterial);
     if (!result.ok) {
       this.setTip(result.message);
       return;
@@ -1444,7 +1641,7 @@ export class GameScene extends Phaser.Scene {
   private collectUnderfoot(): void {
     if (!this.started || this.sheet !== 'none' || this.placing) return;
     for (const prop of PROPS) {
-      if (prop.gather !== 'sticks' && prop.gather !== 'stones') continue;
+      if (prop.gather !== 'sticks' && prop.gather !== 'stones' && prop.gather !== 'rocks' && prop.gather !== 'cobble') continue;
       if (this.state.picked[prop.id]) continue;
       if (this.reachDist(prop) > PICKUP_RADIUS) continue;
       const result = gather(this.state, prop.id, true);
@@ -1458,20 +1655,25 @@ export class GameScene extends Phaser.Scene {
 
   private sprayChips(x: number, y: number, kind: 'wood' | 'stone'): void {
     const frames = kind === 'wood' ? ['wood_chip_0', 'wood_chip_1', 'wood_chip_2'] : ['stone_chip_0', 'stone_chip_1'];
-    const count = kind === 'wood' ? 7 : 5;
+    const count = 4;
     for (let i = 0; i < count; i++) {
-      const frame = frames[i % frames.length];
+      const frame = frames[Math.floor(Math.random() * frames.length)];
       if (!this.textures.exists('world') || !this.textures.get('world').has(frame)) continue;
-      const sprite = this.add.sprite(x, y, 'world', frame);
+      const side = (Math.random() - 0.5) * 18;
+      const along = (Math.random() - 0.5) * 8;
+      const sprite = this.add.sprite(x + side, y + along, 'world', frame);
       this.applyAtlas(sprite, frame);
-      sprite.setDepth(32000);
-      sprite.setTint(0xfff6d2);
-      const pop = 40 + Math.random() * 18;
+      sprite.setScale(1.25 + Math.random() * 0.25);
+      sprite.setDepth(depthFor(y + along, 40));
+      sprite.setAngle((Math.random() - 0.5) * 70);
+      const pop = 34 + Math.random() * 40;
       this.chips.push({
         sprite,
-        vx: (Math.random() - 0.5) * 18,
+        vx: side * 0.55 + (Math.random() - 0.5) * 8,
         vy: -pop,
+        spin: (Math.random() - 0.5) * 140,
         life: 0,
+        ground: y + 4,
       });
     }
   }
@@ -1480,9 +1682,15 @@ export class GameScene extends Phaser.Scene {
     for (let i = this.chips.length - 1; i >= 0; i--) {
       const chip = this.chips[i];
       chip.life += dt;
-      chip.vy += 28 * dt;
+      if (chip.sprite.y < chip.ground) chip.vy += 280 * dt;
       chip.sprite.x += chip.vx * dt;
       chip.sprite.y += chip.vy * dt;
+      if (chip.sprite.y > chip.ground) {
+        chip.sprite.y = chip.ground;
+        chip.vy = 0;
+        chip.vx *= 0.5;
+      }
+      chip.sprite.angle += chip.spin * dt;
       chip.sprite.setAlpha(chip.life < 0.32 ? 1 : Math.max(0, (0.5 - chip.life) / 0.18));
       if (chip.life < 0.5) continue;
       chip.sprite.destroy();
@@ -1518,15 +1726,15 @@ export class GameScene extends Phaser.Scene {
 
   private popup(message: string, tx: number, ty: number): void {
     const pos = tileToWorld(tx, ty);
-    const text = this.add.text(pos.x, pos.y - 28, message, {
+    const text = this.add.text(pos.x, pos.y - 46, message, {
       fontFamily: '"Courier New", ui-monospace, monospace',
       fontSize: '11px',
       color: '#f4ecda',
       stroke: '#1a1420',
-      strokeThickness: 3,
+      strokeThickness: 4,
     });
     text.setOrigin(0.5, 1);
-    text.setDepth(30000);
+    text.setDepth(50000);
     this.floaters.push({ text, life: 0, y: text.y });
   }
 

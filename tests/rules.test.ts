@@ -69,16 +69,16 @@ describe('wood and the hatchet', () => {
   });
 
   it('spends wood and energy when a piece goes up', () => {
-    const ready = { ...initialState(), inventory: { wood: 10 }, energy: 100 };
+    const ready = { ...initialState(), inventory: { ...initialState().inventory, wood: 10 }, energy: 100 };
     const laid = placePiece(ready, 'foundation', 7, 3, 'se');
     expect(laid.ok).toBe(true);
     expect(laid.state.inventory.wood).toBe(0);
-    expect(placePiece({ ...initialState(), inventory: { wood: 3 } }, 'wall', 7, 3, 'se').message).toBe('Need 2 more wood');
+    expect(placePiece({ ...initialState(), inventory: { ...initialState().inventory, wood: 3 } }, 'wall', 7, 3, 'se').message).toBe('Need 2 more wood');
     expect(laid.state.energy).toBe(94);
     expect(laid.state.pieces).toHaveLength(1);
     expect(placePiece(laid.state, 'foundation', 8, 3, 'se').ok).toBe(false);
 
-    const tired = placePiece({ ...initialState(), inventory: { wood: 10 }, energy: 0 }, 'foundation', 7, 3, 'se');
+    const tired = placePiece({ ...initialState(), inventory: { ...initialState().inventory, wood: 10 }, energy: 0 }, 'foundation', 7, 3, 'se');
     expect(tired.ok).toBe(true);
     expect(tired.state.energy).toBe(0);
     expect(tired.state.pieces).toHaveLength(1);

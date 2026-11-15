@@ -1,5 +1,5 @@
-import { WOOD_COST } from './build';
-import type { GameState, PieceKind } from './types';
+import { materialCost } from './build';
+import type { GameState, Material, PieceKind } from './types';
 
 export type CraftCategory = 'tools' | 'construction';
 
@@ -62,21 +62,22 @@ const PIECES: { id: PieceKind; name: string; blurb: string; time: string }[] = [
   },
 ];
 
-/** Greyed Place buttons say how much wood is missing. */
-export function placeButtonLabel(have: number, need: number): string {
+/** Greyed Place buttons say how much of the material is missing. */
+export function placeButtonLabel(have: number, need: number, material = 'wood'): string {
   const short = need - have;
-  if (short > 0) return `Need ${short} more wood`;
+  if (short > 0) return `Need ${short} more ${material}`;
   return 'Place';
 }
 
 export function hotbarSlots(state: GameState): HotbarSlot[] {
+  const hammer = state.inventory.hammerstone;
   return [
     { id: 'hatchet', name: 'Hatchet', count: -1, frame: 'hatchet' },
+    { id: 'hammerstone', name: 'Hammerstone', count: -1, frame: hammer ? 'item_hammerstone' : 'hands' },
     { id: 'plan', name: 'Building plan', count: -1, frame: 'plan' },
     { id: 'wood', name: 'Wood', count: state.inventory.wood, frame: 'wood' },
-    { id: 'empty-3', name: 'Empty', count: -1, frame: 'hands' },
-    { id: 'empty-4', name: 'Empty', count: -1, frame: 'hands' },
-    { id: 'empty-5', name: 'Empty', count: -1, frame: 'hands' },
+    { id: 'stone', name: 'Stone', count: state.inventory.stone, frame: 'item_rock' },
+    { id: 'flakes', name: 'Flakes', count: state.inventory.flakes, frame: 'item_flake' },
   ];
 }
 
@@ -87,26 +88,54 @@ export function statusLine(state: GameState): string {
   return 'Steady';
 }
 
-function pieceRecipe(state: GameState, spec: (typeof PIECES)[number]): Recipe {
-  const need = WOOD_COST[spec.id];
-  const have = state.inventory.wood;
+const STONE_PIECES: { id: PieceKind; name: string; blurb: string; time: string }[] = [
+  {
+    id: 'foundation',
+    name: 'Stone foundation',
+    blurb: 'Rocks set in a square. Walls of either kind sit on it, the same as a twig foundation.',
+    time: 'On clear ground',
+  },
+  {
+    id: 'wall',
+    name: 'Stone wall',
+    blurb: 'A dry-stone wall on a foundation edge. Rotate it to the side you want.',
+    time: 'On a foundation edge',
+  },
+  {
+    id: 'doorway',
+    name: 'Stone doorway',
+    blurb: 'A stone wall with a gap you can walk through.',
+    time: 'On a foundation edge',
+  },
+  {
+    id: 'floor',
+    name: 'Stone floor',
+    blurb: 'Slabs over the walls. It is also the roof of the room under it.',
+    time: 'On top of walls',
+  },
+];
+
+function pieceRecipe(state: GameState, spec: (typeof PIECES)[number], material: Material): Recipe {
+  const need = materialCost(spec.id, material);
+  const have = material === 'stone' ? state.inventory.stone : state.inventory.wood;
+  const family = material === 'stone' ? 'stone' : 'twig';
   return {
-    id: spec.id,
+    id: material === 'stone' ? `stone-${spec.id}` : spec.id,
     category: 'construction',
     name: spec.name,
     blurb: spec.blurb,
     frame:
       spec.id === 'foundation'
-        ? 'twig_foundation'
+        ? `${family}_foundation`
         : spec.id === 'floor'
-          ? 'twig_floor'
+          ? `${family}_floor`
           : spec.id === 'doorway'
-            ? 'twig_door_ne'
-            : 'twig_wall_ne',
-    ingredients: [{ name: 'Wood', have, need }],
+            ? `${family}_door_ne`
+            : `${family}_wall_ne`,
+    ingredients: [{ name: material === 'stone' ? 'Stone' : 'Wood', have, need }],
     seconds: 0,
     timeLabel: spec.time,
-    action: `place-${spec.id}`,
+    action: material === 'stone' ? `place-stone-${spec.id}` : `place-${spec.id}`,
     enabled: have >= need,
     done: false,
   };
@@ -127,6 +156,7 @@ export function recipesFor(state: GameState): Recipe[] {
       enabled: false,
       done: true,
     },
-    ...PIECES.map((spec) => pieceRecipe(state, spec)),
+    ...PIECES.map((spec) => pieceRecipe(state, spec, 'twig')),
+    ...STONE_PIECES.map((spec) => pieceRecipe(state, spec, 'stone')),
   ];
 }

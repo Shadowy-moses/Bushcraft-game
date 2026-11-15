@@ -22,7 +22,7 @@ describe('saved games', () => {
       tip: 'hi',
     };
     const migrated = parseSave(JSON.stringify(v1));
-    expect(migrated?.version).toBe(3);
+    expect(migrated?.version).toBe(4);
     expect(migrated?.tx).toBe(7);
     expect(migrated?.ty).toBe(4);
     expect(migrated?.facing).toBe('sw');
@@ -36,12 +36,12 @@ describe('saved games', () => {
   it('keeps a version-3 build', () => {
     const placed = {
       ...initialState(),
-      inventory: { wood: 30 },
+      inventory: { ...initialState().inventory, wood: 30 },
       pieces: [{ kind: 'foundation' as const, tx: 7, ty: 3, edge: 'se' as const }],
       trees: { 'pine_tree-6-1': { hits: 3, felledAt: 1000 } },
     };
     expect(parseSave(JSON.stringify(placed))).toMatchObject({
-      inventory: { wood: 30 },
+      inventory: { ...initialState().inventory, wood: 30 },
       pieces: [{ kind: 'foundation', tx: 7, ty: 3, edge: 'se' }],
       trees: { 'pine_tree-6-1': { hits: 3, felledAt: 1000 } },
     });

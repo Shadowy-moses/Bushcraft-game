@@ -3,24 +3,31 @@ import type { Facing } from './woodsman';
 
 export type PieceKind = 'foundation' | 'wall' | 'doorway' | 'floor';
 export type EdgeName = 'se' | 'sw' | 'ne' | 'nw';
+export type Material = 'twig' | 'stone';
 
 export interface Piece {
   kind: PieceKind;
   tx: number;
   ty: number;
   edge: EdgeName;
+  /** Missing on older saves. Those pieces are twig. */
+  material?: Material;
 }
 
 export interface Inventory {
   wood: number;
+  stone: number;
+  flakes: number;
+  rocks: number;
+  hammerstone: boolean;
 }
 
-export type Tool = 'hatchet' | 'plan';
+export type Tool = 'hatchet' | 'hammerstone' | 'plan';
 export type Outcome = 'playing' | 'won' | 'lost';
-export type GatherKind = 'sticks' | 'stones' | 'fiber' | 'tinder' | 'leaves';
+export type GatherKind = 'sticks' | 'stones' | 'rocks' | 'cobble' | 'fiber' | 'tinder' | 'leaves';
 
 export interface GameState {
-  version: 3;
+  version: 4;
   minutes: number;
   warmth: number;
   energy: number;
@@ -36,6 +43,10 @@ export interface GameState {
   inventory: Inventory;
   pieces: Piece[];
   trees: Record<string, TreeMark>;
+  /** Strikes landed on each rock node. Five leaves rubble. */
+  rocks: Record<string, number>;
+  /** Knaps landed on each flint core. Two leaves it spent. */
+  cores: Record<string, number>;
   picked: Record<string, true>;
   outcome: Outcome;
   tip: string;
@@ -55,6 +66,10 @@ export type PropKind =
   | 'bush_fiber'
   | 'item_sticks'
   | 'item_stone'
+  | 'item_rock'
+  | 'river_cobbles'
+  | 'flint_core'
+  | 'rock_node'
   | 'leaf_pile';
 
 export interface Prop {

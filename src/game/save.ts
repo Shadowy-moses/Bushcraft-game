@@ -1,7 +1,7 @@
 import { SAVE_KEY } from './constants';
 import { tileToWorld } from './iso';
 import { initialState } from './rules';
-import type { EdgeName, GameState, Outcome, Piece, PieceKind, Tool } from './types';
+import type { EdgeName, GameState, Material, Outcome, Piece, PieceKind, Tool } from './types';
 import type { TreeMark } from './trees';
 import { facingFromSave, isFacing } from './woodsman';
 import { storage } from '../platform/storage';
@@ -10,7 +10,15 @@ const KINDS: PieceKind[] = ['foundation', 'wall', 'doorway', 'floor'];
 const EDGES: EdgeName[] = ['se', 'sw', 'ne', 'nw'];
 
 function isTool(value: unknown): value is Tool {
-  return value === 'hatchet' || value === 'plan';
+  return value === 'hatchet' || value === 'hammerstone' || value === 'plan';
+}
+
+function materialOf(value: unknown): Material {
+  return value === 'stone' ? 'stone' : 'twig';
+}
+
+function countOf(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 function outcomeOk(value: unknown): value is Outcome {
@@ -58,7 +66,9 @@ export function parseSave(raw: string): GameState | null {
       facing?: unknown;
       faceLeft?: unknown;
       tool?: unknown;
-      inventory?: { wood?: unknown };
+      inventory?: { wood?: unknown; stone?: unknown; flakes?: unknown; rocks?: unknown; hammerstone?: unknown };
+      rocks?: unknown;
+      cores?: unknown;
       pieces?: unknown;
       trees?: unknown;
       picked?: unknown;
@@ -72,9 +82,23 @@ export function parseSave(raw: string): GameState | null {
     const feet = tileToWorld(save.tx, save.ty);
     const x = typeof save.x === 'number' ? save.x : feet.x;
     const y = typeof save.y === 'number' ? save.y : feet.y;
-    if (save.version === 3 && save.inventory && typeof save.inventory.wood === 'number' && Array.isArray(save.pieces) && save.pieces.every(pieceOk) && treesOk(save.trees) && pickedOk(save.picked)) {
+    const rocksOk =
+      !save.rocks ||
+      (typeof save.rocks === 'object' &&
+        Object.values(save.rocks as Record<string, unknown>).every((hits) => typeof hits === 'number'));
+    if (
+      (save.version === 3 || save.version === 4) &&
+      save.inventory &&
+      typeof save.inventory.wood === 'number' &&
+      Array.isArray(save.pieces) &&
+      save.pieces.every(pieceOk) &&
+      treesOk(save.trees) &&
+      pickedOk(save.picked) &&
+      rocksOk
+    ) {
       return {
         ...fresh,
+        version: 4,
         minutes: save.minutes,
         warmth: save.warmth,
         energy: save.energy,
@@ -84,15 +108,23 @@ export function parseSave(raw: string): GameState | null {
         y,
         facing,
         tool: isTool(save.tool) ? save.tool : 'hatchet',
-        inventory: { wood: save.inventory.wood },
-        pieces: save.pieces,
+        inventory: {
+          wood: save.inventory.wood,
+          stone: countOf(save.inventory.stone),
+          flakes: countOf(save.inventory.flakes),
+          rocks: countOf(save.inventory.rocks),
+          hammerstone: save.inventory.hammerstone === true,
+        },
+        pieces: save.pieces.map((piece) => ({ ...piece, material: materialOf((piece as Piece).material) })),
         trees: save.trees,
+        rocks: (save.rocks as Record<string, number> | undefined) ?? {},
+        cores: (save.cores as Record<string, number> | undefined) ?? {},
         picked: save.picked,
         outcome: 'playing',
         tip: save.tip,
       };
     }
-    if (save.version === 1 || save.version === 2 || save.version === 3) {
+    if (save.version === 1 || save.version === 2 || save.version === 3 || save.version === 4) {
       return {
         ...fresh,
         minutes: save.minutes,

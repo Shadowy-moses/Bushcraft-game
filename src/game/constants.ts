@@ -25,6 +25,11 @@ export const GATHER_ENERGY = 5;
  * during the swing does not spend again.
  */
 export const CHOP_ENERGY = 1;
+/**
+ * A strike costs more than a chop, and a node takes more swings than a tree.
+ * See ROCK_HITS in stone.ts. A stone hut is about twice the stamina of a twig hut.
+ */
+export const STRIKE_ENERGY = 2;
 export const BUILD_ENERGY = 6;
 
 export const WOOD_FOUNDATION = 10;
