@@ -1,4 +1,5 @@
 import { TRIPOD_CORDAGE, TRIPOD_WOOD, WOOD_DOOR, WOOD_FLOOR, WOOD_FOUNDATION, WOOD_WALL } from './constants';
+import { canAffordFire, fireShort } from './fire';
 import { isFiberCut } from './fiber';
 import { tileToWorld } from './iso';
 import { groundAt, inBounds, propAt } from './map';
@@ -16,6 +17,7 @@ export const WOOD_COST: Record<PieceKind, number> = {
   doorway: WOOD_DOOR,
   floor: WOOD_FLOOR,
   tripod: TRIPOD_WOOD,
+  fire: 0,
 };
 
 /** Same counts as twig. The extra effort is in the mining, not a longer shopping list. */
@@ -25,6 +27,7 @@ export const STONE_COST: Record<PieceKind, number> = {
   doorway: WOOD_DOOR,
   floor: WOOD_FLOOR,
   tripod: TRIPOD_WOOD,
+  fire: 0,
 };
 
 export function materialCost(kind: PieceKind, material: Material = 'twig'): number {
@@ -259,6 +262,7 @@ export function pieceFrame(
   material: Material = 'twig',
 ): string {
   if (kind === 'tripod') return 'lashed_tripod';
+  if (kind === 'fire') return 'fire_tipi_unlit';
   const suffix = ghost === 'ok' ? '_ghost_ok' : ghost === 'bad' ? '_ghost_bad' : '';
   const family = material === 'stone' ? 'stone' : 'twig';
   if (kind === 'foundation') return `${family}_foundation${suffix}`;
@@ -339,7 +343,18 @@ export function tripodSpot(tile: Tile, state: GameState): Spot {
   return { ok: true, reason: 'Clear ground. Tap Confirm to lash the tripod.' };
 }
 
+export function fireSpot(tile: Tile, state: GameState): Spot {
+  const ground = clearGround(tile, state);
+  if (ground) return { ok: false, reason: ground };
+  if (hasFoundation(state.pieces, tile.tx, tile.ty)) return { ok: false, reason: 'Not on the hut. Set it on open ground.' };
+  if (state.pieces.some((piece) => piece.kind === 'fire' && piece.tx === tile.tx && piece.ty === tile.ty)) {
+    return { ok: false, reason: 'A fire lay is already there.' };
+  }
+  return { ok: true, reason: 'Clear ground. Tap Confirm to lay the teepee.' };
+}
+
 export function pieceSpot(kind: PieceKind, tile: Tile, edge: EdgeName, state: GameState): Spot {
+  if (kind === 'fire') return fireSpot(tile, state);
   if (kind === 'tripod') return tripodSpot(tile, state);
   if (kind === 'foundation') return foundationSpot(tile, state);
   if (kind === 'floor') return floorSpot(tile, state);
@@ -392,6 +407,7 @@ export function placementVerdict(
       return { ok: false, reason: `Need ${TRIPOD_CORDAGE - state.inventory.cordage} more cordage` };
     }
   }
+  if (kind === 'fire' && !canAffordFire(state)) return { ok: false, reason: fireShort(state) };
   const have = material === 'stone' ? state.inventory.stone : state.inventory.wood;
   if (materialCost(kind, material) > have) {
     return { ok: false, reason: materialShortMessage(kind, have, material) };
@@ -464,6 +480,7 @@ export function canAfford(state: GameState, kind: PieceKind, material: Material 
   if (kind === 'tripod') {
     return state.inventory.wood >= TRIPOD_WOOD && state.inventory.cordage >= TRIPOD_CORDAGE;
   }
+  if (kind === 'fire') return canAffordFire(state);
   const have = material === 'stone' ? state.inventory.stone : state.inventory.wood;
   return have >= materialCost(kind, material);
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { UPGRADE_NOTE } from '../src/game/copy';
 import { recipesFor } from '../src/game/craft';
 import { tileToWorld } from '../src/game/iso';
+import { PROPS } from '../src/game/map';
 import { emptyInventory, gather, initialState, knapFlint } from '../src/game/rules';
 import { chooseUse, upgradePrompt } from '../src/game/use';
 
@@ -48,18 +49,26 @@ describe('what Use reaches for', () => {
     expect(leaf.message).toBe('Set that aside.');
     expect(leaf.message).not.toMatch(/hatchet/);
 
-    let idle: string | null = null;
-    for (let ty = 0; ty < 12 && !idle; ty++) {
-      for (let tx = 0; tx < 12; tx++) {
-        const state = stand(tx, ty);
-        const choice = chooseUse(state, { x: state.x, y: state.y });
-        if (choice.action === 'none' && choice.message === 'The hatchet wants a trunk.') {
-          idle = `${tx},${ty}`;
-          break;
-        }
-      }
+    const picked: Record<string, true> = {};
+    const trees: Record<string, { hits: number; felledAt: number }> = {};
+    const plants: Record<string, number> = {};
+    const cores: Record<string, number> = {};
+    for (const prop of PROPS) {
+      if (prop.gather) picked[prop.id] = true;
+      if (prop.kind === 'pine_tree' || prop.kind === 'birch_tree') trees[prop.id] = { hits: 3, felledAt: 1 };
+      if (prop.kind === 'bush_fiber') plants[prop.id] = 990;
+      if (prop.kind === 'flint_core') cores[prop.id] = 2;
     }
-    expect(idle).toBeTruthy();
+    const bare = {
+      ...stand(7, 5),
+      inventory: { ...emptyInventory(), hammerstone: true },
+      picked,
+      trees,
+      plants,
+      cores,
+    };
+    const choice = chooseUse(bare, { x: bare.x, y: bare.y });
+    expect(choice).toEqual({ action: 'none', message: 'The hatchet wants a trunk.' });
   });
 
   it('tells you to equip the hammerstone when a twig piece is in reach', () => {

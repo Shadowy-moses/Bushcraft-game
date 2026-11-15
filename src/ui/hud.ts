@@ -10,8 +10,9 @@ export interface HudHandlers {
 }
 
 function equippedIndex(tool: Tool): number {
-  if (tool === 'hammerstone') return 1;
-  if (tool === 'plan') return 2;
+  if (tool === 'hatchet') return 1;
+  if (tool === 'hammerstone') return 2;
+  if (tool === 'plan') return 3;
   return 0;
 }
 
@@ -390,7 +391,12 @@ export class Hud {
     const place = document.getElementById('place-actions');
     if (!bag || !bar || !place) return;
     const showPlace =
-      placing === 'foundation' || placing === 'wall' || placing === 'doorway' || placing === 'floor' || placing === 'tripod';
+      placing === 'foundation' ||
+      placing === 'wall' ||
+      placing === 'doorway' ||
+      placing === 'floor' ||
+      placing === 'tripod' ||
+      placing === 'fire';
     bag.hidden = showPlace;
     bar.hidden = showPlace;
     place.hidden = !showPlace;
