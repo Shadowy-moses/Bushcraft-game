@@ -168,11 +168,16 @@ describe('round 8 weather, cover, wear, and coals', () => {
   it('keeps stick pace with the keys, and the clock at the working rate', () => {
     const held = stickDirection(0.4, 0);
     expect(Math.hypot(held.x, held.y)).toBeCloseTo(1);
-    const creep = travelSpeed(0.4);
+    const creep = travelSpeed(0.2);
     expect(creep.running).toBe(false);
     expect(creep.speed).toBeGreaterThan(0);
     expect(creep.speed).toBeLessThan(WALK_SPEED);
+    const mid = travelSpeed(0.4);
+    expect(mid.running).toBe(false);
+    expect(mid.speed).toBeGreaterThan(creep.speed);
+    expect(mid.speed).toBeLessThan(RUN_SPEED);
     expect(travelSpeed(0.05).speed).toBe(0);
+    expect(travelSpeed(0.6).speed).toBe(RUN_SPEED);
     expect(travelSpeed(1).speed).toBe(RUN_SPEED);
     expect(minutesThisFrame(1)).toBe(PLAY_MINUTES_PER_SECOND);
     expect(minutesThisFrame(5)).toBeCloseTo(2);

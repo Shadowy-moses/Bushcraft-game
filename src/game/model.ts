@@ -5,7 +5,7 @@ import { PROPS } from './map';
 import { warmthPerGameHour } from './rules';
 import { isFelled } from './trees';
 import type { PieceKind, GameState, Tool } from './types';
-import { chooseUse, usePrompt } from './use';
+import { actionLabel, rankedActions, usePrompt } from './use';
 import { weatherAt, weatherWord } from './weather';
 
 export type SheetId = 'none' | 'title' | 'end' | 'pack' | 'craft';
@@ -42,6 +42,8 @@ export interface HudModel {
   dampLabel: string;
   prompt: string;
   useLabel: string;
+  /** Label for the second action button. Empty when it should stay hidden. */
+  secondLabel: string;
   lowWarmth: boolean;
   status: string;
   tip: string;
@@ -72,7 +74,8 @@ export function buildModel(
   const face = clockParts(state.minutes);
   const feet = { x: state.x, y: state.y };
   const warming = nearLitFire(state);
-  const choice = chooseUse(state, feet);
+  const ranked = rankedActions(state, feet);
+  const choice = ranked.primary;
   const prompt = usePrompt(state, feet);
   return {
     clock: face.clock,
@@ -95,7 +98,22 @@ export function buildModel(
     dampLabel: (state.damp ?? 0) >= 10 ? 'Damp' : '',
     prompt,
     useLabel:
-      choice.action === 'drill' ? 'Hold' : choice.action === 'blow' ? 'Blow' : prompt === 'Drink' ? 'Drink' : 'Use',
+      choice.action === 'drill'
+        ? 'Hold'
+        : choice.action === 'blow'
+          ? 'Blow'
+          : choice.action === 'repair'
+            ? 'Repair'
+            : choice.action === 'feed'
+              ? 'Feed'
+              : choice.action === 'heat'
+                ? 'Heat'
+                : choice.action === 'boil'
+                  ? 'Set pot'
+                  : prompt === 'Drink'
+                    ? 'Drink'
+                    : 'Use',
+    secondLabel: ranked.next ? actionLabel(ranked.next) : '',
     energyLabel: `${Math.round(state.energy)} · ${energyWord(state.energy)}`,
     lowWarmth: state.warmth < 30,
     status: statusLine(state),

@@ -6,7 +6,7 @@ import { GRAVEL_LANDINGS, PROPS, blockedFor } from '../src/game/map';
 import { REACH, bodiesFor, canStand, resolveMove } from '../src/game/move';
 import { findPath } from '../src/game/path';
 import { emptyInventory, initialState } from '../src/game/rules';
-import { chooseUse, drinkPrompt } from '../src/game/use';
+import { chooseUse, drinkPrompt, rankedActions } from '../src/game/use';
 
 function walkTo(tx: number, ty: number) {
   const path = findPath(PLAYER_START, { tx, ty }, blockedFor(initialState()));
@@ -47,9 +47,19 @@ describe('drinking at the gravel', () => {
         thirst: 20,
         inventory: { ...emptyInventory(), berries: 2, roots: 2 },
       };
-      expect(drinkPrompt(state, pos)).toBe('Drink');
+      const ranked = rankedActions(state, pos);
+      const besideCobble = PROPS.some(
+        (prop) => prop.kind === 'river_cobbles' && Math.max(Math.abs(prop.tx - landing.tx), Math.abs(prop.ty - landing.ty)) <= 1,
+      );
+      if (besideCobble) {
+        expect(ranked.primary.action).toBe('gather');
+        expect(ranked.next?.action).toBe('drink-creek');
+      } else {
+        expect(drinkPrompt(state, pos)).toBe('Drink');
+        expect(ranked.primary.action).toBe('drink-creek');
+      }
       const choice = chooseUse(state, pos);
-      expect(choice.action).toBe('drink-creek');
+      expect(choice.action === 'drink-creek' || choice.action === 'gather').toBe(true);
       const drunk = drinkCreek({ ...state, x: pos.x, y: pos.y }, () => 1);
       expect(drunk.ok).toBe(true);
       expect(drunk.state.thirst).toBe(20 + RAW_THIRST);
@@ -69,7 +79,9 @@ describe('drinking at the gravel', () => {
       tool: 'hands' as const,
       inventory: { ...emptyInventory(), pot: 3 },
     };
-    expect(chooseUse(state, pos).action).toBe('scoop');
+    const ranked = rankedActions(state, pos);
+    expect(ranked.primary.action).toBe('gather');
+    expect(ranked.next?.action).toBe('scoop');
     const filled = scoopCreek({ ...state, x: pos.x, y: pos.y });
     expect(filled.ok).toBe(true);
     expect(filled.state.cupWater).toBe('raw');

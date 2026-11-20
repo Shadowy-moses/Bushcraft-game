@@ -20,7 +20,7 @@ import {
 import { UPGRADE_NOTE } from './copy';
 import { nearLitFire } from './fire';
 import { CORD_FIBER, CORD_SECONDS } from './fiber';
-import type { GameState, Material, PieceKind } from './types';
+import type { GameState, Material, PieceKind, Tool } from './types';
 
 /** One tap crafts once. A chosen quantity is the exception, and it still counts as one tap. */
 export function allowCraftTap(now: number, last: number, qty: number): boolean {
@@ -160,6 +160,51 @@ export function hotbarSlots(state: GameState): HotbarSlot[] {
         ]
       : []),
   ];
+}
+
+/** The count a recipe row should show. Comes from the recipe, not the slot title. */
+export function shownHave(recipes: Recipe[], name: string): number {
+  for (const recipe of recipes) {
+    const hit = recipe.ingredients.find((item) => item.name === name);
+    if (hit) return hit.have;
+  }
+  return 0;
+}
+
+export type PackTap =
+  | { kind: 'drink' }
+  | { kind: 'drink-bowl' }
+  | { kind: 'eat'; food: 'berries' | 'roots' }
+  | { kind: 'equip'; tool: Tool }
+  | { kind: 'open-plan' }
+  | { kind: 'tip'; message: string };
+
+/** A tap on a pack chip or a tool slot. Food is eaten, a boiled pot is drunk, a tool is equipped. */
+export function packTap(state: GameState, slotId: string): PackTap {
+  if (slotId === 'pot') {
+    if (state.cupWater === 'boiled') return { kind: 'drink' };
+    if (state.cupWater === 'raw') return { kind: 'tip', message: state.potSeat ? 'It is on the coals.' : 'Set it on the coals.' };
+    return { kind: 'tip', message: 'The pot is empty.' };
+  }
+  if (slotId === 'bowl') {
+    if (state.bowlWater === 'boiled') return { kind: 'drink-bowl' };
+    return { kind: 'tip', message: state.bowlWater === 'raw' ? 'It still needs to boil.' : 'The bowl is empty.' };
+  }
+  if (slotId === 'berries' || slotId === 'roots') return { kind: 'eat', food: slotId };
+  if (slotId === 'hands') return { kind: 'equip', tool: 'hands' };
+  if (slotId === 'hatchet') return { kind: 'equip', tool: 'hatchet' };
+  if (slotId === 'axe') {
+    return state.inventory.axe ? { kind: 'equip', tool: 'axe' } : { kind: 'tip', message: 'Haft a stone axe first.' };
+  }
+  if (slotId === 'hammerstone') {
+    return state.inventory.hammerstone
+      ? { kind: 'equip', tool: 'hammerstone' }
+      : { kind: 'tip', message: 'Knap a hammerstone first.' };
+  }
+  if (slotId === 'plan') return { kind: 'open-plan' };
+  const slot = hotbarSlots(state).find((item) => item.id === slotId);
+  if (!slot) return { kind: 'tip', message: '' };
+  return { kind: 'tip', message: `${slot.name}. ${slot.text ?? slot.count} in the pack.` };
 }
 
 export function statusLine(state: GameState): string {

@@ -3,10 +3,10 @@ import { BESIDE_FIRE, LOG_STRIPS, NEED_DIRE } from './constants';
 import { AXE_IDLE, HATCHET_IDLE } from './copy';
 import { isFiberCut } from './fiber';
 import { isFelled } from './trees';
-import { tileToWorld } from './iso';
+import { chebyshev, tileToWorld, worldToTile } from './iso';
 import { PROPS } from './map';
 import { CHOP_REACH, REACH, inReach, reachFor } from './move';
-import { canBoil, besideCreek } from './food';
+import { besideCreek } from './food';
 import { nearestFire, nearLitFire } from './fire';
 import { pieceHealth } from './weather';
 import { CORE_KNAPS, ROCK_HITS } from './stone';
@@ -110,15 +110,28 @@ function nearestUpgrade(state: GameState, feet: Feet): { piece: Piece; d: number
   return best;
 }
 
+export interface RankedActions {
+  primary: UseChoice;
+  /** The next thing he could do. Null when only one action applies. */
+  next: UseChoice | null;
+}
+
 /**
- * One order for Use, a tap, and the hint.
- * Boiled water, then the fire beside him, then a cobble he tapped, then the creek, then plants.
- * A hatchet or hammerstone still does its own job when none of those are the target.
+ * One order for Use, a tap, the hint, and the second button.
+ * Place a carried pot, drink what is boiled, repair, pick up a cobble,
+ * heat a stone, feed the fire, then the creek, then plants.
+ * A hatchet or hammerstone still does its own job when none of those apply.
  */
+export function rankedActions(state: GameState, feet: Feet, focus?: Prop): RankedActions {
+  const options = listActions(state, feet, focus).filter((choice) => choice.action !== 'none');
+  if (options.length === 0) {
+    return { primary: idleChoice(state, feet), next: null };
+  }
+  return { primary: options[0], next: options[1] ?? null };
+}
+
 export function chooseTarget(state: GameState, feet: Feet, focus?: Prop): UseChoice {
-  const world = worldTarget(state, feet, focus);
-  if (world) return world;
-  return toolRest(state, feet);
+  return rankedActions(state, feet, focus).primary;
 }
 
 /** Use and the hint call this with no tapped prop. */
@@ -126,36 +139,85 @@ export function chooseUse(state: GameState, feet: Feet): UseChoice {
   return chooseTarget(state, feet);
 }
 
-function worldTarget(state: GameState, feet: Feet, focus?: Prop): UseChoice | null {
+function listActions(state: GameState, feet: Feet, focus?: Prop): UseChoice[] {
   const hands = state.tool === 'hands' || state.tool === 'plan';
-  const pointed = focus != null && (focus.gather === 'cobble' || isPlant(focus) || focus.kind === 'birch_log' || focus.kind === 'birch_tree');
-  if (!hands && !pointed) return null;
-
-  const boiled = boiledDrink(state, feet);
-  if (boiled) return boiled;
   const here = { ...state, x: feet.x, y: feet.y, tool: 'hands' as const };
-  if (canBoil(here)) return { action: 'boil' };
-  if (state.hotStone === 'hot' && state.inventory.bowl && state.bowlWater === 'raw' && nearLitFire(here)) {
-    return { action: 'quench' };
+  const out: UseChoice[] = [];
+  if (hands) {
+    const pot = placePot(here, feet);
+    if (pot) out.push(pot);
+    const boiled = boiledDrink(here, feet);
+    if (boiled) out.push(boiled);
+    const worn = nearestWorn(here, feet);
+    if (worn && here.inventory.wood >= 1) out.push({ action: 'repair', piece: worn.piece });
   }
-  if (
-    state.inventory.bowl &&
-    state.bowlWater === 'raw' &&
-    state.hotStone !== 'hot' &&
-    nearLitFire(here) &&
-    (state.inventory.stone > 0 || (state.inventory.dryCobble ?? 0) > 0 || (state.inventory.wetCobble ?? 0) > 0)
-  ) {
-    return { action: 'heat' };
+  const cobble = cobbleChoice(state, feet, focus, hands);
+  if (cobble) out.push(cobble);
+  if (hands) {
+    if (here.hotStone === 'hot' && here.inventory.bowl && here.bowlWater === 'raw' && nearLitFire(here)) {
+      out.push({ action: 'quench' });
+    }
+    if (
+      here.inventory.bowl &&
+      here.bowlWater === 'raw' &&
+      here.hotStone !== 'hot' &&
+      nearLitFire(here) &&
+      (here.inventory.stone > 0 || (here.inventory.dryCobble ?? 0) > 0 || (here.inventory.wetCobble ?? 0) > 0)
+    ) {
+      out.push({ action: 'heat' });
+    }
+    const close = closeFire(here, feet);
+    if (close && close.action !== 'none') out.push(close);
+    const water = waterChoice(here, feet);
+    if (water) out.push(water);
+    const forage = forageChoice(state, feet);
+    if (forage) out.push(forage);
+    if (here.cupWater === 'raw' && here.thirst < NEED_DIRE && !out.some((choice) => choice.action === 'drink')) {
+      out.push({ action: 'drink' });
+    }
   }
+  if (!hands) {
+    const rest = toolRest(state, feet);
+    if (rest.action !== 'none') out.push(rest);
+  }
+  return out;
+}
+
+function idleChoice(state: GameState, feet: Feet): UseChoice {
+  const hands = state.tool === 'hands' || state.tool === 'plan';
+  if (!hands) return toolRest(state, feet);
+  const here = { ...state, x: feet.x, y: feet.y };
   const close = closeFire(here, feet);
   if (close) return close;
+  if (state.cupWater === 'raw') return { action: 'none', message: 'Set it on the coals.' };
+  return { action: 'none', message: 'Nothing in these hands.' };
+}
+
+/** A raw pot in the pack, set on the fire or the coals he is standing beside. */
+function placePot(state: GameState, feet: Feet): UseChoice | null {
+  if (state.potSeat || state.inventory.pot <= 0 || state.cupWater !== 'raw') return null;
+  const fire = nearestFire(state, feet, BESIDE_FIRE);
+  if (!fire) return null;
+  const hot = fire.lit === true || (fire.coalsUntil != null && state.minutes < fire.coalsUntil);
+  if (!hot) return null;
+  return { action: 'boil' };
+}
+
+/** On the pile, or on a neighboring tile. A pointed cobble still counts from reach. */
+function cobbleChoice(state: GameState, feet: Feet, focus: Prop | undefined, hands: boolean): UseChoice | null {
   if (focus && focus.gather === 'cobble' && !state.picked[focus.id] && inReach(feet.x, feet.y, focus.tx, focus.ty, reachFor(focus))) {
     return { action: 'gather', prop: focus };
   }
-  const water = waterChoice(here, feet);
-  if (water) return water;
   if (!hands) return null;
-  return forageChoice(state, feet);
+  const here = worldToTile(feet.x, feet.y);
+  let best: { prop: Prop; d: number } | null = null;
+  for (const prop of PROPS) {
+    if (prop.kind !== 'river_cobbles' || state.picked[prop.id]) continue;
+    if (chebyshev(prop.tx, prop.ty, here.tx, here.ty) > 1) continue;
+    const d = propDist(feet, prop);
+    if (!best || d < best.d) best = { prop, d };
+  }
+  return best ? { action: 'gather', prop: best.prop } : null;
 }
 
 function forageChoice(state: GameState, feet: Feet): UseChoice | null {
@@ -194,10 +256,6 @@ function toolRest(state: GameState, feet: Feet): UseChoice {
   const worn = nearestWorn(state, feet);
   if (worn) return { action: 'repair', piece: worn.piece };
   return { action: 'none', message: 'Nothing in these hands.' };
-}
-
-function isPlant(prop: Prop): boolean {
-  return prop.kind === 'cattails' || prop.kind === 'berry_bush' || prop.kind === 'bush_fiber';
 }
 
 function isLoose(prop: Prop): boolean {
@@ -244,7 +302,7 @@ export function actionLabel(choice: UseChoice): string {
   if (choice.action === 'drink' || choice.action === 'drink-bowl' || choice.action === 'drink-creek') return 'Drink';
   if (choice.action === 'scoop') return 'Fill pot';
   if (choice.action === 'scoop-bowl') return 'Fill bowl';
-  if (choice.action === 'boil') return 'Boil';
+  if (choice.action === 'boil') return 'Set the pot';
   if (choice.action === 'heat') return 'Heat a stone';
   if (choice.action === 'quench') return 'Drop the stone';
   if (choice.action === 'peel') return 'Peel bark';

@@ -30,6 +30,7 @@ import {
   HATCHET_BITE,
   PLAY_MINUTES_PER_SECOND,
   PLAYER_START,
+  REST_MINUTES_PER_SECOND,
   REPAIR_HEALTH,
   REST_ENERGY_PER_SECOND,
   START_ENERGY,
@@ -94,6 +95,30 @@ export function debugInventory(): Inventory {
   };
 }
 
+const WEAR_NAMES: Partial<Record<PieceKind, string>> = {
+  wall: 'twig wall',
+  foundation: 'twig foundation',
+  floor: 'twig floor',
+  doorway: 'twig doorway',
+};
+
+/** Age nearby twig pieces to the worn frame and name what changed. */
+export function wearNearby(state: GameState): { state: GameState; message: string } {
+  const counts = new Map<string, number>();
+  const pieces = state.pieces.map((piece) => {
+    if (piece.kind === 'fire' || piece.kind === 'tripod') return piece;
+    if ((piece.material ?? 'twig') === 'stone') return piece;
+    const near = Math.max(Math.abs(piece.tx - state.tx), Math.abs(piece.ty - state.ty)) <= 3;
+    if (!near || (piece.health ?? 100) <= 50) return piece;
+    const label = WEAR_NAMES[piece.kind] ?? `twig ${piece.kind}`;
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+    return { ...piece, health: 50 };
+  });
+  const parts = [...counts.entries()].map(([name, count]) => (count === 1 ? `1 ${name}` : `${count} ${name}s`));
+  const message = parts.length === 0 ? 'Nothing nearby was worn.' : `Wore ${parts.join(' and ')}`;
+  return { state: { ...state, pieces, tip: message }, message };
+}
+
 export function initialState(): GameState {
   return {
     version: 6,
@@ -133,7 +158,26 @@ export function initialState(): GameState {
 
 /** Game minutes that pass in this slice of real time. Held movement does not change it. */
 export function minutesThisFrame(dtSeconds: number): number {
+  if (!Number.isFinite(dtSeconds) || dtSeconds <= 0) return 0;
   return dtSeconds * PLAY_MINUTES_PER_SECOND;
+}
+
+/**
+ * One frame of the play clock. A bow-drill hold uses this same step, so the
+ * clock keeps moving while the coal forms. A non-finite bank is dropped
+ * instead of stalling the hour forever.
+ */
+export function stepPlayClock(
+  state: GameState,
+  bank: number,
+  dtSeconds: number,
+  resting = false,
+): { state: GameState; bank: number } {
+  const dt = Number.isFinite(dtSeconds) && dtSeconds > 0 ? Math.min(0.05, dtSeconds) : 0;
+  let next = Number.isFinite(bank) && bank > 0 ? bank : 0;
+  next += resting ? dt * REST_MINUTES_PER_SECOND : minutesThisFrame(dt);
+  if (!(next >= 0.2)) return { state, bank: next };
+  return { state: tick(state, next), bank: 0 };
 }
 
 export function ambientPerHour(minutes: number): number {
@@ -163,7 +207,8 @@ export function needRegen(state: GameState): number {
 }
 
 export function tick(state: GameState, gameMinutes: number): GameState {
-  if (gameMinutes <= 0) return state;
+  // Infinity never shrinks `left`, so the half-minute loop would not return.
+  if (!Number.isFinite(gameMinutes) || gameMinutes <= 0) return state;
   let warmth = state.warmth;
   let energy = state.energy;
   let health = state.health;

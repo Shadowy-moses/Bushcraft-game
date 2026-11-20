@@ -239,15 +239,21 @@ export function abandonDrill(progress: number): string | null {
 
 /** Holding the bow. Letting go early fails the coal. A full hold makes one. */
 export function stepDrill(progress: number, dt: number, holding: boolean, energy: number): DrillStep {
+  const frame = Number.isFinite(dt) && dt > 0 ? dt : 0;
+  const safeEnergy = Number.isFinite(energy) ? energy : 0;
+  const safeProgress = Number.isFinite(progress) ? progress : 0;
   if (!holding) {
-    if (progress <= 0) return { progress: 0, energy, result: 'going' };
-    return { progress: 0, energy, result: 'fail' };
+    if (safeProgress <= 0) return { progress: 0, energy: safeEnergy, result: 'going' };
+    return { progress: 0, energy: safeEnergy, result: 'fail' };
   }
-  if (energy <= 0) return { progress, energy: 0, result: 'fail' };
-  const next = progress + dt / DRILL_SECONDS;
-  const spent = Math.min(energy, DRILL_STAMINA_PER_SECOND * dt);
-  if (next >= 1) return { progress: 1, energy: energy - spent, result: 'coal' };
-  return { progress: next, energy: energy - spent, result: 'going' };
+  if (safeEnergy <= 0) return { progress: safeProgress, energy: 0, result: 'fail' };
+  // Real frame time only. A jumped game-clock (an hour skip) must not be
+  // replayed here, or one call would spin the coal forward by that whole gap.
+  const step = Math.min(frame, 1);
+  const next = safeProgress + step / DRILL_SECONDS;
+  const spent = Math.min(safeEnergy, DRILL_STAMINA_PER_SECOND * step);
+  if (next >= 1) return { progress: 1, energy: safeEnergy - spent, result: 'coal' };
+  return { progress: next, energy: safeEnergy - spent, result: 'going' };
 }
 
 export function giveCoal(state: GameState): GameState {
